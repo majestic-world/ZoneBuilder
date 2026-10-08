@@ -129,7 +129,7 @@ func (r *Renderer) DrawViewport(rect image.Rectangle, window image.Point, cam *c
 	right, up := cam.Basis()
 	view := lookAt(cam.Position, cam.Forward(), right, up)
 	proj := reversedPerspective(camera.FovY, aspect, camera.Near, cam.Far)
-	r.scene.draw(mul(proj, mul(view, unrealToRender)))
+	r.scene.draw(mul(proj, mul(view, unrealToRender)), scene.ToRender(cam.Position))
 
 	gles.Disable(gles.DEPTH_TEST)
 	gles.ClipControlEXT(gles.LOWER_LEFT_EXT, gles.NEGATIVE_ONE_TO_ONE_EXT)

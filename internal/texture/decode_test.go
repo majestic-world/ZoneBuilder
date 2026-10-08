@@ -95,3 +95,63 @@ func TestRealTexturesDecodeLikeUE2Studio(t *testing.T) {
 		})
 	}
 }
+
+// P8 editor icons of the client's Engine.u decode, through their Palette,
+// to the RGBA UE2-Studio ships in assets/ (copied to testdata/), which were
+// extracted from UnrealEd's own Engine.u. Catches a palette read in the
+// wrong channel order, trusting the palette's stored alpha, and a masked
+// texture whose index 0 is not cut out.
+func TestP8DecodesThroughItsPalette(t *testing.T) {
+	root := os.Getenv("ZB_CLIENT")
+	if root == "" {
+		t.Skip("ZB_CLIENT não definido: testes contra o cliente real pulados")
+	}
+	p, err := l2pkg.NewClient(root).Package("Engine")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"S_Light", "S_Actor", "S_ZoneInfo"} {
+		t.Run(name, func(t *testing.T) {
+			want, err := os.ReadFile("testdata/" + name + ".rgba")
+			if err != nil {
+				t.Fatal(err)
+			}
+			i := p.ExportNamed(name, "Texture")
+			if i < 0 {
+				t.Fatalf("Engine não tem a Texture %s", name)
+			}
+			tex, err := texture.Read(p, i)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tex.Format != texture.FormatP8 {
+				t.Fatalf("formato %d, quero P8", tex.Format)
+			}
+			if tex.PaletteRef <= 0 {
+				t.Fatalf("Palette %d não é um export de Engine", tex.PaletteRef)
+			}
+			if tex.Palette, err = texture.ReadPalette(p, int(tex.PaletteRef-1)); err != nil {
+				t.Fatal(err)
+			}
+			img, err := tex.RGBA()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if img.Width != 32 || img.Height != 32 {
+				t.Fatalf("%d×%d, quero 32×32", img.Width, img.Height)
+			}
+			bad := 0
+			for k := 0; k < len(want); k += 4 {
+				if got := pixel(img.Pix[k : k+4]); got != pixel(want[k:k+4]) {
+					if bad < 4 {
+						t.Errorf("texel %d = %v, quero %v", k/4, got, pixel(want[k:k+4]))
+					}
+					bad++
+				}
+			}
+			if bad > 0 {
+				t.Errorf("%d de %d texels diferentes", bad, len(want)/4)
+			}
+		})
+	}
+}

@@ -84,16 +84,34 @@ func (t Tile) Origin() (x, y float32) {
 }
 
 // RenderMode is how a batch is drawn. The values run in the order the
-// renderer draws their passes (UE2-Studio gpu.rs).
+// renderer draws their passes (UE2-Studio gpu.rs). Every pass but Overlay
+// tests depth GREATER (reversed Z) unless noted; only Opaque and Masked
+// write it. Map materials reach Opaque, Masked, Translucent, Brighten and
+// Water; Modulated, Additive and Overlay exist for the pass order.
 type RenderMode uint8
 
 const (
 	// Opaque writes depth and ignores alpha.
 	Opaque RenderMode = iota
+	// Masked is Opaque with texels of alpha below 0.5 cut out.
+	Masked
 	// TerrainLayer blends a terrain layer over the layers below it by
 	// Mask's R channel times the texture's alpha, depth-tested >= without
 	// writing depth.
 	TerrainLayer
+	// Translucent blends by the texture's alpha.
+	Translucent
+	// Brighten adds the colour over what is drawn (one, one minus source
+	// colour).
+	Brighten
+	// Modulated multiplies what is drawn by the texture.
+	Modulated
+	// Additive adds the colour over what is drawn (one, one).
+	Additive
+	// Water is Translucent with a view-angle sky reflection mixed in.
+	Water
+	// Overlay draws over everything, without depth test.
+	Overlay
 )
 
 // Vertex is one batch vertex.
@@ -104,15 +122,25 @@ type Vertex struct {
 	UV [2]float32
 	// MaskUV is the Mask coordinate, 0..1 across the mask.
 	MaskUV [2]float32
+	// Alpha is the vertex colour's alpha, 0..1, which multiplies the
+	// texture's: 1 except on a mesh whose material takes its opacity from
+	// the vertex colour (the mesh's ColorStream alpha).
+	Alpha float32
 }
 
 // Batch is a run of triangles drawn with one texture, mask and render mode.
+// Outside the terrain, whose layers are a batch each, one Load makes one
+// batch per (Texture, Mask, Mode, OpaqueTexture), shared by every BSP
+// surface and mesh section drawn that way.
 type Batch struct {
 	Mode RenderMode
 	// Texture is the bitmap the batch is drawn with; nil draws it
 	// untextured, UE2-Studio's flat grey. Batches sharing a Texture export
 	// share the pointer.
 	Texture *texture.Texture
+	// OpaqueTexture draws Texture with its alpha taken as 1: the material's
+	// opacity is the vertex colour (UE2-Studio's as_opaque_visual).
+	OpaqueTexture bool
 	// Mask is the coverage bitmap a TerrainLayer batch is blended by (its
 	// R channel); nil covers everything.
 	Mask     *texture.Texture
@@ -174,8 +202,6 @@ type Scene struct {
 	Warnings []string
 	// Actors are the placed static mesh actors, in load order.
 	Actors []MeshActor
-	// meshes is 1 + the index of the static mesh batch, 0 before it exists.
-	meshes int
 }
 
 // ToRender converts an Unreal-basis vector (Z up) to the renderer's Y-up
@@ -194,7 +220,6 @@ func Load(clientRoot string, tiles []Tile) (*Scene, error) {
 	c := l2pkg.NewClient(clientRoot)
 	ld := newLoader(c)
 	s := &Scene{}
-	meshes := meshCache{}
 	for _, t := range tiles {
 		m, err := c.Package(t.Name())
 		if err != nil {
@@ -211,11 +236,13 @@ func Load(clientRoot string, tiles []Tile) (*Scene, error) {
 		if len(s.Terrains) > terrains {
 			footprint = s.Terrains[terrains].footprint()
 		}
-		if err := s.addBSP(m, t, footprint); err != nil {
-			return nil, fmt.Errorf("%s: BSP: %w", t.Name(), err)
-		}
-		if err := s.addMeshes(c, meshes, m, t, footprint); err != nil {
+		// Meshes before BSP, as UE2-Studio adds them: batches are created,
+		// and blended within a pass, in first-use order.
+		if err := s.addMeshes(ld, m, t, footprint); err != nil {
 			return nil, fmt.Errorf("%s: static meshes: %w", t.Name(), err)
+		}
+		if err := s.addBSP(ld, m, t, footprint); err != nil {
+			return nil, fmt.Errorf("%s: BSP: %w", t.Name(), err)
 		}
 	}
 	s.Bounds = geom.EmptyBox()

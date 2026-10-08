@@ -7,11 +7,15 @@ import (
 )
 
 // Drawable reports why the texture cannot be drawn, or nil: its format must
-// be Decodable and mip 0 must hold the bytes its size needs. A texture that
-// fails is drawn untextured, as UE2-Studio does when as_visual is None.
+// be Decodable (a P8 one with its Palette) and mip 0 must hold the bytes its
+// size needs. A texture that fails is drawn untextured, as UE2-Studio does
+// when as_visual is None.
 func (t *Texture) Drawable() error {
 	if !Decodable(t.Format) {
 		return fmt.Errorf("formato %d não decodificado", t.Format)
+	}
+	if t.Format == FormatP8 && len(t.Palette) == 0 {
+		return fmt.Errorf("P8 sem Palette")
 	}
 	if len(t.Mips) == 0 {
 		return fmt.Errorf("textura sem mip")
@@ -58,6 +62,66 @@ func (img *Image) Mipmaps() []*Image {
 		prev = next
 	}
 	return levels
+}
+
+// MaskedMipmaps is Mipmaps for a texture drawn with an alpha cutout: on a
+// copy of img and on every level after it is filtered, each texel of
+// alpha 0 takes the linear-light mean colour of its covered (alpha > 0)
+// 8-neighbours, so filtering across the cut edge does not pull in the
+// colour key's black. Alpha is untouched. Port of UE2-Studio's
+// prepare_map_binary_mask and bleed_transparent_rgb.
+func (img *Image) MaskedMipmaps() []*Image {
+	top := &Image{Width: img.Width, Height: img.Height, Pix: append([]byte(nil), img.Pix...)}
+	bleed(top)
+	levels := []*Image{top}
+	for prev := top; prev.Width > 1 || prev.Height > 1; {
+		next := &Image{Width: max(1, prev.Width/2), Height: max(1, prev.Height/2)}
+		next.Pix = make([]byte, 4*next.Width*next.Height)
+		downsample(prev, next)
+		bleed(next)
+		levels = append(levels, next)
+		prev = next
+	}
+	return levels
+}
+
+// bleed fills the colour of img's alpha-0 texels in place. Reads and writes
+// never overlap: only alpha-0 texels are written, only covered ones read.
+func bleed(img *Image) {
+	lin := srgbToLinear()
+	w, h := img.Width, img.Height
+	for y := range h {
+		for x := range w {
+			o := 4 * (y*w + x)
+			if img.Pix[o+3] != 0 {
+				continue
+			}
+			var sum [3]float32
+			n := 0
+			for dy := -1; dy <= 1; dy++ {
+				for dx := -1; dx <= 1; dx++ {
+					sx, sy := x+dx, y+dy
+					if (dx == 0 && dy == 0) || sx < 0 || sy < 0 || sx >= w || sy >= h {
+						continue
+					}
+					k := 4 * (sy*w + sx)
+					if img.Pix[k+3] == 0 {
+						continue
+					}
+					for ch := range 3 {
+						sum[ch] += lin[img.Pix[k+ch]]
+					}
+					n++
+				}
+			}
+			if n == 0 {
+				continue
+			}
+			for ch := range 3 {
+				img.Pix[o+ch] = linearToSRGB(sum[ch] / float32(n))
+			}
+		}
+	}
 }
 
 func downsample(src, dst *Image) {
