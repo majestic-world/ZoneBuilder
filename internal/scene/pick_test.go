@@ -60,10 +60,10 @@ func TestPickLandsOnGiranServerGround(t *testing.T) {
 func TestPickOffTerrainMisses(t *testing.T) {
 	s := loadTile(t, "22_22")
 	for name, r := range map[string]scene.Ray{
-		"fora do tile":   down(50000, 147000),
-		"para o céu":     {Origin: geom.Vec3{X: 83400, Y: 147943, Z: 0}, Dir: geom.Vec3{Z: 1}},
+		"fora do tile":    down(50000, 147000),
+		"para o céu":      {Origin: geom.Vec3{X: 83400, Y: 147943, Z: 0}, Dir: geom.Vec3{Z: 1}},
 		"horizontal alto": {Origin: geom.Vec3{X: 60000, Y: 147943, Z: 5000}, Dir: geom.Vec3{X: 1}},
-		"direção nula":   {Origin: geom.Vec3{X: 83400, Y: 147943, Z: 0}},
+		"direção nula":    {Origin: geom.Vec3{X: 83400, Y: 147943, Z: 0}},
 	} {
 		if h, ok := s.Pick(r); ok {
 			t.Errorf("%s: acerto inesperado em %v", name, h.Pos)
