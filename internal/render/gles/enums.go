@@ -5,6 +5,9 @@ const (
 	ARRAY_BUFFER         = 0x8892
 	ELEMENT_ARRAY_BUFFER = 0x8893
 	STATIC_DRAW          = 0x88E4
+	DYNAMIC_DRAW         = 0x88E8
+	LINES                = 0x0001
+	POINTS               = 0x0000
 	TRIANGLES            = 0x0004
 	UNSIGNED_BYTE        = 0x1401
 	UNSIGNED_SHORT       = 0x1403
