@@ -21,10 +21,6 @@ import (
 // to close the polygon.
 const closeSlop = 10
 
-// zoneColor is the overlay colour of every zone (linear RGB) until zones get
-// a colour per type.
-var zoneColor = [3]float32{1, 0.35, 0.05}
-
 // zoneEditor turns the zone controls and viewport input into zone.Document
 // commands. Its zone is the selected one, which the tools add to; a tool
 // takes viewport clicks while armed (see shapetool.go). The polygon tool
@@ -240,8 +236,12 @@ func (e *zoneEditor) describeShape(id zone.ZoneID, i int, s zone.Shape) string {
 func (e *zoneEditor) overlay() []render.ZoneShape {
 	var shapes []render.ZoneShape
 	for _, z := range e.doc.Zones() {
+		color := linearColor(z.DisplayColor())
 		for i, s := range z.Shapes {
 			open := e.drawing && z.ID == e.zone && i == e.shape
+			if z.Hidden && !open {
+				continue
+			}
 			current := !e.drawing && z.ID == e.zone && i == e.shape
 			pts := e.shownPoints(z.ID, i, s.Points)
 			zmin, zmax := e.shownZRange(z.ID, i, s)
@@ -250,7 +250,7 @@ func (e *zoneEditor) overlay() []render.ZoneShape {
 				c := zone.RectangleCorners(pts[0], pts[1])
 				pts = c[:]
 			}
-			rs := overlayShape(pts, zmin, zmax, shapeColor(s.Banned))
+			rs := overlayShape(pts, zmin, zmax, shapeColor(s.Banned, color))
 			// A rectangle's edges have no midpoint handles: it stays 2
 			// corners, so no vertex can be inserted into it.
 			rs.Midpoints = current && !rect
@@ -264,6 +264,9 @@ func (e *zoneEditor) overlay() []render.ZoneShape {
 				}
 			}
 			shapes = append(shapes, rs)
+		}
+		if z.Hidden {
+			continue
 		}
 		for _, p := range z.RestartPoints {
 			shapes = append(shapes, restartPin(p, restartColor))

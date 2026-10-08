@@ -198,7 +198,8 @@ func (e *zoneEditor) preview() (render.ZoneShape, bool) {
 	if !e.armed || !e.anchored {
 		return render.ZoneShape{}, false
 	}
-	color := shapeColor(e.banned)
+	z, _ := e.doc.Zone(e.zone)
+	color := shapeColor(e.banned, linearColor(z.DisplayColor()))
 	a := e.anchor
 	if !e.hovering {
 		return render.ZoneShape{Points: []geom.Vec3{serverVec(a)}, Color: color, Marked: 0}, true
@@ -220,12 +221,13 @@ func (e *zoneEditor) preview() (render.ZoneShape, bool) {
 	return rs, true
 }
 
-// shapeColor is the overlay colour of an included or banned shape.
-func shapeColor(banned bool) [3]float32 {
+// shapeColor is the overlay colour of a shape: included, the zone's own
+// colour (linear); banned, the one colour of exclusions.
+func shapeColor(banned bool, included [3]float32) [3]float32 {
 	if banned {
 		return bannedColor
 	}
-	return zoneColor
+	return included
 }
 
 // restartPin is a restart point in the overlay: a vertical line from the

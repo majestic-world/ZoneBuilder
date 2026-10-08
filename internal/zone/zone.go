@@ -84,6 +84,11 @@ type Zone struct {
 	Shapes          []Shape
 	RestartPoints   []Point
 	PKRestartPoints []Point
+	// Hidden keeps the zone out of the viewport; it still compiles.
+	Hidden bool
+	// Color is the zone's viewport colour; the zero Color means its
+	// type's (DisplayColor).
+	Color Color
 }
 
 // Param is one <set name val> of a zone: a known ZoneTemplate parameter
