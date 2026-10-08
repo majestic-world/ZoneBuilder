@@ -16,6 +16,7 @@ import (
 	"gioui.org/app"
 	"gioui.org/font/gofont"
 	"gioui.org/gpu"
+	"gioui.org/io/pointer"
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/unit"
@@ -129,6 +130,7 @@ func run(w *app.Window, client, tile string) error {
 		status   string
 		loads    = make(chan loaded, 1)
 		folders  = make(chan string, 1)
+		probe    cursorProbe
 	)
 	defer func() { g.release() }()
 
@@ -156,6 +158,10 @@ func run(w *app.Window, client, tile string) error {
 					break
 				}
 				fly.Handle(ev, &cam)
+				if p, ok := ev.(pointer.Event); ok && probe.handle(p) && current != nil {
+					probe.click, probe.clickHit = pickAt(current, &cam, p.Position, shell.Viewport.Size())
+					logClick(probe.click, probe.clickHit)
+				}
 			}
 			if shell.Browse.Clicked(gtx) {
 				start := shell.Client.Text()
@@ -198,10 +204,13 @@ func run(w *app.Window, client, tile string) error {
 				cam = camera.ForBounds(renderBox(current, current.Framing))
 				status = r.tile.Name()
 				logScene(r)
+				probe.click = scene.Hit{}
+				probe.clickHit = false
 			default:
 			}
 
 			moving := fly.Step(&cam, gtx.Now)
+			shell.Status = probe.status(current, &cam, shell.Viewport.Size())
 
 			rect := shell.Layout(gtx, panelLines(g, status, current, &cam))
 			if e.Size != size || rect != vpRect {

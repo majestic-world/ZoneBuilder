@@ -5,6 +5,7 @@ import (
 	"image/color"
 
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
@@ -16,14 +17,15 @@ import (
 const PanelWidth = unit.Dp(300)
 
 var (
-	panelBackground = color.NRGBA{R: 0x22, G: 0x24, B: 0x28, A: 0xFF}
-	panelText       = color.NRGBA{R: 0xE0, G: 0xE0, B: 0xE0, A: 0xFF}
-	fieldBackground = color.NRGBA{R: 0x33, G: 0x36, B: 0x3C, A: 0xFF}
+	panelBackground  = color.NRGBA{R: 0x22, G: 0x24, B: 0x28, A: 0xFF}
+	panelText        = color.NRGBA{R: 0xE0, G: 0xE0, B: 0xE0, A: 0xFF}
+	fieldBackground  = color.NRGBA{R: 0x33, G: 0x36, B: 0x3C, A: 0xFF}
+	statusBackground = color.NRGBA{R: 0x18, G: 0x19, B: 0x1C, A: 0xFF}
 )
 
-// Shell arranges the window: the viewport fills the left and a fixed-width
-// panel on the right holds the map controls (client folder, tile) above
-// the info lines.
+// Shell arranges the window: the viewport fills the top left, a
+// fixed-width panel on the right holds the map controls (client folder,
+// tile) above the info lines, and a status bar runs along the bottom.
 type Shell struct {
 	Theme    *material.Theme
 	Viewport Viewport
@@ -34,6 +36,8 @@ type Shell struct {
 	// Tile is the map tile X_Y to open; Open (or Enter in Tile) opens it.
 	Tile widget.Editor
 	Open widget.Clickable
+	// Status is the status bar's text.
+	Status string
 }
 
 // NewShell returns a shell with single-line fields holding client and tile.
@@ -65,23 +69,45 @@ func (s *Shell) OpenRequested(gtx layout.Context) bool {
 // Layout lays the window out and returns the viewport rectangle in window
 // pixels (origin top-left), which is where the renderer must draw. Nothing
 // is painted under the viewport, so the 3D content drawn before Gio's frame
-// shows through. lines fill the side panel below the controls.
+// shows through. lines fill the side panel below the controls; Status
+// fills the status bar.
 func (s *Shell) Layout(gtx layout.Context, lines []string) image.Rectangle {
 	var vp image.Rectangle
-	layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+	layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			// The viewport is the Flex's first child, so its origin is the
-			// window's origin.
-			gtx.Constraints.Min = gtx.Constraints.Max
-			dims := s.Viewport.Layout(gtx)
-			vp = image.Rectangle{Max: s.Viewport.Size()}
-			return dims
+			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					// The viewport is the first child of both Flexes, so
+					// its origin is the window's origin.
+					gtx.Constraints.Min = gtx.Constraints.Max
+					dims := s.Viewport.Layout(gtx)
+					vp = image.Rectangle{Max: s.Viewport.Size()}
+					return dims
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return s.panel(gtx, lines)
+				}),
+			)
 		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return s.panel(gtx, lines)
-		}),
+		layout.Rigid(s.statusBar),
 	)
 	return vp
+}
+
+func (s *Shell) statusBar(gtx layout.Context) layout.Dimensions {
+	macro := op.Record(gtx.Ops)
+	gtx.Constraints.Min.X = gtx.Constraints.Max.X
+	dims := layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			lbl := material.Body2(s.Theme, s.Status)
+			lbl.Color = panelText
+			lbl.MaxLines = 1
+			return lbl.Layout(gtx)
+		})
+	call := macro.Stop()
+	paint.FillShape(gtx.Ops, statusBackground, clip.Rect{Max: dims.Size}.Op())
+	call.Add(gtx.Ops)
+	return dims
 }
 
 func (s *Shell) panel(gtx layout.Context, lines []string) layout.Dimensions {
