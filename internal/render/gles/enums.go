@@ -5,6 +5,9 @@ const (
 	ARRAY_BUFFER         = 0x8892
 	ELEMENT_ARRAY_BUFFER = 0x8893
 	STATIC_DRAW          = 0x88E4
+	DYNAMIC_DRAW         = 0x88E8
+	LINES                = 0x0001
+	POINTS               = 0x0000
 	TRIANGLES            = 0x0004
 	UNSIGNED_BYTE        = 0x1401
 	UNSIGNED_SHORT       = 0x1403
@@ -30,6 +33,9 @@ const (
 	BACK                 = 0x0405
 	GREATER              = 0x0204
 	LESS                 = 0x0201
+	GEQUAL               = 0x0206
+	SRC_ALPHA            = 0x0302
+	ONE_MINUS_SRC_ALPHA  = 0x0303
 	COLOR_BUFFER_BIT     = 0x4000
 	DEPTH_BUFFER_BIT     = 0x0100
 	TEXTURE_2D           = 0x0DE1

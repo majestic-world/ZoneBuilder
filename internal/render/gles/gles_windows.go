@@ -21,7 +21,7 @@ import (
 
 var (
 	pActiveTexture, pAttachShader, pBindBuffer, pBindFramebuffer, pBindRenderbuffer,
-	pBindTexture, pBindVertexArray, pBufferData, pCheckFramebufferStatus,
+	pBindTexture, pBindVertexArray, pBlendFunc, pBufferData, pCheckFramebufferStatus, pDepthMask,
 	pClear, pClearColor, pClearDepthf, pCompileShader, pCompressedTexImage2D, pCreateProgram,
 	pCreateShader, pDeleteBuffers, pDeleteFramebuffers, pDeleteProgram,
 	pDeleteRenderbuffers, pDeleteShader, pDeleteTextures, pDeleteVertexArrays, pDepthFunc,
@@ -61,6 +61,8 @@ func load() error {
 		{"glActiveTexture", &pActiveTexture},
 		{"glAttachShader", &pAttachShader},
 		{"glBindBuffer", &pBindBuffer},
+		{"glBlendFunc", &pBlendFunc},
+		{"glDepthMask", &pDepthMask},
 		{"glBindFramebuffer", &pBindFramebuffer},
 		{"glBindRenderbuffer", &pBindRenderbuffer},
 		{"glBindTexture", &pBindTexture},
@@ -148,12 +150,14 @@ func BindRenderbuffer(target, rb uint32) {
 }
 func BindTexture(target, tex uint32)   { syscall.SyscallN(pBindTexture, uintptr(target), uintptr(tex)) }
 func BindVertexArray(vao uint32)       { syscall.SyscallN(pBindVertexArray, uintptr(vao)) }
+func BlendFunc(src, dst uint32)        { syscall.SyscallN(pBlendFunc, uintptr(src), uintptr(dst)) }
 func Clear(mask uint32)                { syscall.SyscallN(pClear, uintptr(mask)) }
 func ClearDepthf(d float32)            { syscall.SyscallN(pClearDepthf, f2u(d)) }
 func CompileShader(s uint32)           { syscall.SyscallN(pCompileShader, uintptr(s)) }
 func DeleteProgram(p uint32)           { syscall.SyscallN(pDeleteProgram, uintptr(p)) }
 func DeleteShader(s uint32)            { syscall.SyscallN(pDeleteShader, uintptr(s)) }
 func DepthFunc(f uint32)               { syscall.SyscallN(pDepthFunc, uintptr(f)) }
+func DepthMask(write bool)             { syscall.SyscallN(pDepthMask, b2u(write)) }
 func Disable(cap uint32)               { syscall.SyscallN(pDisable, uintptr(cap)) }
 func Enable(cap uint32)                { syscall.SyscallN(pEnable, uintptr(cap)) }
 func EnableVertexAttribArray(i uint32) { syscall.SyscallN(pEnableVertexAttribArray, uintptr(i)) }

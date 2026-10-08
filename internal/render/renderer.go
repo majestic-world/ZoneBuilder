@@ -57,6 +57,7 @@ type Renderer struct {
 	target     viewTarget
 	comp       *compositor
 	scene      *sceneRenderer
+	zones      *zoneOverlay
 }
 
 // New checks the extensions the renderer depends on and creates its GL
@@ -85,6 +86,10 @@ func New(surfaceSRGB bool) (*Renderer, error) {
 		r.Release()
 		return nil, err
 	}
+	if r.zones, err = newZoneOverlay(); err != nil {
+		r.Release()
+		return nil, err
+	}
 	return r, nil
 }
 
@@ -92,6 +97,12 @@ func New(surfaceSRGB bool) (*Renderer, error) {
 // the viewport empty. s is only read during the call.
 func (r *Renderer) SetScene(s *scene.Scene) {
 	r.scene.upload(s)
+}
+
+// SetZones replaces the zone shapes drawn over the scene (nil: none).
+// shapes is only read during the call.
+func (r *Renderer) SetZones(shapes []ZoneShape) {
+	r.zones.set(shapes)
 }
 
 // DrawViewport renders the scene seen by cam into rect (window pixels,
@@ -125,7 +136,9 @@ func (r *Renderer) DrawViewport(rect image.Rectangle, window image.Point, cam *c
 	right, up := cam.Basis()
 	view := lookAt(cam.Position, cam.Forward(), right, up)
 	proj := reversedPerspective(camera.FovY, aspect, camera.Near, cam.Far)
-	r.scene.draw(mul(proj, mul(view, unrealToRender)))
+	viewProj := mul(proj, mul(view, unrealToRender))
+	r.scene.draw(viewProj)
+	r.zones.draw(viewProj, r.scene.rebase)
 
 	gles.Disable(gles.DEPTH_TEST)
 	gles.ClipControlEXT(gles.LOWER_LEFT_EXT, gles.NEGATIVE_ONE_TO_ONE_EXT)
@@ -140,6 +153,9 @@ func (r *Renderer) DrawViewport(rect image.Rectangle, window image.Point, cam *c
 func (r *Renderer) Release() {
 	if r.scene != nil {
 		r.scene.release()
+	}
+	if r.zones != nil {
+		r.zones.release()
 	}
 	if r.comp != nil {
 		r.comp.release()

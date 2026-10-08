@@ -24,8 +24,9 @@ var (
 )
 
 // Shell arranges the window: the viewport fills the top left, a
-// fixed-width panel on the right holds the map controls (client folder,
-// tile) above the info lines, and a status bar runs along the bottom.
+// fixed-width, scrolling panel on the right holds the map controls (client
+// folder, tile), the info lines and the zone controls, and a status bar
+// runs along the bottom.
 type Shell struct {
 	Theme    *material.Theme
 	Viewport Viewport
@@ -36,18 +37,24 @@ type Shell struct {
 	// Tile is the map tile X_Y to open; Open (or Enter in Tile) opens it.
 	Tile widget.Editor
 	Open widget.Clickable
+	// Zone holds the zone controls.
+	Zone ZonePanel
 	// Status is the status bar's text.
 	Status string
+	list   widget.List
 }
 
-// NewShell returns a shell with single-line fields holding client and tile.
-func NewShell(th *material.Theme, client, tile string) *Shell {
+// NewShell returns a shell with single-line fields holding client, tile and
+// the XML output folder.
+func NewShell(th *material.Theme, client, tile, output string) *Shell {
 	s := &Shell{Theme: th}
 	s.Client.SingleLine = true
 	s.Client.SetText(client)
 	s.Tile.SingleLine = true
 	s.Tile.Submit = true
 	s.Tile.SetText(tile)
+	s.Zone.init(output)
+	s.list.Axis = layout.Vertical
 	return s
 }
 
@@ -127,7 +134,12 @@ func (s *Shell) panel(gtx layout.Context, lines []string) layout.Dimensions {
 		for _, l := range lines {
 			children = append(children, layout.Rigid(s.label(l)))
 		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+		children = append(children, s.zonePanel()...)
+		// One list item holding the whole column: the panel scrolls when
+		// the window is too short for it.
+		return material.List(s.Theme, &s.list).Layout(gtx, 1, func(gtx layout.Context, _ int) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+		})
 	})
 	return layout.Dimensions{Size: size}
 }

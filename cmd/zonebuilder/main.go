@@ -16,6 +16,7 @@ import (
 	"gioui.org/app"
 	"gioui.org/font/gofont"
 	"gioui.org/gpu"
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/op"
 	"gioui.org/text"
@@ -33,11 +34,12 @@ import (
 func main() {
 	client := flag.String("client", os.Getenv("ZB_CLIENT"), "pasta do cliente (acima de Maps) que o campo traz preenchida")
 	tile := flag.String("tile", "22_22", "tile que o campo traz preenchido")
+	out := flag.String("out", "", "pasta de saída do XML que o campo traz preenchida")
 	flag.Parse()
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("Zone Builder"), app.Size(unit.Dp(1280), unit.Dp(800)), app.CustomRenderer(true))
-		if err := run(w, *client, *tile); err != nil {
+		if err := run(w, *client, *tile, *out); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
@@ -107,14 +109,14 @@ type loaded struct {
 	took  time.Duration
 }
 
-func run(w *app.Window, client, tile string) error {
+func run(w *app.Window, client, tile, out string) error {
 	// EGL binds the context to an OS thread: keep this goroutine on one.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
-	shell := ui.NewShell(th, client, tile)
+	shell := ui.NewShell(th, client, tile, out)
 
 	var (
 		ops      op.Ops
@@ -130,7 +132,11 @@ func run(w *app.Window, client, tile string) error {
 		status   string
 		loads    = make(chan loaded, 1)
 		folders  = make(chan string, 1)
+		outputs  = make(chan string, 1)
 		probe    cursorProbe
+		zones    = newZoneEditor()
+		// zonesShown is the zones.version the renderer last got.
+		zonesShown = -1
 	)
 	defer func() { g.release() }()
 
@@ -149,7 +155,7 @@ func run(w *app.Window, client, tile string) error {
 				if g, err = newGfx(w, view); err != nil {
 					return err
 				}
-				uploaded = current == nil
+				uploaded, zonesShown = current == nil, -1
 			}
 
 			for {
@@ -158,9 +164,21 @@ func run(w *app.Window, client, tile string) error {
 					break
 				}
 				fly.Handle(ev, &cam)
-				if p, ok := ev.(pointer.Event); ok && probe.handle(p) && current != nil {
-					probe.click, probe.clickHit = pickAt(current, &cam, p.Position, shell.Viewport.Size())
-					logClick(probe.click, probe.clickHit)
+				switch e := ev.(type) {
+				case pointer.Event:
+					if probe.handle(e) && current != nil {
+						probe.click, probe.clickHit = pickAt(current, &cam, e.Position, shell.Viewport.Size())
+						logClick(probe.click, probe.clickHit)
+						if msg := zones.click(current, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit); msg != "" {
+							status = msg
+						}
+					}
+				case key.Event:
+					if (e.Name == key.NameReturn || e.Name == key.NameEnter) && e.State == key.Press {
+						if msg := zones.close(); msg != "" {
+							status = msg
+						}
+					}
 				}
 			}
 			if shell.Browse.Clicked(gtx) {
@@ -176,6 +194,26 @@ func run(w *app.Window, client, tile string) error {
 			case p := <-folders:
 				shell.Client.SetText(p)
 			default:
+			}
+			if shell.Zone.BrowseOutput.Clicked(gtx) {
+				start := shell.Zone.Output.Text()
+				go func() {
+					if p, ok := ui.PickFolder("Pasta de saída do XML de zonas", start); ok {
+						outputs <- p
+						w.Invalidate()
+					}
+				}()
+			}
+			select {
+			case p := <-outputs:
+				shell.Zone.Output.SetText(p)
+			default:
+			}
+			if shell.Zone.CreateRequested(gtx) {
+				status = zones.create(shell.Zone.Name.Text(), shell.Zone.Type())
+			}
+			if shell.Zone.Compile.Clicked(gtx) {
+				status = zones.compile(shell.Zone.Output.Text())
 			}
 			if shell.OpenRequested(gtx) && !loading {
 				t, err := scene.ParseTile(shell.Tile.Text())
@@ -211,6 +249,7 @@ func run(w *app.Window, client, tile string) error {
 
 			moving := fly.Step(&cam, gtx.Now)
 			shell.Status = probe.status(current, &cam, shell.Viewport.Size())
+			shell.Zone.Info = zones.info()
 
 			rect := shell.Layout(gtx, panelLines(g, status, current, &cam))
 			if e.Size != size || rect != vpRect {
@@ -224,6 +263,10 @@ func run(w *app.Window, client, tile string) error {
 			if !uploaded {
 				g.renderer.SetScene(current)
 				uploaded = true
+			}
+			if zonesShown != zones.version {
+				g.renderer.SetZones(zones.overlay())
+				zonesShown = zones.version
 			}
 
 			g.ctx.WaitClient() // lets ANGLE pick up a window resize
