@@ -269,6 +269,9 @@ func logScene(r loaded) {
 			t.Bounds.Min.X, t.Bounds.Max.X, t.Bounds.Min.Y, t.Bounds.Max.Y, t.Bounds.Min.Z, t.Bounds.Max.Z,
 			ox, oy, t.FallbackScale)
 	}
+	if n := len(s.BSPSurfaces); n > 0 {
+		log.Printf("cena: BSP: %s, %s", count(n, "superfície", "superfícies"), count(bspTriangles(s), "triângulo", "triângulos"))
+	}
 	for _, w := range s.Warnings {
 		log.Printf("cena: aviso: %s", w)
 	}
@@ -296,6 +299,9 @@ func panelLines(g *gfx, status string, s *scene.Scene, cam *camera.Camera) []str
 			lines = append(lines, "O mapa não tem terreno")
 		}
 		lines = append(lines, s.Warnings...)
+		if n := len(s.BSPSurfaces); n > 0 {
+			lines = append(lines, fmt.Sprintf("BSP: %s, %s", count(n, "superfície", "superfícies"), count(bspTriangles(s), "triângulo", "triângulos")))
+		}
 		p := worldPosition(s, cam.Position)
 		lines = append(lines, fmt.Sprintf("Câmera: %.0f %.0f %.0f", p.X, p.Y, p.Z))
 	}
@@ -307,6 +313,14 @@ func panelLines(g *gfx, status string, s *scene.Scene, cam *camera.Camera) []str
 		lines = append(lines, g.renderer.Info.Renderer)
 	}
 	return lines
+}
+
+func bspTriangles(s *scene.Scene) int {
+	n := 0
+	for _, sf := range s.BSPSurfaces {
+		n += sf.Count / 3
+	}
+	return n
 }
 
 // count inflects a noun to n ("1 triângulo", "2 triângulos").

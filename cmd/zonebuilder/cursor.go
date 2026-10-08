@@ -81,7 +81,7 @@ func pickAt(s *scene.Scene, cam *camera.Camera, p f32.Point, viewport image.Poin
 
 func describeHit(h scene.Hit, ok bool) string {
 	if !ok {
-		return "fora do terreno"
+		return "nada sob o cursor"
 	}
 	return fmt.Sprintf("%d %d %d (%s)", round(h.Pos.X), round(h.Pos.Y), round(h.Pos.Z), surfaceName(h.Surface))
 }
@@ -94,6 +94,8 @@ func surfaceName(s scene.Surface) string {
 	switch s {
 	case scene.SurfaceTerrain:
 		return "terreno"
+	case scene.SurfaceBSP:
+		return "BSP"
 	}
 	return "superfície desconhecida"
 }

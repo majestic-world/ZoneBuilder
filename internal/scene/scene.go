@@ -130,8 +130,12 @@ type Terrain struct {
 
 // Scene is everything Load built for a set of tiles.
 type Scene struct {
-	Batches  []Batch
-	Terrains []Terrain
+	Batches []Batch
+	// BSPSurfaces are the drawn surfaces of every tile's Level.Model.
+	BSPSurfaces []BSPSurface
+	// pickables are the triangle sets Pick tests besides the terrains.
+	pickables []triangleSet
+	Terrains  []Terrain
 	// Bounds is the world AABB of every batch vertex.
 	Bounds geom.Box
 	// Framing is Bounds with vertex outliers trimmed, what the opening
@@ -168,8 +172,16 @@ func Load(clientRoot string, tiles []Tile) (*Scene, error) {
 			}
 			return nil, err
 		}
+		terrains := len(s.Terrains)
 		if err := s.addTerrain(c, m, t); err != nil {
 			return nil, fmt.Errorf("%s: terreno: %w", t.Name(), err)
+		}
+		var footprint *geom.Box
+		if len(s.Terrains) > terrains {
+			footprint = s.Terrains[terrains].footprint()
+		}
+		if err := s.addBSP(m, t, footprint); err != nil {
+			return nil, fmt.Errorf("%s: BSP: %w", t.Name(), err)
 		}
 	}
 	s.Bounds = geom.EmptyBox()
