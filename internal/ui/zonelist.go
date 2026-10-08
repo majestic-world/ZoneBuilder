@@ -26,12 +26,14 @@ type ZoneRow struct {
 	ID   zone.ZoneID
 	Name string
 	Type zone.Type
-	// Problems is the problem count as shown.
-	Problems string
+	// Problems is how many problems the zone has.
+	Problems int
 	Hidden   bool
 	Color    color.NRGBA
 	// Note is extra state shown after the type ("desenhando").
 	Note string
+	// Compile reports the zone is in the compile selection.
+	Compile bool
 }
 
 // ZoneList is the side panel's zone list: every zone with its name, type
@@ -55,6 +57,9 @@ type ZoneList struct {
 
 	NewName                          widget.Editor
 	Rename, Delete, Duplicate, Color widget.Clickable
+	// CompileAll and CompileNone put every shown zone in, or out of, the
+	// compile selection.
+	CompileAll, CompileNone widget.Clickable
 
 	// GoTo holds the x y z the Go button (or Enter) flies the camera to.
 	GoTo widget.Editor
@@ -67,6 +72,7 @@ type ZoneList struct {
 
 type rowWidgets struct {
 	pick, toggle widget.Clickable
+	compile      widget.Bool
 }
 
 // Zone list requests, returned by ZoneList.Update.
@@ -90,6 +96,12 @@ type (
 	CycleZoneColor struct{ Zone zone.ZoneID }
 	// GoTo: Go (or Enter in the GoTo field) with the field's text.
 	GoTo struct{ Text string }
+	// SelectForCompile: a zone's compile checkbox, or "todas"/"nenhuma"
+	// on the shown zones, changed the compile selection.
+	SelectForCompile struct {
+		Zones   []zone.ZoneID
+		Compile bool
+	}
 )
 
 func (l *ZoneList) init() {
@@ -131,10 +143,29 @@ func (l *ZoneList) Update(gtx layout.Context) []any {
 		if w.toggle.Clicked(gtx) {
 			reqs = append(reqs, HideZones{Zones: []zone.ZoneID{r.ID}, Hidden: !r.Hidden})
 		}
+		w.compile.Value = r.Compile
+		if w.compile.Update(gtx) {
+			reqs = append(reqs, SelectForCompile{Zones: []zone.ZoneID{r.ID}, Compile: w.compile.Value})
+		}
 	}
 	if l.ToggleType.Clicked(gtx) && l.TypeFilter >= 0 {
 		if ids, hide := l.typeToggle(); len(ids) > 0 {
 			reqs = append(reqs, HideZones{Zones: ids, Hidden: hide})
+		}
+	}
+	for _, all := range []bool{true, false} {
+		b := &l.CompileNone
+		if all {
+			b = &l.CompileAll
+		}
+		if b.Clicked(gtx) {
+			var ids []zone.ZoneID
+			for _, r := range l.shown() {
+				ids = append(ids, r.ID)
+			}
+			if len(ids) > 0 {
+				reqs = append(reqs, SelectForCompile{Zones: ids, Compile: all})
+			}
 		}
 	}
 	if submitted(gtx, &l.NewName) || l.Rename.Clicked(gtx) {
@@ -265,6 +296,16 @@ func (s *Shell) zoneList() []layout.FlexChild {
 			children = append(children, layout.Rigid(s.button(&l.ToggleType, text)))
 		}
 	}
+	if len(shown) > 0 {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, s.label("Compilar")),
+				layout.Rigid(s.smallButton(&l.CompileAll, "todas")),
+				layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
+				layout.Rigid(s.smallButton(&l.CompileNone, "nenhuma")),
+			)
+		}))
+	}
 	for _, r := range shown {
 		children = append(children, layout.Rigid(s.zoneRow(r, l.widgets(r.ID), r.ID == l.Selected)))
 	}
@@ -351,12 +392,22 @@ func (s *Shell) zoneRow(r ZoneRow, w *rowWidgets, selected bool) layout.Widget {
 		if r.Hidden {
 			toggle = "Mostrar"
 		}
-		detail := string(r.Type) + " · problemas: " + r.Problems
+		detail := string(r.Type) + " · " + problemCount(r.Problems)
 		if r.Note != "" {
 			detail += " · " + r.Note
 		}
+		detailColor := text
+		if r.Problems > 0 && !r.Hidden {
+			detailColor = errorText
+		}
 		return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					c := material.CheckBox(s.Theme, &w.compile, "")
+					c.Color = text
+					c.IconColor = text
+					return c.Layout(gtx)
+				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return material.Clickable(gtx, &w.pick, func(gtx layout.Context) layout.Dimensions {
 						gtx.Constraints.Min.X = gtx.Constraints.Max.X
@@ -382,7 +433,7 @@ func (s *Shell) zoneRow(r ZoneRow, w *rowWidgets, selected bool) layout.Widget {
 												}),
 												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 													lbl := material.Caption(s.Theme, detail)
-													lbl.Color = text
+													lbl.Color = detailColor
 													lbl.MaxLines = 1
 													return lbl.Layout(gtx)
 												}),
@@ -395,14 +446,19 @@ func (s *Shell) zoneRow(r ZoneRow, w *rowWidgets, selected bool) layout.Widget {
 					})
 				}),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					b := material.Button(s.Theme, &w.toggle, toggle)
-					b.TextSize = unit.Sp(12)
-					b.Inset = layout.UniformInset(unit.Dp(6))
-					return b.Layout(gtx)
-				}),
+				layout.Rigid(s.smallButton(&w.toggle, toggle)),
 			)
 		})
+	}
+}
+
+// smallButton is a compact button for list rows.
+func (s *Shell) smallButton(c *widget.Clickable, text string) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		b := material.Button(s.Theme, c, text)
+		b.TextSize = unit.Sp(12)
+		b.Inset = layout.UniformInset(unit.Dp(6))
+		return b.Layout(gtx)
 	}
 }
 

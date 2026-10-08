@@ -17,11 +17,6 @@ import (
 	"zonebuilder/internal/zone"
 )
 
-// noProblemCount is the problem count the list shows: the Document does
-// not validate zones yet (ticket 16 adds Problems), so there is no number
-// to show.
-const noProblemCount = "—"
-
 // goToHalfSize is half the side of the box a typed x y z is framed as: the
 // camera stands about 3000 units off the point, above the roofs of a town
 // such as Giran, with the ground around the point in view.
@@ -49,15 +44,17 @@ func linearColor(c zone.Color) [3]float32 {
 func (e *zoneEditor) rows() []ui.ZoneRow {
 	zones := e.doc.Zones()
 	rows := make([]ui.ZoneRow, len(zones))
+	counts := e.problemCounts()
 	for i, z := range zones {
 		c := z.DisplayColor()
 		rows[i] = ui.ZoneRow{
 			ID:       z.ID,
 			Name:     z.Name,
 			Type:     z.Type,
-			Problems: noProblemCount,
+			Problems: counts[z.ID],
 			Hidden:   z.Hidden,
 			Color:    color.NRGBA{R: c[0], G: c[1], B: c[2], A: 0xFF},
+			Compile:  !e.leftOut[z.ID],
 		}
 		if e.drawing && z.ID == e.zone {
 			rows[i].Note = "desenhando"
@@ -103,6 +100,8 @@ func (e *zoneEditor) listRequest(req any, s *scene.World, cam *camera.Camera) st
 		return e.cycleColor(r.Zone)
 	case ui.GoTo:
 		return goTo(r.Text, s, cam)
+	case ui.SelectForCompile:
+		return e.selectForCompile(r.Zones, r.Compile)
 	}
 	return ""
 }

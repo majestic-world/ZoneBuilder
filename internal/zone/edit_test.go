@@ -117,6 +117,11 @@ func TestRectangleEditsKeepTwoCorners(t *testing.T) {
 		zone.AddShape{Zone: id, Kind: zone.Rectangle, Banned: true, ZMin: -3700, ZMax: -3100, Points: []zone.Point{
 			{X: 82000, Y: 148000, Z: -3467}, {X: 82800, Y: 148700, Z: -3404},
 		}},
+		// The exclusion needs an included shape to cut from, or the zone
+		// has a problem and does not compile.
+		zone.AddShape{Zone: id, ZMin: -3700, ZMax: -3100, Points: []zone.Point{
+			{X: 81000, Y: 147000}, {X: 84000, Y: 147000}, {X: 84000, Y: 150000},
+		}},
 	)
 	before := compiled(t, d)
 	for _, c := range []zone.Command{
@@ -142,8 +147,9 @@ func TestRectangleEditsKeepTwoCorners(t *testing.T) {
 		t.Errorf("rectangle after moving corner 2 and the shape: %+v", s)
 	}
 	// The banned rectangle still compiles as the 4-corner banned_polygon of
-	// its moved corners.
-	want := []string{"82100 148100 -3690 -3090", "83000 148100 -3690 -3090", "83000 148700 -3690 -3090", "82100 148700 -3690 -3090"}
+	// its moved corners; the included polygon is untouched.
+	want := []string{"82100 148100 -3690 -3090", "83000 148100 -3690 -3090", "83000 148700 -3690 -3090", "82100 148700 -3690 -3090",
+		"81000 147000 -3700 -3100", "84000 147000 -3700 -3100", "84000 150000 -3700 -3100"}
 	if got := coords(t, d); !reflect.DeepEqual(got, want) {
 		t.Errorf("coords %q, want %q", got, want)
 	}

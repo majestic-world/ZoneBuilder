@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"slices"
 	"unsafe"
 
 	"zonebuilder/internal/geom"
@@ -29,7 +30,15 @@ type ZoneShape struct {
 	// Midpoints adds a small handle in the middle of each edge of a
 	// closed shape, where a click inserts a vertex.
 	Midpoints bool
+	// Problem draws the edges in problemColor: the shape's zone has a
+	// problem. BadVertices are the vertices with a problem of their own,
+	// whose handles are filled with problemColor.
+	Problem     bool
+	BadVertices []int
 }
+
+// problemColor is the edge and handle colour that flags a problem.
+var problemColor = [4]float32{1, 0.12, 0.12, 1}
 
 // Overlay alphas and handle sizes in pixels.
 const (
@@ -124,6 +133,9 @@ func (o *zoneOverlay) set(shapes []ZoneShape) {
 		c := s.Color
 		face := [4]float32{c[0], c[1], c[2], prismAlpha}
 		edge := [4]float32{c[0], c[1], c[2], 1}
+		if s.Problem {
+			edge = problemColor
+		}
 		client := make([]geom.Vec3, len(s.Points))
 		for i, p := range s.Points {
 			client[i] = scene.FromServer(p)
@@ -162,6 +174,9 @@ func (o *zoneOverlay) set(shapes []ZoneShape) {
 			pos := [3]float32{p.X, p.Y, p.Z}
 			size, outline := float32(handleSize), float32(handleOutline)
 			fill := [4]float32{1, 1, 1, 1}
+			if slices.Contains(s.BadVertices, i) {
+				fill = problemColor
+			}
 			if i == s.Marked {
 				size, outline = markedSize, markedOutline
 				fill = [4]float32{1, 0.85, 0.1, 1}

@@ -25,7 +25,8 @@ func TestTypeOutsideTheServerEnumCaseCannotBeSet(t *testing.T) {
 		t.Fatalf("type after the rejected SetType = %q, want it unchanged (peace_zone)", z.Type)
 	}
 
-	apply(t, d, zone.SetType{Zone: id, Type: "SIEGE"})
+	// A SIEGE zone needs its residence to compile.
+	apply(t, d, zone.SetType{Zone: id, Type: "SIEGE"}, zone.SetParam{Zone: id, Name: "residence", Value: "5"})
 	files, err := d.Compile(d.ZoneIDs())
 	if err != nil {
 		t.Fatal(err)

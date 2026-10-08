@@ -51,6 +51,8 @@ type Shell struct {
 	Zone ZonePanel
 	// Zones is the zone list.
 	Zones ZoneList
+	// Problems is the problem panel.
+	Problems ProblemList
 	// Props edits the selected zone's type and parameters.
 	Props PropertiesPanel
 	// Edit holds the undo and shape/vertex editing controls.
@@ -161,6 +163,7 @@ func (s *Shell) panel(gtx layout.Context, lines []string) layout.Dimensions {
 		}
 		children = append(children, s.zonePanel()...)
 		children = append(children, s.zoneList()...)
+		children = append(children, s.problemList()...)
 		children = append(children, s.propertiesPanel()...)
 		children = append(children, s.editPanel()...)
 		// One list item holding the whole column: the panel scrolls when

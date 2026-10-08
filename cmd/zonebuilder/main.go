@@ -272,6 +272,11 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 					status = msg
 				}
 			}
+			if i, ok := shell.Problems.Clicked(gtx); ok {
+				if msg := zones.goToProblem(i, tiles.world, &cam); msg != "" {
+					status = msg
+				}
+			}
 			if msg := shell.Props.Update(gtx, zones); msg != "" {
 				status = msg
 			}
@@ -327,6 +332,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			shell.Status = probe.status(tiles.world, &cam, shell.Viewport.Size())
 			shell.Zone.Info = zones.info()
 			shell.Zones.Rows, shell.Zones.Selected = zones.rows(), zones.selectedZone()
+			if rows, ok := zones.problemRows(); ok {
+				shell.Problems.Rows = rows
+			}
 			if msg := zones.panel(gtx, &shell.Edit, tiles.world); msg != "" {
 				status = msg
 			}
