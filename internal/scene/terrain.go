@@ -71,16 +71,8 @@ func (s *Scene) addTerrain(ld *loader, m *l2pkg.Package, t Tile) error {
 	var indices []uint32
 	for y := range h - 1 {
 		for x := range w - 1 {
-			q := x + y*w // stride is the vertex width, not w-1
-			if !bit(ter.QuadVisibility, q) {
-				continue
-			}
-			a, bb := uint32(q), uint32(q+1)
-			cc, d := uint32(q+1+w), uint32(q+w)
-			if !bit(ter.EdgeTurn, q) {
-				indices = append(indices, a, bb, cc, a, cc, d)
-			} else {
-				indices = append(indices, d, a, bb, d, bb, cc)
+			if tris, ok := ter.cell(x, y); ok {
+				indices = append(indices, tris[:]...)
 			}
 		}
 	}
@@ -135,6 +127,22 @@ func layerBitmaps(ld *loader, m *l2pkg.Package, l *unreal.TerrainLayer) (tex, ma
 func (t *Terrain) Vertex(x, y int) geom.Vec3 {
 	g := geom.Vec3{X: float32(x), Y: float32(y), Z: float32(t.Heights[y*t.Width+x])}
 	return g.Mul(t.Scale).Add(t.Position)
+}
+
+// cell returns the two triangles (vertex indices into the terrain batch)
+// of grid cell (x, y), whose corners are samples (x, y) to (x+1, y+1); an
+// invisible quad has none. The split diagonal follows EdgeTurn.
+func (t *Terrain) cell(x, y int) ([6]uint32, bool) {
+	q := x + y*t.Width // stride is the vertex width, not Width-1
+	if !bit(t.QuadVisibility, q) {
+		return [6]uint32{}, false
+	}
+	a, b := uint32(q), uint32(q+1)
+	c, d := uint32(q+1+t.Width), uint32(q+t.Width)
+	if !bit(t.EdgeTurn, q) {
+		return [6]uint32{a, b, c, a, c, d}, true
+	}
+	return [6]uint32{d, a, b, d, b, c}, true
 }
 
 // bit reads bit i of an LSB-first bitmap; past its end reads false, since
