@@ -37,13 +37,13 @@ func parsePose(s string) (cameraPose, error) {
 }
 
 // apply places cam, which lives in s's rebased render space, at the pose.
-func (p *cameraPose) apply(cam *camera.Camera, s *scene.Scene) {
+func (p *cameraPose) apply(cam *camera.Camera, s *scene.World) {
 	cam.Position = scene.ToRender(p.world.Sub(s.Origin))
 	cam.Yaw, cam.Pitch = p.yaw, p.pitch
 }
 
 // formatPose is cam's pose in s as parsePose reads it.
-func formatPose(cam *camera.Camera, s *scene.Scene) string {
+func formatPose(cam *camera.Camera, s *scene.World) string {
 	w := worldPosition(s, cam.Position)
 	return fmt.Sprintf("%g,%g,%g,%g,%g", w.X, w.Y, w.Z, cam.Yaw, cam.Pitch)
 }

@@ -38,6 +38,13 @@ type Shell struct {
 	// Tile is the map tile X_Y to open; Open (or Enter in Tile) opens it.
 	Tile widget.Editor
 	Open widget.Clickable
+	// Neighbours opens the tile with its neighbours, up to 3×3 around the
+	// camera's tile.
+	Neighbours widget.Bool
+	// Loading is the map loading line shown under Open, with Progress (0
+	// to 1) as a bar; "" shows neither.
+	Loading  string
+	Progress float32
 	// Project holds the project controls and the recent maps.
 	Project ProjectPanel
 	// Zone holds the zone controls.
@@ -62,6 +69,7 @@ func NewShell(th *material.Theme, client, tile, output string) *Shell {
 	s.Tile.SingleLine = true
 	s.Tile.Submit = true
 	s.Tile.SetText(tile)
+	s.Neighbours.Value = true
 	s.Zone.init(output)
 	s.Zones.init()
 	s.Props.init()
@@ -141,7 +149,11 @@ func (s *Shell) panel(gtx layout.Context, lines []string) layout.Dimensions {
 			layout.Rigid(s.button(&s.Browse, "Procurar…")),
 			layout.Rigid(s.label("Tile (X_Y ou X_Y_Classic)")),
 			layout.Rigid(s.field(&s.Tile, "22_22")),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, s.checkBox(&s.Neighbours, "Abrir com os vizinhos (até 3×3)"))
+			}),
 			layout.Rigid(s.button(&s.Open, "Abrir")),
+			layout.Rigid(s.loading),
 		)
 		children = append(children, s.recentMaps()...)
 		for _, l := range lines {
@@ -193,4 +205,21 @@ func (s *Shell) button(c *widget.Clickable, text string) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Bottom: unit.Dp(10)}.Layout(gtx, material.Button(s.Theme, c, text).Layout)
 	}
+}
+
+// loading is the map loading line and its progress bar, while Loading is
+// set.
+func (s *Shell) loading(gtx layout.Context) layout.Dimensions {
+	if s.Loading == "" {
+		return layout.Dimensions{}
+	}
+	return layout.Inset{Bottom: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(s.label(s.Loading)),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Constraints.Max.X
+				return material.ProgressBar(s.Theme, s.Progress).Layout(gtx)
+			}),
+		)
+	})
 }

@@ -76,7 +76,7 @@ func (e *zoneEditor) selectedZone() zone.ZoneID {
 
 // listRequest carries out one zone list request; s and cam are the open
 // scene (nil when none) and its camera. It returns the status line.
-func (e *zoneEditor) listRequest(req any, s *scene.Scene, cam *camera.Camera) string {
+func (e *zoneEditor) listRequest(req any, s *scene.World, cam *camera.Camera) string {
 	switch r := req.(type) {
 	case ui.SelectZone:
 		return e.selectZone(r.Zone, s, cam)
@@ -110,7 +110,7 @@ func (e *zoneEditor) listRequest(req any, s *scene.Scene, cam *camera.Camera) st
 // selectZone selects zone id and frames it. While a polygon is being drawn
 // the selection stays on its zone (the tool adds to it), but the camera
 // still goes.
-func (e *zoneEditor) selectZone(id zone.ZoneID, s *scene.Scene, cam *camera.Camera) string {
+func (e *zoneEditor) selectZone(id zone.ZoneID, s *scene.World, cam *camera.Camera) string {
 	z, ok := e.doc.Zone(id)
 	if !ok {
 		return ""
@@ -214,7 +214,7 @@ func (e *zoneEditor) cycleColor(id zone.ZoneID) string {
 
 // goTo frames the server point typed as "x y z" (spaces, commas or
 // semicolons between the numbers). It returns the status line.
-func goTo(text string, s *scene.Scene, cam *camera.Camera) string {
+func goTo(text string, s *scene.World, cam *camera.Camera) string {
 	p, err := parsePoint(text)
 	if err != nil {
 		return err.Error()

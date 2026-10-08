@@ -101,7 +101,7 @@ func (e *zoneEditor) escape() string {
 // rectangleClick takes corner v: the first one anchors the rectangle, the
 // second adds it to the selected zone with a Z range covering the surface
 // under all 4 corners.
-func (e *zoneEditor) rectangleClick(s *scene.Scene, v zone.Point) string {
+func (e *zoneEditor) rectangleClick(s *scene.World, v zone.Point) string {
 	if !e.anchored {
 		e.anchor, e.anchored = v, true
 		e.version++
@@ -132,7 +132,7 @@ func (e *zoneEditor) rectangleClick(s *scene.Scene, v zone.Point) string {
 // circleClick takes the center, then a point on the circle: the circle
 // goes into the selected zone as a polygon of zone.CircleSides vertices,
 // each dropped onto the surface under it.
-func (e *zoneEditor) circleClick(s *scene.Scene, v zone.Point) string {
+func (e *zoneEditor) circleClick(s *scene.World, v zone.Point) string {
 	if !e.anchored {
 		e.anchor, e.anchored = v, true
 		e.version++
@@ -244,7 +244,7 @@ func serverVec(p zone.Point) geom.Vec3 {
 
 // groundZ is the server Z of the surface under x y near height ref (see
 // groundAbove), or ref when nothing is there.
-func groundZ(s *scene.Scene, x, y, ref int) int {
+func groundZ(s *scene.World, x, y, ref int) int {
 	o := scene.FromServer(geom.Vec3{X: float32(x), Y: float32(y), Z: float32(ref + groundAbove)})
 	h, ok := s.Pick(scene.Ray{Origin: o, Dir: geom.Vec3{Z: -1}})
 	if !ok {

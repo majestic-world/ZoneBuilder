@@ -57,7 +57,7 @@ func (c *cursorProbe) handle(e pointer.Event) bool {
 
 // status is the status bar text: the server position under the cursor and
 // at the last click, rounded to whole units as //pos prints them.
-func (c *cursorProbe) status(s *scene.Scene, cam *camera.Camera, viewport image.Point) string {
+func (c *cursorProbe) status(s *scene.World, cam *camera.Camera, viewport image.Point) string {
 	if s == nil {
 		return "Abra um mapa para ver as coordenadas sob o cursor"
 	}
@@ -74,7 +74,7 @@ func (c *cursorProbe) status(s *scene.Scene, cam *camera.Camera, viewport image.
 }
 
 // pickAt picks s through viewport pixel p.
-func pickAt(s *scene.Scene, cam *camera.Camera, p f32.Point, viewport image.Point) (scene.Hit, bool) {
+func pickAt(s *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point) (scene.Hit, bool) {
 	o, d := cam.Ray(p.X, p.Y, viewport.X, viewport.Y)
 	return s.Pick(scene.Ray{Origin: worldPosition(s, o), Dir: scene.ToRender(d)})
 }

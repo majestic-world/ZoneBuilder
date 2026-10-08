@@ -140,7 +140,7 @@ func (e *zoneEditor) redo() string {
 // Delete, and presses and drags on vertex and edge midpoint handles. It
 // reports whether it used ev (which then must not move the camera) and the
 // status line, "" to keep the current one.
-func (e *zoneEditor) viewportEvent(s *scene.Scene, cam *camera.Camera, ev event.Event, vp image.Point) (string, bool) {
+func (e *zoneEditor) viewportEvent(s *scene.World, cam *camera.Camera, ev event.Event, vp image.Point) (string, bool) {
 	switch ev := ev.(type) {
 	case key.Event:
 		if ev.State != key.Press {
@@ -171,7 +171,7 @@ func (e *zoneEditor) viewportEvent(s *scene.Scene, cam *camera.Camera, ev event.
 // press grabs the vertex handle under ev (Ctrl grabs its whole shape) or,
 // on the current shape's edge midpoint handle, inserts a vertex there and
 // grabs it.
-func (e *zoneEditor) press(s *scene.Scene, cam *camera.Camera, ev pointer.Event, vp image.Point) (string, bool) {
+func (e *zoneEditor) press(s *scene.World, cam *camera.Camera, ev pointer.Event, vp image.Point) (string, bool) {
 	best := float32(grabSlop)
 	var hit *vertexRef
 	for _, z := range e.doc.Zones() {
@@ -210,7 +210,7 @@ func (e *zoneEditor) press(s *scene.Scene, cam *camera.Camera, ev pointer.Event,
 
 // dragEvent follows a drag: the grabbed vertex snaps to the surface under
 // the cursor, and the release applies the move as one command.
-func (e *zoneEditor) dragEvent(s *scene.Scene, cam *camera.Camera, ev pointer.Event, vp image.Point) string {
+func (e *zoneEditor) dragEvent(s *scene.World, cam *camera.Camera, ev pointer.Event, vp image.Point) string {
 	switch ev.Kind {
 	case pointer.Drag:
 		if !e.drag.moved && dist(ev.Position, e.drag.press) <= clickSlop {
@@ -333,7 +333,7 @@ func (e *zoneEditor) removeVertex() string {
 // groundZRange sets the current shape's Z range from the ground under its
 // vertices (groundUnder), then the margin below the lowest and above the
 // highest ground.
-func (e *zoneEditor) groundZRange(s *scene.Scene) string {
+func (e *zoneEditor) groundZRange(s *scene.World) string {
 	_, sh, ok := e.currentShape()
 	switch {
 	case s == nil:
@@ -378,7 +378,7 @@ func (e *zoneEditor) groundZRange(s *scene.Scene) string {
 // vertex ended up under the surface, after a move onto higher ground), the
 // nearest surface straight up, the ground it is buried under. Picking is
 // two-sided, so that surface is hit from beneath.
-func groundUnder(s *scene.Scene, p zone.Point) (int, bool) {
+func groundUnder(s *scene.World, p zone.Point) (int, bool) {
 	o := scene.FromServer(geom.Vec3{X: float32(p.X), Y: float32(p.Y), Z: float32(p.Z + groundProbe)})
 	for _, dir := range []float32{-1, 1} {
 		if h, ok := s.Pick(scene.Ray{Origin: o, Dir: geom.Vec3{Z: dir}}); ok {
@@ -391,7 +391,7 @@ func groundUnder(s *scene.Scene, p zone.Point) (int, bool) {
 // panel handles the edit panel's requests and fills its fields and titles
 // for the current shape and selected vertex. It returns the status line,
 // "" to keep the current one.
-func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.Scene) string {
+func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World) string {
 	var msg string
 	if p.Undo.Clicked(gtx) {
 		msg = e.undo()
@@ -525,7 +525,7 @@ func midpoint(pts []zone.Point, i int) zone.Point {
 
 // screenDist is how far, in pixels, server point p projects from viewport
 // pixel at; ok is false when p is behind the camera.
-func screenDist(s *scene.Scene, cam *camera.Camera, p zone.Point, at f32.Point, vp image.Point) (float32, bool) {
+func screenDist(s *scene.World, cam *camera.Camera, p zone.Point, at f32.Point, vp image.Point) (float32, bool) {
 	x, y, ok := cam.Project(renderPoint(s, p), vp.X, vp.Y)
 	if !ok {
 		return 0, false

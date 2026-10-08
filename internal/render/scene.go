@@ -2,6 +2,9 @@ package render
 
 import (
 	"fmt"
+	"image"
+	"slices"
+	"time"
 	"unsafe"
 
 	"zonebuilder/internal/geom"
@@ -104,16 +107,51 @@ var passes = [...]scene.RenderMode{
 	scene.Brighten, scene.Modulated, scene.Additive, scene.Water, scene.Overlay,
 }
 
-// gpuBatch is one scene batch uploaded to the GPU.
+// gpuScene is one scene on the GPU, or on its way there: prep holds what is
+// left to upload, one unit (texture, index set, batch) at a time, and the
+// scene is drawn once prep is nil.
+type gpuScene struct {
+	scene *scene.Scene
+	prep  *Prepared
+	// done counts the upload units finished.
+	done     int
+	sets     []gpuSet
+	batches  []gpuBatch
+	textures []textureKey
+	// ids are the GL textures of the keys acquired so far.
+	ids map[textureKey]uint32
+}
+
+// gpuSet is an index set on the GPU: its sectors, and the index ranges of
+// the visible ones this frame, adjacent ranges merged.
+type gpuSet struct {
+	ibo     uint32
+	sectors []sector
+	visible []indexRange
+}
+
+type indexRange struct{ first, count int }
+
+// gpuBatch is one scene batch on the GPU; its indices are those of its set.
 type gpuBatch struct {
 	mode          scene.RenderMode
 	opaque        bool
-	vao, vbo, ibo uint32
-	count         int
+	vao, vbo      uint32
+	set           int
 	texture, mask uint32
 }
 
-// sceneRenderer draws a scene's batches.
+// DrawStats count what the last frame drew.
+type DrawStats struct {
+	// Draws is the number of draw calls, Triangles what they drew.
+	Draws, Triangles int
+	// Sectors is the number of sectors of the uploaded scenes, Culled
+	// those outside the view frustum.
+	Sectors, Culled int
+}
+
+// sceneRenderer draws the scenes on the GPU, in the order they were added,
+// and uploads the queued ones a few units per frame.
 type sceneRenderer struct {
 	prog     uint32
 	viewProj int32
@@ -122,9 +160,15 @@ type sceneRenderer struct {
 	opaque   int32
 	eye      int32
 	textures *textureCache
-	batches  []gpuBatch
-	// rebase is the scene's origin, subtracted in the vertex shader.
-	rebase [3]float32
+	scenes   []*gpuScene
+	// warm is the 1×1 target of warmUp.
+	warm viewTarget
+	// dying are removed scenes whose GL resources upload frees, a step at
+	// a time.
+	dying []*gpuScene
+	// rebase is the world's origin, subtracted in the vertex shader.
+	rebase geom.Vec3
+	stats  DrawStats
 }
 
 func newSceneRenderer(anisotropic bool) (*sceneRenderer, error) {
@@ -147,94 +191,289 @@ func newSceneRenderer(anisotropic bool) (*sceneRenderer, error) {
 	}, nil
 }
 
-// upload replaces the GPU copy of the scene with s (nil: nothing drawn).
-func (sr *sceneRenderer) upload(s *scene.Scene) {
-	sr.releaseBatches()
-	if s == nil {
-		return
+// add queues p's scene for upload.
+func (sr *sceneRenderer) add(p *Prepared) {
+	sr.scenes = append(sr.scenes, &gpuScene{scene: p.scene, prep: p, ids: map[textureKey]uint32{}})
+}
+
+// remove stops drawing s and queues its GL resources, uploaded or not, for
+// freeing by upload.
+func (sr *sceneRenderer) remove(s *scene.Scene) {
+	sr.scenes = slices.DeleteFunc(sr.scenes, func(gs *gpuScene) bool {
+		if gs.scene != s {
+			return false
+		}
+		gs.scene, gs.prep = nil, nil
+		sr.dying = append(sr.dying, gs)
+		return true
+	})
+}
+
+// upload frees the removed scenes and then works through the queued ones,
+// in order, until budget has passed (at least one step per call: freeing a
+// whole tile at once takes tens of milliseconds too). It returns the scenes
+// it finished and whether work remains.
+func (sr *sceneRenderer) upload(budget time.Duration) (finished []*scene.Scene, more bool) {
+	start := time.Now()
+	stepped := false
+	for len(sr.dying) > 0 {
+		if stepped && time.Since(start) >= budget {
+			return nil, true
+		}
+		if sr.dying[0].releaseStep(sr.textures) {
+			sr.dying = sr.dying[1:]
+		}
+		stepped = true
 	}
-	sr.rebase = [3]float32{s.Origin.X, s.Origin.Y, s.Origin.Z}
-	stride := int(unsafe.Sizeof(scene.Vertex{}))
-	for i := range s.Batches {
-		b := &s.Batches[i]
-		if len(b.Indices) == 0 {
-			continue
+	for _, gs := range sr.scenes {
+		for gs.prep != nil {
+			if stepped && time.Since(start) >= budget {
+				return finished, true
+			}
+			sr.step(gs)
+			stepped = true
+			if gs.prep == nil {
+				finished = append(finished, gs.scene)
+			}
 		}
-		g := gpuBatch{
-			mode:    b.Mode,
-			opaque:  b.OpaqueTexture,
-			count:   len(b.Indices),
-			texture: sr.textures.material(b.Texture, b.Mode == scene.Masked && !b.OpaqueTexture),
-			mask:    sr.textures.mask(b.Mask),
+	}
+	return finished, false
+}
+
+// progress is how much of s is on the GPU, 0 to 1; false when s is not
+// queued nor uploaded.
+func (sr *sceneRenderer) progress(s *scene.Scene) (float32, bool) {
+	for _, gs := range sr.scenes {
+		if gs.scene == s {
+			if gs.prep == nil {
+				return 1, true
+			}
+			return float32(gs.done) / float32(gs.prep.units()), true
 		}
-		g.vao = gles.GenVertexArray()
-		gles.BindVertexArray(g.vao)
-		g.vbo = gles.GenBuffer()
-		gles.BindBuffer(gles.ARRAY_BUFFER, g.vbo)
-		gles.BufferData(gles.ARRAY_BUFFER, b.Vertices, gles.STATIC_DRAW)
-		g.ibo = gles.GenBuffer()
+	}
+	return 0, false
+}
+
+// units is the number of upload steps p takes.
+func (p *Prepared) units() int { return len(p.textures) + len(p.sets) + len(p.batches) }
+
+// step uploads the next unit of gs: its textures first, then its index
+// sets, then its batches, each batch warmed up (warmUp) as it lands.
+func (sr *sceneRenderer) step(gs *gpuScene) {
+	p := gs.prep
+	switch i := gs.done; {
+	case i < len(p.textures):
+		pt := &p.textures[i]
+		sr.textures.upload(pt)
+		gs.ids[pt.key] = sr.textures.acquire(pt.key)
+		gs.textures = append(gs.textures, pt.key)
+	case i < len(p.textures)+len(p.sets):
+		set := &p.sets[i-len(p.textures)]
+		g := gpuSet{ibo: gles.GenBuffer(), sectors: set.sectors}
 		gles.BindBuffer(gles.ELEMENT_ARRAY_BUFFER, g.ibo)
-		gles.BufferData(gles.ELEMENT_ARRAY_BUFFER, b.Indices, gles.STATIC_DRAW)
-		gles.EnableVertexAttribArray(0)
-		gles.VertexAttribPointer(0, 3, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.Pos))
-		gles.EnableVertexAttribArray(1)
-		gles.VertexAttribPointer(1, 2, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.UV))
-		gles.EnableVertexAttribArray(2)
-		gles.VertexAttribPointer(2, 2, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.MaskUV))
-		gles.EnableVertexAttribArray(3)
-		gles.VertexAttribPointer(3, 1, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.Alpha))
-		gles.BindVertexArray(0)
-		gles.BindBuffer(gles.ARRAY_BUFFER, 0)
+		gles.BufferData(gles.ELEMENT_ARRAY_BUFFER, set.indices, gles.STATIC_DRAW)
 		gles.BindBuffer(gles.ELEMENT_ARRAY_BUFFER, 0)
-		sr.batches = append(sr.batches, g)
+		gs.sets = append(gs.sets, g)
+	default:
+		b := gs.uploadBatch(sr.textures, &p.batches[i-len(p.textures)-len(p.sets)])
+		gs.batches = append(gs.batches, b)
+		sr.warmUp(b)
+	}
+	gs.done++
+	if gs.done == p.units() {
+		gs.prep = nil
 	}
 }
 
-// draw renders the batches with viewProj (rebased Unreal basis to clip)
-// seen from eye (rebased, Unreal basis), one pass per render mode in
-// UE2-Studio's order, each pass in scene order (a terrain's layers blend in
-// TerrainInfo order). The depth test is on and GREATER when called;
-// blending and depth writes are left as found (off and on).
-func (sr *sceneRenderer) draw(viewProj mat4, eye geom.Vec3) {
-	if len(sr.batches) == 0 {
+// warmUp draws one triangle of b into a 1×1 target. ANGLE creates the
+// Direct3D side of a buffer or texture at its first draw, tens of
+// milliseconds for a whole tile: drawn here, that cost lands in the upload
+// step, within the frame's upload budget, and not in the first frame that
+// shows the tile. Called outside DrawViewport, with no depth test or
+// blending on; it leaves framebuffer, program, textures and vertex array
+// unbound.
+func (sr *sceneRenderer) warmUp(b gpuBatch) {
+	if err := sr.warm.bind(image.Pt(1, 1)); err != nil {
+		gles.BindFramebuffer(gles.FRAMEBUFFER, 0)
 		return
 	}
+	gles.Viewport(0, 0, 1, 1)
+	gles.UseProgram(sr.prog)
+	gles.ActiveTexture(gles.TEXTURE1)
+	gles.BindTexture(gles.TEXTURE_2D, b.mask)
+	gles.ActiveTexture(gles.TEXTURE0)
+	gles.BindTexture(gles.TEXTURE_2D, b.texture)
+	gles.BindVertexArray(b.vao)
+	gles.DrawElements(gles.TRIANGLES, 3, gles.UNSIGNED_INT, 0)
+	gles.BindVertexArray(0)
+	gles.BindTexture(gles.TEXTURE_2D, 0)
+	gles.ActiveTexture(gles.TEXTURE1)
+	gles.BindTexture(gles.TEXTURE_2D, 0)
+	gles.ActiveTexture(gles.TEXTURE0)
+	gles.UseProgram(0)
+	gles.BindFramebuffer(gles.FRAMEBUFFER, 0)
+}
+
+// uploadBatch puts b's vertices on the GPU, in a vertex array that also
+// binds its index set. A texture key the scene did not acquire is a
+// stand-in.
+func (gs *gpuScene) uploadBatch(tc *textureCache, b *preparedBatch) gpuBatch {
+	texture, ok := gs.ids[b.texture]
+	if !ok {
+		texture = tc.acquire(b.texture)
+	}
+	mask, ok := gs.ids[b.mask]
+	if !ok {
+		mask = tc.acquire(b.mask)
+	}
+	g := gpuBatch{mode: b.mode, opaque: b.opaque, set: b.set, texture: texture, mask: mask}
+	stride := int(unsafe.Sizeof(scene.Vertex{}))
+	g.vao = gles.GenVertexArray()
+	gles.BindVertexArray(g.vao)
+	g.vbo = gles.GenBuffer()
+	gles.BindBuffer(gles.ARRAY_BUFFER, g.vbo)
+	gles.BufferData(gles.ARRAY_BUFFER, b.vertices, gles.STATIC_DRAW)
+	gles.BindBuffer(gles.ELEMENT_ARRAY_BUFFER, gs.sets[b.set].ibo)
+	gles.EnableVertexAttribArray(0)
+	gles.VertexAttribPointer(0, 3, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.Pos))
+	gles.EnableVertexAttribArray(1)
+	gles.VertexAttribPointer(1, 2, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.UV))
+	gles.EnableVertexAttribArray(2)
+	gles.VertexAttribPointer(2, 2, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.MaskUV))
+	gles.EnableVertexAttribArray(3)
+	gles.VertexAttribPointer(3, 1, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.Alpha))
+	gles.BindVertexArray(0)
+	gles.BindBuffer(gles.ARRAY_BUFFER, 0)
+	gles.BindBuffer(gles.ELEMENT_ARRAY_BUFFER, 0)
+	return g
+}
+
+// releaseStep frees part of gs: one batch's buffers, or once they are all
+// gone its index sets, then one texture reference at a time. It reports
+// whether gs is all freed.
+func (gs *gpuScene) releaseStep(tc *textureCache) bool {
+	if n := len(gs.batches); n > 0 {
+		b := gs.batches[n-1]
+		gles.DeleteVertexArray(b.vao)
+		gles.DeleteBuffer(b.vbo)
+		gs.batches = gs.batches[:n-1]
+		return false
+	}
+	if len(gs.sets) > 0 {
+		for _, s := range gs.sets {
+			gles.DeleteBuffer(s.ibo)
+		}
+		gs.sets = nil
+		return false
+	}
+	if n := len(gs.textures); n > 0 {
+		tc.drop(gs.textures[n-1])
+		gs.textures = gs.textures[:n-1]
+		return false
+	}
+	gs.ids = nil
+	return true
+}
+
+// cull finds the sectors of every uploaded scene that the frustum of
+// viewProj (rebased Unreal basis to clip) can see.
+func (sr *sceneRenderer) cull(viewProj mat4) {
+	f := newFrustum(viewProj)
+	for _, gs := range sr.scenes {
+		if gs.prep != nil {
+			continue
+		}
+		for i := range gs.sets {
+			set := &gs.sets[i]
+			set.visible = set.visible[:0]
+			for _, sec := range set.sectors {
+				sr.stats.Sectors++
+				box := geom.Box{Min: sec.bounds.Min.Sub(sr.rebase), Max: sec.bounds.Max.Sub(sr.rebase)}
+				if !f.sees(box) {
+					sr.stats.Culled++
+					continue
+				}
+				if n := len(set.visible); n > 0 && set.visible[n-1].first+set.visible[n-1].count == sec.first {
+					set.visible[n-1].count += sec.count
+					continue
+				}
+				set.visible = append(set.visible, indexRange{sec.first, sec.count})
+			}
+		}
+	}
+}
+
+// draw renders the uploaded scenes with viewProj (rebased Unreal basis to
+// clip) seen from eye (rebased, Unreal basis), one pass per render mode in
+// UE2-Studio's order, each pass in scene and batch order (a terrain's
+// layers blend in TerrainInfo order), each batch only over its visible
+// sectors. The depth test is on and GREATER when called; blending and
+// depth writes are left as found (off and on).
+func (sr *sceneRenderer) draw(viewProj mat4, eye geom.Vec3) {
+	sr.stats = DrawStats{}
+	sr.cull(viewProj)
 	gles.UseProgram(sr.prog)
 	gles.UniformMatrix4fv(sr.viewProj, (*[16]float32)(&viewProj))
-	gles.Uniform3f(sr.origin, sr.rebase[0], sr.rebase[1], sr.rebase[2])
+	gles.Uniform3f(sr.origin, sr.rebase.X, sr.rebase.Y, sr.rebase.Z)
 	gles.Uniform3f(sr.eye, eye.X, eye.Y, eye.Z)
+	// What is bound already, to skip the calls that would change nothing.
+	var texture, mask uint32
+	opaque := int32(-1)
 	for _, mode := range passes {
-		drawn := false
-		for _, b := range sr.batches {
-			if b.mode != mode {
+		started := false
+		for _, gs := range sr.scenes {
+			if gs.prep != nil {
 				continue
 			}
-			if !drawn {
-				passState(mode)
-				gles.Uniform1i(sr.mode, int32(mode))
-				drawn = true
+			for _, b := range gs.batches {
+				visible := gs.sets[b.set].visible
+				if b.mode != mode || len(visible) == 0 {
+					continue
+				}
+				if !started {
+					passState(mode)
+					gles.Uniform1i(sr.mode, int32(mode))
+					started = true
+				}
+				if o := boolInt(b.opaque); o != opaque {
+					gles.Uniform1i(sr.opaque, o)
+					opaque = o
+				}
+				if b.texture != texture {
+					gles.ActiveTexture(gles.TEXTURE0)
+					gles.BindTexture(gles.TEXTURE_2D, b.texture)
+					texture = b.texture
+				}
+				if b.mask != mask {
+					gles.ActiveTexture(gles.TEXTURE1)
+					gles.BindTexture(gles.TEXTURE_2D, b.mask)
+					mask = b.mask
+				}
+				gles.BindVertexArray(b.vao)
+				for _, r := range visible {
+					gles.DrawElements(gles.TRIANGLES, r.count, gles.UNSIGNED_INT, uintptr(r.first*4))
+					sr.stats.Draws++
+					sr.stats.Triangles += r.count / 3
+				}
 			}
-			opaque := int32(0)
-			if b.opaque {
-				opaque = 1
-			}
-			gles.Uniform1i(sr.opaque, opaque)
-			gles.ActiveTexture(gles.TEXTURE0)
-			gles.BindTexture(gles.TEXTURE_2D, b.texture)
-			gles.ActiveTexture(gles.TEXTURE1)
-			gles.BindTexture(gles.TEXTURE_2D, b.mask)
-			gles.BindVertexArray(b.vao)
-			gles.DrawElements(gles.TRIANGLES, b.count, gles.UNSIGNED_INT, 0)
 		}
 	}
 	gles.Disable(gles.BLEND)
 	gles.DepthMask(true)
 	gles.DepthFunc(gles.GREATER)
+	gles.ActiveTexture(gles.TEXTURE1)
 	gles.BindTexture(gles.TEXTURE_2D, 0)
 	gles.ActiveTexture(gles.TEXTURE0)
 	gles.BindTexture(gles.TEXTURE_2D, 0)
 	gles.BindVertexArray(0)
 	gles.UseProgram(0)
+}
+
+func boolInt(b bool) int32 {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // passState sets the depth and blend state of mode's pass, UE2-Studio's
@@ -272,18 +511,14 @@ func passState(mode scene.RenderMode) {
 	}
 }
 
-func (sr *sceneRenderer) releaseBatches() {
-	for _, b := range sr.batches {
-		gles.DeleteVertexArray(b.vao)
-		gles.DeleteBuffer(b.vbo)
-		gles.DeleteBuffer(b.ibo)
-	}
-	sr.batches = sr.batches[:0]
-	sr.textures.clear()
-}
-
+// release frees every scene's GL resources and the program.
 func (sr *sceneRenderer) release() {
-	sr.releaseBatches()
+	for _, gs := range append(sr.scenes, sr.dying...) {
+		for !gs.releaseStep(sr.textures) {
+		}
+	}
+	sr.scenes, sr.dying = nil, nil
 	sr.textures.release()
+	sr.warm.release()
 	gles.DeleteProgram(sr.prog)
 }
