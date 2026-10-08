@@ -26,8 +26,8 @@ type ZoneRow struct {
 	ID   zone.ZoneID
 	Name string
 	Type zone.Type
-	// Problems is the problem count as shown.
-	Problems string
+	// Problems is how many problems the zone has.
+	Problems int
 	Hidden   bool
 	Color    color.NRGBA
 	// Note is extra state shown after the type ("desenhando").
@@ -351,9 +351,13 @@ func (s *Shell) zoneRow(r ZoneRow, w *rowWidgets, selected bool) layout.Widget {
 		if r.Hidden {
 			toggle = "Mostrar"
 		}
-		detail := string(r.Type) + " · problemas: " + r.Problems
+		detail := string(r.Type) + " · " + problemCount(r.Problems)
 		if r.Note != "" {
 			detail += " · " + r.Note
+		}
+		detailColor := text
+		if r.Problems > 0 && !r.Hidden {
+			detailColor = errorText
 		}
 		return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
@@ -382,7 +386,7 @@ func (s *Shell) zoneRow(r ZoneRow, w *rowWidgets, selected bool) layout.Widget {
 												}),
 												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 													lbl := material.Caption(s.Theme, detail)
-													lbl.Color = text
+													lbl.Color = detailColor
 													lbl.MaxLines = 1
 													return lbl.Layout(gtx)
 												}),
