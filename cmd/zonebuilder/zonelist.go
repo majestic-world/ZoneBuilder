@@ -54,6 +54,7 @@ func (e *zoneEditor) rows() []ui.ZoneRow {
 			Problems: counts[z.ID],
 			Hidden:   z.Hidden,
 			Color:    color.NRGBA{R: c[0], G: c[1], B: c[2], A: 0xFF},
+			Compile:  !e.leftOut[z.ID],
 		}
 		if e.drawing && z.ID == e.zone {
 			rows[i].Note = "desenhando"
@@ -99,6 +100,8 @@ func (e *zoneEditor) listRequest(req any, s *scene.Scene, cam *camera.Camera) st
 		return e.cycleColor(r.Zone)
 	case ui.GoTo:
 		return goTo(r.Text, s, cam)
+	case ui.SelectForCompile:
+		return e.selectForCompile(r.Zones, r.Compile)
 	}
 	return ""
 }

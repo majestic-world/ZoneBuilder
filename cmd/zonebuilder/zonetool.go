@@ -52,6 +52,11 @@ type zoneEditor struct {
 	// built for version problemsAt-1 (0: never built).
 	problems   []zone.Problem
 	problemsAt int
+	// left out are the zones unchecked for compilation; every other zone,
+	// new ones too, is in the compile selection.
+	leftOut map[zone.ZoneID]bool
+	// written are the files the last compilation wrote.
+	written []string
 	editState
 }
 
@@ -165,18 +170,50 @@ func (e *zoneEditor) close() string {
 	return fmt.Sprintf("%s em %s: %s, z %d … %d", what, z.Name, count(len(pts), "vértice", "vértices"), zmin, zmax)
 }
 
-// compile writes every zone's XML into dir. It returns the status line.
+// selection is the zones checked for compilation, in creation order.
+func (e *zoneEditor) selection() []zone.ZoneID {
+	var ids []zone.ZoneID
+	for _, id := range e.doc.ZoneIDs() {
+		if !e.leftOut[id] {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// selectForCompile puts ids in, or out of, the compile selection. It
+// returns the status line.
+func (e *zoneEditor) selectForCompile(ids []zone.ZoneID, in bool) string {
+	if e.leftOut == nil {
+		e.leftOut = map[zone.ZoneID]bool{}
+	}
+	for _, id := range ids {
+		if in {
+			delete(e.leftOut, id)
+		} else {
+			e.leftOut[id] = true
+		}
+	}
+	n := len(e.selection())
+	return fmt.Sprintf("%s de %d para compilar", count(n, "zona selecionada", "zonas selecionadas"), len(e.doc.Zones()))
+}
+
+// compile writes the selected zones' XML into dir and keeps the written
+// paths for the panel. It returns the status line.
 func (e *zoneEditor) compile(dir string) string {
 	dir = strings.TrimSpace(dir)
+	sel := e.selection()
 	switch {
 	case e.drawing:
 		return "Feche o polígono antes de compilar"
 	case len(e.doc.Zones()) == 0:
 		return "Não há zonas para compilar"
+	case len(sel) == 0:
+		return "Nenhuma zona selecionada para compilar"
 	case dir == "":
 		return "Escolha a pasta de saída do XML"
 	}
-	files, err := e.doc.Compile(e.doc.ZoneIDs())
+	files, err := e.doc.Compile(sel)
 	if b, ok := errors.AsType[*zone.BlockedError](err); ok {
 		return e.blockedStatus(b)
 	}
@@ -184,6 +221,7 @@ func (e *zoneEditor) compile(dir string) string {
 		return err.Error()
 	}
 	paths, err := zonexml.Write(dir, files)
+	e.written = paths
 	for _, p := range paths {
 		log.Printf("zona: XML gravado em %s", p)
 	}
@@ -191,7 +229,8 @@ func (e *zoneEditor) compile(dir string) string {
 		log.Printf("zona: compilação: %v", err)
 		return err.Error()
 	}
-	return "XML gravado: " + strings.Join(paths, ", ")
+	log.Printf("zona: compiladas %s em %s", count(len(sel), "zona", "zonas"), count(len(paths), "arquivo", "arquivos"))
+	return fmt.Sprintf("Compiladas %s: %s (caminhos no painel, abaixo de Compilar)", count(len(sel), "zona", "zonas"), count(len(paths), "arquivo gravado", "arquivos gravados"))
 }
 
 // info is the zone panel's lines: the zones, their shapes and restart
@@ -217,6 +256,12 @@ func (e *zoneEditor) info() []string {
 	}
 	if hint := e.hint(); hint != "" {
 		lines = append(lines, hint)
+	}
+	if len(e.written) > 0 {
+		lines = append(lines, "Última compilação gravou:")
+		for _, p := range e.written {
+			lines = append(lines, "   "+p)
+		}
 	}
 	return lines
 }
