@@ -141,7 +141,7 @@ func (r *Renderer) DrawViewport(rect image.Rectangle, window image.Point, cam *c
 	view := lookAt(cam.Position, cam.Forward(), right, up)
 	proj := reversedPerspective(camera.FovY, aspect, camera.Near, cam.Far)
 	viewProj := mul(proj, mul(view, unrealToRender))
-	r.scene.draw(viewProj)
+	r.scene.draw(viewProj, scene.ToRender(cam.Position))
 	r.zones.draw(viewProj, r.scene.rebase)
 
 	gles.Disable(gles.DEPTH_TEST)

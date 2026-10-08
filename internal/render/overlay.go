@@ -24,8 +24,11 @@ type ZoneShape struct {
 	// Color is the shape's linear RGB.
 	Color [3]float32
 	// Marked is the vertex whose handle stands out (the first vertex,
-	// which closes the polygon when clicked), or -1.
+	// which closes the polygon when clicked, or the selected one), or -1.
 	Marked int
+	// Midpoints adds a small handle in the middle of each edge of a
+	// closed shape, where a click inserts a vertex.
+	Midpoints bool
 }
 
 // Overlay alphas and handle sizes in pixels.
@@ -35,6 +38,8 @@ const (
 	handleOutline = 11
 	markedSize    = 11
 	markedOutline = 15
+	midSize       = 5
+	midOutline    = 8
 )
 
 // overlayVertex is one overlay vertex: an absolute client-space position,
@@ -164,6 +169,15 @@ func (o *zoneOverlay) set(shapes []ZoneShape) {
 			points = append(points,
 				overlayVertex{Pos: pos, Color: [4]float32{0, 0, 0, 1}, Size: outline},
 				overlayVertex{Pos: pos, Color: fill, Size: size})
+		}
+		if s.Closed && s.Midpoints && len(client) >= 2 {
+			for i, a := range client {
+				b := client[(i+1)%len(client)]
+				pos := [3]float32{(a.X + b.X) / 2, (a.Y + b.Y) / 2, (a.Z + b.Z) / 2}
+				points = append(points,
+					overlayVertex{Pos: pos, Color: [4]float32{0, 0, 0, 1}, Size: midOutline},
+					overlayVertex{Pos: pos, Color: edge, Size: midSize})
+			}
 		}
 	}
 	o.verts = append(append(append(o.verts[:0], tris...), lines...), points...)

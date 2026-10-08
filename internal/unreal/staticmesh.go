@@ -16,7 +16,11 @@ type StaticMesh struct {
 	Positions []geom.Vec3
 	// UVs is the first UV stream, parallel to Positions, or empty when the
 	// mesh has none.
-	UVs      [][2]float32
+	UVs [][2]float32
+	// Alpha is the alpha of the ColorStream, by vertex index, or empty when
+	// every entry is 255; a vertex past its end is opaque. A material whose
+	// Opacity is a VertexColor uses it as coverage.
+	Alpha    []uint8
 	Indices  []uint16
 	Sections []MeshSection
 	// Materials holds Materials[i].Material per slot: an object reference in
@@ -70,8 +74,20 @@ func ReadStaticMesh(p *l2pkg.Package, i int) (*StaticMesh, error) {
 		r.Skip(12) // normal
 	}
 	r.U32() // revision
+	// FColor is stored B, G, R, A: alpha is the top byte of the u32.
 	n = readCount(r, "cores")
-	r.Skip(n * 4)
+	for k := range n {
+		a := uint8(r.U32() >> 24)
+		if a != 255 && m.Alpha == nil {
+			m.Alpha = make([]uint8, k, n)
+			for j := range m.Alpha {
+				m.Alpha[j] = 255
+			}
+		}
+		if m.Alpha != nil {
+			m.Alpha = append(m.Alpha, a)
+		}
+	}
 	r.U32()
 	n = readCount(r, "cores alfa")
 	r.Skip(n * 4)

@@ -5,17 +5,19 @@ import (
 
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/l2pkg"
+	"zonebuilder/internal/texture"
 	"zonebuilder/internal/unreal"
 )
 
 // BSPSurface is one drawn surface of a map's Level.Model: the fans of
-// every node on it, Indices[First:First+Count] of Batches[Batch].
+// every node on it, Indices[First:First+Count] of Batches[Batch], the batch
+// of its material.
 type BSPSurface struct {
 	Tile Tile
 	// Index is the surface's index in the Model's Surfs.
 	Index int
 	// Material is the surface's material, an object reference in the map
-	// package's index space (0 = none), resolved by the textured renderer.
+	// package's index space (0 = none).
 	Material  int32
 	PolyFlags uint32
 	Batch     int
@@ -29,13 +31,16 @@ type BSPSurface struct {
 // filters.
 const regionSpan = TileSpan
 
-// addBSP adds the visible surfaces of map m's Level.Model as one batch.
-// footprint is the tile's terrain footprint (world X/Y) or nil when the map
-// has no terrain. Port of UE2-Studio's add_level_surfaces and
+// addBSP adds the visible surfaces of map m's Level.Model, each to the
+// batch its material draws into, with texel UVs divided by the texture's
+// size. footprint is the tile's terrain footprint (world X/Y) or nil when
+// the map has no terrain. Port of UE2-Studio's add_level_surfaces and
 // Model::visual_surfaces: invisible, portal and backdrop surfaces are
-// skipped, every node polygon is fanned (0, i-1, i), and a surface wider
-// than two tiles or centred more than a tile off the terrain is dropped.
-func (s *Scene) addBSP(m *l2pkg.Package, t Tile, footprint *geom.Box) error {
+// skipped, every node polygon is fanned (0, i-1, i), a surface wider than
+// two tiles or centred more than a tile off the terrain is dropped, and an
+// opaque material turns Translucent on a PF_Translucent or PF_Modulated
+// surface, else Masked on a PF_Masked one.
+func (s *Scene) addBSP(ld *loader, m *l2pkg.Package, t Tile, footprint *geom.Box) error {
 	li := unreal.FindLevel(m)
 	if li < 0 {
 		return fmt.Errorf("o mapa não tem Level")
@@ -82,8 +87,6 @@ func (s *Scene) addBSP(m *l2pkg.Package, t Tile, footprint *geom.Box) error {
 		}
 	}
 
-	batch := len(s.Batches)
-	b := Batch{Mode: Opaque, Bounds: geom.EmptyBox()}
 	for _, k := range order {
 		g := groups[k]
 		box := geom.EmptyBox()
@@ -93,26 +96,64 @@ func (s *Scene) addBSP(m *l2pkg.Package, t Tile, footprint *geom.Box) error {
 		if outsideRegion(box, footprint) {
 			continue
 		}
+		surf := model.Surfs[k]
+		mat, err := ld.material(m, surf.Material)
+		if err != nil {
+			return fmt.Errorf("material da superfície %d: %w", k, err)
+		}
+		mode := mat.mode
+		if mode == Opaque && surf.PolyFlags&(unreal.PFTranslucent|unreal.PFModulated) != 0 {
+			mode = Translucent
+		}
+		if mode == Opaque && surf.PolyFlags&unreal.PFMasked != 0 {
+			mode = Masked
+		}
+		uv := surfaceUV(model, surf, mat.texture)
+		batch := s.batch(ld, batchKey{tex: mat.texture, mode: mode, opaque: mat.vertexOpacity})
+		b := &s.Batches[batch]
 		base := uint32(len(b.Vertices))
 		first := len(b.Indices)
 		for _, v := range g.verts {
-			b.Vertices = append(b.Vertices, Vertex{Pos: v})
+			b.Vertices = append(b.Vertices, Vertex{Pos: v, UV: uv(v), Alpha: 1})
 		}
 		for _, i := range g.idx {
 			b.Indices = append(b.Indices, base+i)
 		}
 		b.Bounds.Union(box)
-		surf := model.Surfs[k]
 		s.BSPSurfaces = append(s.BSPSurfaces, BSPSurface{
 			Tile: t, Index: k, Material: surf.Material, PolyFlags: surf.PolyFlags,
 			Batch: batch, First: first, Count: len(g.idx), Bounds: box,
 		})
 		s.addPickable(SurfaceBSP, batch, first, len(g.idx), box)
 	}
-	if len(b.Indices) > 0 {
-		s.Batches = append(s.Batches, b)
-	}
 	return nil
+}
+
+// surfaceUV maps a point of BSP surface surf to its texture coordinate:
+// texels along the surface's TextureU/TextureV vectors from its Base point,
+// divided by the size of tex (UE2-Studio normalize_bsp_uv); left in texels
+// when tex is nil, and (0, 0) when the surface's UV basis is out of range.
+func surfaceUV(model *unreal.Model, surf unreal.BSPSurf, tex *texture.Texture) func(geom.Vec3) [2]float32 {
+	at := func(list [][3]float32, i int32) (geom.Vec3, bool) {
+		if i < 0 || int(i) >= len(list) {
+			return geom.Vec3{}, false
+		}
+		return vec(list[i]), true
+	}
+	base, okB := at(model.Points, surf.Base)
+	u, okU := at(model.Vectors, surf.TextureU)
+	v, okV := at(model.Vectors, surf.TextureV)
+	if !okB || !okU || !okV {
+		return func(geom.Vec3) [2]float32 { return [2]float32{} }
+	}
+	w, h := float32(1), float32(1)
+	if tex != nil {
+		w, h = float32(max(1, tex.Mips[0].Width)), float32(max(1, tex.Mips[0].Height))
+	}
+	return func(p geom.Vec3) [2]float32 {
+		d := p.Sub(base)
+		return [2]float32{d.Dot(u) / w, d.Dot(v) / h}
+	}
 }
 
 // outsideRegion reports a surface (BSP surface or mesh section, by its world
