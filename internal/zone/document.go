@@ -178,6 +178,9 @@ func (d *Document) Compile(selection []ZoneID) ([]zonexml.File, error) {
 			RestartPoints:   compilePoints(z.RestartPoints),
 			PKRestartPoints: compilePoints(z.PKRestartPoints),
 		}
+		for _, p := range z.Params {
+			x.Params = append(x.Params, zonexml.Param{Name: p.Name, Value: p.Value})
+		}
 		for _, s := range z.Shapes {
 			x.Shapes = append(x.Shapes, compileShape(s))
 		}

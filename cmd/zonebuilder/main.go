@@ -238,6 +238,9 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 			if shell.Zone.Compile.Clicked(gtx) {
 				status = zones.compile(shell.Zone.Output.Text())
 			}
+			if msg := shell.Props.Update(gtx, zones); msg != "" {
+				status = msg
+			}
 			if shell.OpenRequested(gtx) && !loading {
 				t, err := scene.ParseTile(shell.Tile.Text())
 				if err != nil {

@@ -186,6 +186,12 @@ func TestUndoReturnsEachStepAndRedoReapplies(t *testing.T) {
 		zone.AddRestartPoint{Zone: id, PK: true, Point: zone.Point{X: 60, Y: 60, Z: -6}},
 		zone.RemoveRestartPoint{Zone: id, Index: 0},
 		zone.RemoveRestartPoint{Zone: id, PK: true, Index: 0},
+		zone.SetType{Zone: id, Type: zone.Swamp},
+		zone.SetParam{Zone: id, Name: "playerMinLevel", Value: "20"},
+		zone.SetParam{Zone: id, Name: "enabled", Value: "false"},
+		zone.SetParam{Zone: base, Name: "myScriptKey", Value: "a"},
+		zone.SetParam{Zone: id, Name: "playerMinLevel", Value: "25"},
+		zone.RemoveParam{Zone: id, Name: "playerMinLevel"},
 	}
 	states := [][]zone.Zone{initial}
 	for _, c := range cmds {
@@ -262,6 +268,7 @@ func clonedZones(d *zone.Document) []zone.Zone {
 	for i, z := range zs {
 		out[i].RestartPoints = slices.Clone(z.RestartPoints)
 		out[i].PKRestartPoints = slices.Clone(z.PKRestartPoints)
+		out[i].Params = slices.Clone(z.Params)
 	}
 	return out
 }
