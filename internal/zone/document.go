@@ -77,10 +77,17 @@ func (c CreateZone) apply(d *Document) error {
 	return nil
 }
 
-// AddShape appends an empty polygon to a zone; it is the zone's shape
-// number len(Shapes) before the command.
+// AddShape appends a shape to a zone; it is the zone's shape number
+// len(Shapes) before the command. The zero value of the optional fields
+// starts an empty included polygon whose vertices come with AddVertex; a
+// shape drawn in one go (a rectangle's 2 corners, a circle's polygon)
+// comes whole, with its points and Z range.
 type AddShape struct {
-	Zone ZoneID
+	Zone       ZoneID
+	Kind       ShapeKind
+	Banned     bool
+	Points     []Point
+	ZMin, ZMax int
 }
 
 func (c AddShape) apply(d *Document) error {
@@ -88,7 +95,12 @@ func (c AddShape) apply(d *Document) error {
 	if err != nil {
 		return err
 	}
-	z.Shapes = append(z.Shapes, Shape{})
+	if !c.Kind.Valid() {
+		return fmt.Errorf("zone: shape kind %d is unknown", c.Kind)
+	}
+	z.Shapes = append(z.Shapes, Shape{
+		Kind: c.Kind, Banned: c.Banned, Points: slices.Clone(c.Points), ZMin: c.ZMin, ZMax: c.ZMax,
+	})
 	return nil
 }
 
@@ -144,8 +156,9 @@ func (d *Document) shape(id ZoneID, shape int) (*Shape, error) {
 }
 
 // Compile turns the zones in selection into the server's XML: one file per
-// type, zones in name order, every polygon coords carrying the shape's Z
-// range. Writing the files is up to the caller (zonexml.Write).
+// type, zones in name order, every shape coords carrying the shape's Z
+// range, exclusions as banned_polygon, restart points as x y z. Writing the
+// files is up to the caller (zonexml.Write).
 func (d *Document) Compile(selection []ZoneID) ([]zonexml.File, error) {
 	zones := make([]zonexml.Zone, 0, len(selection))
 	for _, id := range selection {
@@ -153,13 +166,14 @@ func (d *Document) Compile(selection []ZoneID) ([]zonexml.File, error) {
 		if err != nil {
 			return nil, err
 		}
-		x := zonexml.Zone{Name: z.Name, Type: string(z.Type)}
+		x := zonexml.Zone{
+			Name:            z.Name,
+			Type:            string(z.Type),
+			RestartPoints:   compilePoints(z.RestartPoints),
+			PKRestartPoints: compilePoints(z.PKRestartPoints),
+		}
 		for _, s := range z.Shapes {
-			p := zonexml.Polygon{Points: make([][2]int, len(s.Points)), ZMin: s.ZMin, ZMax: s.ZMax}
-			for i, pt := range s.Points {
-				p.Points[i] = [2]int{pt.X, pt.Y}
-			}
-			x.Polygons = append(x.Polygons, p)
+			x.Shapes = append(x.Shapes, compileShape(s))
 		}
 		zones = append(zones, x)
 	}

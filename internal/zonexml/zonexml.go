@@ -25,15 +25,22 @@ const FilePrefix = "zonebuilder_"
 type Zone struct {
 	Name string
 	// Type is the ZoneType value, written as is.
-	Type     string
-	Polygons []Polygon
+	Type   string
+	Shapes []Shape
+	// RestartPoints and PKRestartPoints are x y z, written as one
+	// <restart_point> and one <PKrestart_point> block (the parser keeps
+	// only the last block of each).
+	RestartPoints, PKRestartPoints [][3]int
 }
 
-// Polygon is one <polygon>: its vertices (x, y) and the Z range every
-// coords carries.
-type Polygon struct {
-	Points     [][2]int
-	ZMin, ZMax int
+// Shape is one <polygon>, <rectangle> or, when Banned, <banned_polygon>:
+// its points (x, y) and the Z range every coords carries. A rectangle's
+// points are its 2 opposite corners. A banned rectangle is not a valid
+// Shape: give its 4 corners as a banned polygon.
+type Shape struct {
+	Rectangle, Banned bool
+	Points            [][2]int
+	ZMin, ZMax        int
 }
 
 // File is one compiled XML file.
@@ -71,25 +78,51 @@ func encode(zones []Zone) []byte {
 	b.WriteString("<list>\n")
 	for _, z := range zones {
 		fmt.Fprintf(&b, "\t<zone name=\"%s\" type=\"%s\" >\n", attr(z.Name), attr(z.Type))
-		for _, p := range z.Polygons {
-			b.WriteString("\t\t<polygon>\n")
-			for _, pt := range p.Points {
-				b.WriteString("\t\t\t<coords loc=\"")
-				b.WriteString(strconv.Itoa(pt[0]))
-				b.WriteByte(' ')
-				b.WriteString(strconv.Itoa(pt[1]))
-				b.WriteByte(' ')
-				b.WriteString(strconv.Itoa(p.ZMin))
-				b.WriteByte(' ')
-				b.WriteString(strconv.Itoa(p.ZMax))
-				b.WriteString("\" />\n")
+		for _, s := range z.Shapes {
+			elem := "polygon"
+			if s.Rectangle {
+				elem = "rectangle"
 			}
-			b.WriteString("\t\t</polygon>\n")
+			if s.Banned {
+				elem = "banned_" + elem
+			}
+			fmt.Fprintf(&b, "\t\t<%s>\n", elem)
+			for _, pt := range s.Points {
+				coords(&b, pt[0], pt[1], s.ZMin, s.ZMax)
+			}
+			fmt.Fprintf(&b, "\t\t</%s>\n", elem)
 		}
+		restartPoints(&b, "restart_point", z.RestartPoints)
+		restartPoints(&b, "PKrestart_point", z.PKRestartPoints)
 		b.WriteString("\t</zone>\n")
 	}
 	b.WriteString("</list>\n")
 	return b.Bytes()
+}
+
+// coords writes one <coords> line of the numbers v.
+func coords(b *bytes.Buffer, v ...int) {
+	b.WriteString("\t\t\t<coords loc=\"")
+	for i, n := range v {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		b.WriteString(strconv.Itoa(n))
+	}
+	b.WriteString("\" />\n")
+}
+
+// restartPoints writes pts as one elem block (the element name is
+// case-sensitive in the parser), or nothing when there are none.
+func restartPoints(b *bytes.Buffer, elem string, pts [][3]int) {
+	if len(pts) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "\t\t<%s>\n", elem)
+	for _, p := range pts {
+		coords(b, p[0], p[1], p[2])
+	}
+	fmt.Fprintf(b, "\t\t</%s>\n", elem)
 }
 
 // attr escapes s for a double-quoted attribute value.
