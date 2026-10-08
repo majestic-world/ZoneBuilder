@@ -36,6 +36,11 @@ const (
 	GEQUAL               = 0x0206
 	SRC_ALPHA            = 0x0302
 	ONE_MINUS_SRC_ALPHA  = 0x0303
+	ALWAYS               = 0x0207
+	ZERO                 = 0
+	ONE                  = 1
+	ONE_MINUS_SRC_COLOR  = 0x0301
+	DST_COLOR            = 0x0306
 	TEXTURE1             = 0x84C1
 	COLOR_BUFFER_BIT     = 0x4000
 	DEPTH_BUFFER_BIT     = 0x0100

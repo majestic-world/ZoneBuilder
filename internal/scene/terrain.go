@@ -64,7 +64,7 @@ func (s *Scene) addTerrain(ld *loader, m *l2pkg.Package, t Tile) error {
 	for y := range h {
 		for x := range w {
 			p := ter.Vertex(x, y)
-			grid = append(grid, Vertex{Pos: p, MaskUV: [2]float32{float32(x) / float32(w-1), float32(y) / float32(h-1)}})
+			grid = append(grid, Vertex{Pos: p, MaskUV: [2]float32{float32(x) / float32(w-1), float32(y) / float32(h-1)}, Alpha: 1})
 			ter.Bounds.Include(p)
 		}
 	}
@@ -78,7 +78,7 @@ func (s *Scene) addTerrain(ld *loader, m *l2pkg.Package, t Tile) error {
 	}
 	for k := range info.Layers {
 		l := &info.Layers[k]
-		tex, mask, err := layerBitmaps(ld, m, l)
+		mat, mask, err := layerBitmaps(ld, m, l)
 		if err != nil {
 			s.Warnings = append(s.Warnings, fmt.Sprintf("%s: camada %d do terreno não desenhada: %v", t.Name(), k, err))
 			continue
@@ -96,7 +96,7 @@ func (s *Scene) addTerrain(ld *loader, m *l2pkg.Package, t Tile) error {
 			verts[i] = v
 		}
 		ter.Layers = append(ter.Layers, len(s.Batches))
-		s.Batches = append(s.Batches, Batch{Mode: mode, Texture: tex, Mask: mask, Vertices: verts, Indices: indices, Bounds: ter.Bounds})
+		s.Batches = append(s.Batches, Batch{Mode: mode, Texture: mat.texture, OpaqueTexture: mat.vertexOpacity, Mask: mask, Vertices: verts, Indices: indices, Bounds: ter.Bounds})
 	}
 	if len(ter.Layers) == 0 {
 		ter.Layers = append(ter.Layers, len(s.Batches))
@@ -107,20 +107,26 @@ func (s *Scene) addTerrain(ld *loader, m *l2pkg.Package, t Tile) error {
 	return nil
 }
 
-// layerBitmaps are the texture and alpha map a terrain layer of map m is
+// layerBitmaps are the material and alpha map a terrain layer of map m is
 // drawn with; a nil mask is a layer with no alpha map, which covers the
-// whole terrain (UE2-Studio's 1×1 white mask). A layer that has an alpha
-// map but cannot read or decode it is not drawn, as in UE2-Studio.
-func layerBitmaps(ld *loader, m *l2pkg.Package, l *unreal.TerrainLayer) (tex, mask *texture.Texture, err error) {
-	if tex, err = ld.texture(m, l.Texture); err != nil {
-		return nil, nil, fmt.Errorf("textura: %w", err)
+// whole terrain (UE2-Studio's 1×1 white mask). The layer's Texture is
+// walked like any material (a Shader reaches its Diffuse); a layer whose
+// material has no drawable texture, or that has an alpha map it cannot
+// read or decode, is not drawn, as in UE2-Studio.
+func layerBitmaps(ld *loader, m *l2pkg.Package, l *unreal.TerrainLayer) (mat material, mask *texture.Texture, err error) {
+	if mat, err = ld.material(m, l.Texture); err != nil {
+		return material{}, nil, fmt.Errorf("textura: %w", err)
+	}
+	if mat.texture == nil {
+		path, _ := m.ObjectPath(l.Texture)
+		return material{}, nil, fmt.Errorf("textura: o material %s não chega a uma textura desenhável", path)
 	}
 	if l.AlphaMap != 0 {
 		if mask, err = ld.texture(m, l.AlphaMap); err != nil {
-			return nil, nil, fmt.Errorf("alpha map: %w", err)
+			return material{}, nil, fmt.Errorf("alpha map: %w", err)
 		}
 	}
-	return tex, mask, nil
+	return mat, mask, nil
 }
 
 // Vertex is the world position of grid sample (x, y).

@@ -13,10 +13,11 @@ type Image struct {
 }
 
 // Decodable reports whether RGBA can decode format: DXT1, DXT3, DXT5 and
-// RGBA8, the formats UE2-Studio decodes (texture.rs is_rgba_decodable).
+// RGBA8, the formats UE2-Studio decodes (texture.rs is_rgba_decodable),
+// plus P8, which also needs the texture's Palette.
 func Decodable(format uint8) bool {
 	switch format {
-	case FormatDXT1, FormatDXT3, FormatDXT5, FormatRGBA8:
+	case FormatP8, FormatDXT1, FormatDXT3, FormatDXT5, FormatRGBA8:
 		return true
 	}
 	return false
@@ -28,17 +29,19 @@ func (t *Texture) RGBA() (*Image, error) {
 	if len(t.Mips) == 0 {
 		return nil, fmt.Errorf("textura sem mip")
 	}
-	return DecodeMip(t.Format, t.Mips[0])
+	return t.DecodeMip(t.Mips[0])
 }
 
-// DecodeMip decodes one mip level of a texture in format to RGBA8.
-func DecodeMip(format uint8, m Mip) (*Image, error) {
+// DecodeMip decodes one mip level of t to RGBA8.
+func (t *Texture) DecodeMip(m Mip) (*Image, error) {
 	if m.Width <= 0 || m.Height <= 0 {
 		return nil, fmt.Errorf("mip de %d×%d", m.Width, m.Height)
 	}
 	img := &Image{Width: m.Width, Height: m.Height, Pix: make([]byte, 4*m.Width*m.Height)}
 	var err error
-	switch format {
+	switch t.Format {
+	case FormatP8:
+		err = decodeP8(img, m.Data, t.Palette, t.Masked)
 	case FormatDXT1:
 		err = decodeDXT(img, m.Data, 1)
 	case FormatDXT3:
@@ -48,7 +51,7 @@ func DecodeMip(format uint8, m Mip) (*Image, error) {
 	case FormatRGBA8:
 		err = decodeBGRA(img, m.Data)
 	default:
-		err = fmt.Errorf("formato de textura %d não decodificado", format)
+		err = fmt.Errorf("formato de textura %d não decodificado", t.Format)
 	}
 	if err != nil {
 		return nil, err
@@ -60,6 +63,8 @@ func DecodeMip(format uint8, m Mip) (*Image, error) {
 // size this package does not know.
 func MipBytes(format uint8, w, h int) int {
 	switch format {
+	case FormatP8:
+		return w * h
 	case FormatDXT1:
 		return ((w + 3) / 4) * ((h + 3) / 4) * 8
 	case FormatDXT3, FormatDXT5:
@@ -70,6 +75,32 @@ func MipBytes(format uint8, w, h int) int {
 		return w * h * 2
 	}
 	return 0
+}
+
+// decodeP8 looks every index byte up in palette. The palette's stored
+// alpha is not coverage (UE2 often stores 0): every texel is opaque, except
+// index 0 of a masked texture, which keeps its palette colour with alpha 0.
+// An index past the palette's end reads as opaque black.
+func decodeP8(img *Image, src []byte, palette []Color, masked bool) error {
+	n := img.Width * img.Height
+	if len(palette) == 0 {
+		return fmt.Errorf("P8 sem Palette")
+	}
+	if len(src) < n {
+		return fmt.Errorf("P8 truncado: %d bytes para %d×%d", len(src), img.Width, img.Height)
+	}
+	for i, idx := range src[:n] {
+		var c Color
+		if int(idx) < len(palette) {
+			c = palette[idx]
+		}
+		c[3] = 255
+		if masked && idx == 0 {
+			c[3] = 0
+		}
+		copy(img.Pix[4*i:], c[:])
+	}
+	return nil
 }
 
 // decodeBGRA converts Unreal's RGBA8, stored B, G, R, A.

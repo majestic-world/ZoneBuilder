@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"unsafe"
 
+	"zonebuilder/internal/geom"
 	"zonebuilder/internal/render/gles"
 	"zonebuilder/internal/scene"
 )
@@ -13,48 +14,100 @@ import (
 // matrix product, then applies uViewProj, which includes the Y/Z swap into
 // the Y-up render basis. gl_Position is invariant because terrain layers
 // redraw the base's triangles from their own buffers and depth-test them
-// with GEQUAL against it.
+// with GEQUAL against it. vPos is the rebased position, for Water's view
+// angle.
 const sceneVert = `#version 300 es
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec2 aUV;
 layout(location = 2) in vec2 aMaskUV;
+layout(location = 3) in float aAlpha;
 uniform highp vec3 uOrigin;
 uniform highp mat4 uViewProj;
 out highp vec2 vUV;
 out highp vec2 vMaskUV;
+out highp vec3 vPos;
+out mediump float vAlpha;
 invariant gl_Position;
 void main() {
 	vUV = aUV;
 	vMaskUV = aMaskUV;
-	gl_Position = uViewProj * vec4(aPos - uOrigin, 1.0);
+	vAlpha = aAlpha;
+	vPos = aPos - uOrigin;
+	gl_Position = uViewProj * vec4(vPos, 1.0);
 }
 `
 
-// sceneFrag is UE2-Studio's Textured view: the texture sample, unlit
-// (fs_main for Opaque, fs_terrain_layer for TerrainLayer, whose alpha is
-// the mask's R times the sample's alpha). Sampling the sRGB texture yields
-// linear colour, which the sRGB target encodes on write and blends in.
-const sceneFrag = `#version 300 es
+// sceneFrag is UE2-Studio's Textured view, unlit: the texture sample
+// times the vertex alpha, shaded per render mode (uMode, the
+// scene.RenderMode value) as gpu.rs's fs_main (Opaque, Brighten),
+// fs_masked, fs_terrain_layer, fs_translucent (Translucent, Additive),
+// fs_modulated, fs_water and fs_overlay. Water's normal is the triangle's,
+// from the position derivatives: UE2-Studio's fresnel only reads its
+// absolute cosine with the view. uOpaque takes the texture's alpha as 1.
+// Sampling the sRGB texture yields linear colour, which the sRGB target
+// encodes on write and blends in.
+var sceneFrag = `#version 300 es
 precision highp float;
 uniform sampler2D uTexture;
 uniform sampler2D uMask;
-uniform bool uLayer;
+uniform int uMode;
+uniform bool uOpaque;
+uniform highp vec3 uEye;
 in highp vec2 vUV;
 in highp vec2 vMaskUV;
+in highp vec3 vPos;
+in mediump float vAlpha;
 out vec4 oColor;
 void main() {
 	vec4 s = texture(uTexture, vUV);
-	float a = 1.0;
-	if (uLayer) {
-		a = texture(uMask, vMaskUV).r * s.a;
+	if (uOpaque) {
+		s.a = 1.0;
 	}
-	oColor = vec4(s.rgb, a);
+	vec3 c = s.rgb;
+	float a = vAlpha;
+	if (uMode == ` + modeMasked + `) {
+		if (s.a * vAlpha < 0.5) {
+			discard;
+		}
+	} else if (uMode == ` + modeTerrainLayer + `) {
+		a = texture(uMask, vMaskUV).r * s.a * vAlpha;
+	} else if (uMode == ` + modeTranslucent + ` || uMode == ` + modeAdditive + `) {
+		a = s.a * vAlpha;
+	} else if (uMode == ` + modeModulated + `) {
+		float coverage = max(max(s.r, s.g), s.b) * vAlpha;
+		c = mix(vec3(1.0), s.rgb, coverage);
+		a = 1.0;
+	} else if (uMode == ` + modeWater + `) {
+		vec3 n = normalize(cross(dFdx(vPos), dFdy(vPos)));
+		vec3 v = normalize(uEye - vPos);
+		float fresnel = pow(1.0 - abs(dot(n, v)), 2.0);
+		c = mix(c, vec3(0.12, 0.38, 0.62), 0.28 + fresnel * 0.32);
+		a = s.a * vAlpha;
+	}
+	oColor = vec4(c, a);
 }
 `
+
+// The render modes the fragment shader branches on.
+var (
+	modeMasked       = fmt.Sprint(int(scene.Masked))
+	modeTerrainLayer = fmt.Sprint(int(scene.TerrainLayer))
+	modeTranslucent  = fmt.Sprint(int(scene.Translucent))
+	modeModulated    = fmt.Sprint(int(scene.Modulated))
+	modeAdditive     = fmt.Sprint(int(scene.Additive))
+	modeWater        = fmt.Sprint(int(scene.Water))
+)
+
+// passes are the render modes in draw order (UE2-Studio gpu.rs).
+var passes = [...]scene.RenderMode{
+	scene.Opaque, scene.Masked, scene.TerrainLayer, scene.Translucent,
+	scene.Brighten, scene.Modulated, scene.Additive, scene.Water, scene.Overlay,
+}
 
 // gpuBatch is one scene batch uploaded to the GPU.
 type gpuBatch struct {
 	mode          scene.RenderMode
+	opaque        bool
 	vao, vbo, ibo uint32
 	count         int
 	texture, mask uint32
@@ -65,7 +118,9 @@ type sceneRenderer struct {
 	prog     uint32
 	viewProj int32
 	origin   int32
-	layer    int32
+	mode     int32
+	opaque   int32
+	eye      int32
 	textures *textureCache
 	batches  []gpuBatch
 	// rebase is the scene's origin, subtracted in the vertex shader.
@@ -85,7 +140,9 @@ func newSceneRenderer(anisotropic bool) (*sceneRenderer, error) {
 		prog:     p,
 		viewProj: gles.GetUniformLocation(p, "uViewProj"),
 		origin:   gles.GetUniformLocation(p, "uOrigin"),
-		layer:    gles.GetUniformLocation(p, "uLayer"),
+		mode:     gles.GetUniformLocation(p, "uMode"),
+		opaque:   gles.GetUniformLocation(p, "uOpaque"),
+		eye:      gles.GetUniformLocation(p, "uEye"),
 		textures: newTextureCache(anisotropic),
 	}, nil
 }
@@ -105,8 +162,9 @@ func (sr *sceneRenderer) upload(s *scene.Scene) {
 		}
 		g := gpuBatch{
 			mode:    b.Mode,
+			opaque:  b.OpaqueTexture,
 			count:   len(b.Indices),
-			texture: sr.textures.material(b.Texture),
+			texture: sr.textures.material(b.Texture, b.Mode == scene.Masked && !b.OpaqueTexture),
 			mask:    sr.textures.mask(b.Mask),
 		}
 		g.vao = gles.GenVertexArray()
@@ -123,6 +181,8 @@ func (sr *sceneRenderer) upload(s *scene.Scene) {
 		gles.VertexAttribPointer(1, 2, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.UV))
 		gles.EnableVertexAttribArray(2)
 		gles.VertexAttribPointer(2, 2, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.MaskUV))
+		gles.EnableVertexAttribArray(3)
+		gles.VertexAttribPointer(3, 1, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.Alpha))
 		gles.BindVertexArray(0)
 		gles.BindBuffer(gles.ARRAY_BUFFER, 0)
 		gles.BindBuffer(gles.ELEMENT_ARRAY_BUFFER, 0)
@@ -130,35 +190,35 @@ func (sr *sceneRenderer) upload(s *scene.Scene) {
 	}
 }
 
-// draw renders the batches with viewProj (rebased Unreal basis to clip),
-// one pass per render mode in UE2-Studio's order, each pass in scene order
-// (a terrain's layers blend in TerrainInfo order). The depth test is on
-// and GREATER when called; blending and depth writes are left as found
-// (off and on).
-func (sr *sceneRenderer) draw(viewProj mat4) {
+// draw renders the batches with viewProj (rebased Unreal basis to clip)
+// seen from eye (rebased, Unreal basis), one pass per render mode in
+// UE2-Studio's order, each pass in scene order (a terrain's layers blend in
+// TerrainInfo order). The depth test is on and GREATER when called;
+// blending and depth writes are left as found (off and on).
+func (sr *sceneRenderer) draw(viewProj mat4, eye geom.Vec3) {
 	if len(sr.batches) == 0 {
 		return
 	}
 	gles.UseProgram(sr.prog)
 	gles.UniformMatrix4fv(sr.viewProj, (*[16]float32)(&viewProj))
 	gles.Uniform3f(sr.origin, sr.rebase[0], sr.rebase[1], sr.rebase[2])
-	for _, mode := range []scene.RenderMode{scene.Opaque, scene.TerrainLayer} {
-		switch mode {
-		case scene.Opaque:
-			gles.Uniform1i(sr.layer, 0)
-		case scene.TerrainLayer:
-			// Layers lie on the base's triangles: GEQUAL lets them through
-			// at equal depth, and they must not write it.
-			gles.Uniform1i(sr.layer, 1)
-			gles.DepthFunc(gles.GEQUAL)
-			gles.DepthMask(false)
-			gles.Enable(gles.BLEND)
-			gles.BlendFunc(gles.SRC_ALPHA, gles.ONE_MINUS_SRC_ALPHA)
-		}
+	gles.Uniform3f(sr.eye, eye.X, eye.Y, eye.Z)
+	for _, mode := range passes {
+		drawn := false
 		for _, b := range sr.batches {
 			if b.mode != mode {
 				continue
 			}
+			if !drawn {
+				passState(mode)
+				gles.Uniform1i(sr.mode, int32(mode))
+				drawn = true
+			}
+			opaque := int32(0)
+			if b.opaque {
+				opaque = 1
+			}
+			gles.Uniform1i(sr.opaque, opaque)
 			gles.ActiveTexture(gles.TEXTURE0)
 			gles.BindTexture(gles.TEXTURE_2D, b.texture)
 			gles.ActiveTexture(gles.TEXTURE1)
@@ -175,6 +235,41 @@ func (sr *sceneRenderer) draw(viewProj mat4) {
 	gles.BindTexture(gles.TEXTURE_2D, 0)
 	gles.BindVertexArray(0)
 	gles.UseProgram(0)
+}
+
+// passState sets the depth and blend state of mode's pass, UE2-Studio's
+// pipeline for it (gpu.rs): Opaque and Masked write depth unblended;
+// TerrainLayer tests GEQUAL, since the layers lie on the base's triangles;
+// the blended passes test GREATER without writing; Overlay skips the test.
+// Blending is straight alpha except Brighten (one, one minus source colour),
+// Modulated (destination colour, zero) and Additive (one, one).
+func passState(mode scene.RenderMode) {
+	depthFunc, write, blend := uint32(gles.GREATER), false, true
+	switch mode {
+	case scene.Opaque, scene.Masked:
+		write, blend = true, false
+	case scene.TerrainLayer:
+		depthFunc = gles.GEQUAL
+	case scene.Overlay:
+		depthFunc, blend = gles.ALWAYS, false
+	}
+	gles.DepthFunc(depthFunc)
+	gles.DepthMask(write)
+	if !blend {
+		gles.Disable(gles.BLEND)
+		return
+	}
+	gles.Enable(gles.BLEND)
+	switch mode {
+	case scene.Brighten:
+		gles.BlendFuncSeparate(gles.ONE, gles.ONE_MINUS_SRC_COLOR, gles.ONE, gles.ONE_MINUS_SRC_ALPHA)
+	case scene.Modulated:
+		gles.BlendFuncSeparate(gles.DST_COLOR, gles.ZERO, gles.ZERO, gles.ONE)
+	case scene.Additive:
+		gles.BlendFuncSeparate(gles.ONE, gles.ONE, gles.ONE, gles.ONE)
+	default:
+		gles.BlendFuncSeparate(gles.SRC_ALPHA, gles.ONE_MINUS_SRC_ALPHA, gles.ONE, gles.ONE_MINUS_SRC_ALPHA)
+	}
 }
 
 func (sr *sceneRenderer) releaseBatches() {

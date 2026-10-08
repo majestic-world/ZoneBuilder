@@ -359,6 +359,13 @@ func logScene(r loaded) {
 		log.Printf("cena: BSP: %s, %s", count(n, "superfície", "superfícies"), count(bspTriangles(s), "triângulo", "triângulos"))
 	}
 	log.Printf("cena: %s", meshSummary(s))
+	untextured := 0
+	for _, b := range s.Batches {
+		if b.Texture == nil {
+			untextured += len(b.Indices) / 3
+		}
+	}
+	log.Printf("cena: %s sem textura", count(untextured, "triângulo", "triângulos"))
 	for _, w := range s.Warnings {
 		log.Printf("cena: aviso: %s", w)
 	}
@@ -407,7 +414,7 @@ func panelLines(g *gfx, status string, s *scene.Scene, cam *camera.Camera) []str
 func meshSummary(s *scene.Scene) string {
 	tris := 0
 	for i := range s.Actors {
-		tris += s.Actors[i].Count / 3
+		tris += s.Actors[i].Triangles()
 	}
 	return fmt.Sprintf("Static meshes: %s, %s",
 		count(len(s.Actors), "ator", "atores"), count(tris, "triângulo", "triângulos"))

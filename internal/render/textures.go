@@ -15,21 +15,30 @@ const maxAnisotropy = 8
 //
 // DXT goes to the GPU as stored, with the package's own mips (ADR 0002);
 // ANGLE refuses DXT whose level 0 is not a multiple of 4 on both sides, so
-// those, and RGBA8, are decoded on the CPU, where a material gets its full
-// chain from texture.Image.Mipmaps.
+// those, RGBA8 and P8 are decoded on the CPU, where a material gets its
+// full chain from texture.Image.Mipmaps. A texture drawn Masked is always
+// decoded on the CPU, for UE2-Studio's colour bleed under the cutout
+// (texture.Image.MaskedMipmaps), and uploaded apart from its other uses.
 type textureCache struct {
 	anisotropic bool
-	materials   map[*texture.Texture]uint32
+	materials   map[materialKey]uint32
 	masks       map[*texture.Texture]uint32
 	// grey stands in for a batch without texture (UE2-Studio's untextured
 	// [170,170,170,255]); white for a layer without alpha map.
 	grey, white uint32
 }
 
+// materialKey is one upload of a material texture: masked ones are
+// prepared for the cutout.
+type materialKey struct {
+	t      *texture.Texture
+	masked bool
+}
+
 func newTextureCache(anisotropic bool) *textureCache {
 	tc := &textureCache{
 		anisotropic: anisotropic,
-		materials:   make(map[*texture.Texture]uint32),
+		materials:   make(map[materialKey]uint32),
 		masks:       make(map[*texture.Texture]uint32),
 	}
 	tc.grey = solid(170, true)
@@ -50,24 +59,30 @@ func solid(v byte, srgb bool) uint32 {
 	return id
 }
 
-// material is the GL texture drawing t; nil is the untextured grey.
-func (tc *textureCache) material(t *texture.Texture) uint32 {
+// material is the GL texture drawing t, prepared for an alpha cutout when
+// masked; nil is the untextured grey.
+func (tc *textureCache) material(t *texture.Texture, masked bool) uint32 {
 	if t == nil {
 		return tc.grey
 	}
-	if id, ok := tc.materials[t]; ok {
+	key := materialKey{t, masked}
+	if id, ok := tc.materials[key]; ok {
 		return id
 	}
 	id := gles.GenTexture()
 	gles.BindTexture(gles.TEXTURE_2D, id)
 	levels := 0
-	if f, ok := dxtFormat(t.Format, true); ok && nativeDXT(t) {
+	if f, ok := dxtFormat(t.Format, true); ok && !masked && nativeDXT(t) {
 		for n, m := range t.Chain() {
 			gles.CompressedTexImage2D(gles.TEXTURE_2D, n, f, m.Width, m.Height, m.Data[:texture.MipBytes(t.Format, m.Width, m.Height)])
 			levels++
 		}
 	} else if img, err := t.RGBA(); err == nil {
-		for n, l := range img.Mipmaps() {
+		chain := img.Mipmaps
+		if masked {
+			chain = img.MaskedMipmaps
+		}
+		for n, l := range chain() {
 			gles.TexImage2D(gles.TEXTURE_2D, n, gles.SRGB8_ALPHA8, l.Width, l.Height, gles.RGBA, gles.UNSIGNED_BYTE, l.Pix)
 			levels++
 		}
@@ -85,7 +100,7 @@ func (tc *textureCache) material(t *texture.Texture) uint32 {
 	}
 	sampling(levels-1, gles.LINEAR_MIPMAP_LINEAR, gles.REPEAT, aniso)
 	gles.BindTexture(gles.TEXTURE_2D, 0)
-	tc.materials[t] = id
+	tc.materials[key] = id
 	return id
 }
 
