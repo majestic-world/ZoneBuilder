@@ -27,7 +27,9 @@ var zoneColor = [3]float32{1, 0.35, 0.05}
 // zoneEditor turns the zone controls and viewport input into zone.Document
 // commands. The polygon tool is active while drawing is set: each click on
 // a surface adds a vertex at the picked point, and Enter or a click on the
-// first vertex closes the polygon, which sets its suggested Z range.
+// first vertex closes the polygon, which sets its suggested Z range. When
+// not drawing, zone and shape are the current shape the edit tools work on
+// (edittool.go).
 type zoneEditor struct {
 	doc     *zone.Document
 	drawing bool
@@ -35,9 +37,12 @@ type zoneEditor struct {
 	shape   int
 	// version counts changes to what the overlay shows.
 	version int
+	editState
 }
 
-func newZoneEditor() *zoneEditor { return &zoneEditor{doc: zone.NewDocument()} }
+func newZoneEditor() *zoneEditor {
+	return &zoneEditor{doc: zone.NewDocument(), editState: newEditState()}
+}
 
 // apply runs c and logs a failure; it reports success.
 func (e *zoneEditor) apply(c zone.Command) bool {
@@ -109,7 +114,7 @@ func (e *zoneEditor) close() string {
 	if len(pts) < 3 {
 		return fmt.Sprintf("O polígono tem %s; são precisos 3 para fechar", count(len(pts), "vértice", "vértices"))
 	}
-	zmin, zmax := zone.SuggestZRange(pts, zone.DefaultZMargin)
+	zmin, zmax := zone.SuggestZRange(pts, e.margin)
 	if !e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: zmin, ZMax: zmax}) {
 		return "Não foi possível fechar o polígono"
 	}
@@ -171,18 +176,25 @@ func (e *zoneEditor) overlay() []render.ZoneShape {
 	for _, z := range e.doc.Zones() {
 		for i, s := range z.Shapes {
 			open := e.drawing && z.ID == e.zone && i == e.shape
+			current := !e.drawing && z.ID == e.zone && i == e.shape
+			pts := e.shownPoints(z.ID, i, s.Points)
+			zmin, zmax := e.shownZRange(z.ID, i, s)
 			rs := render.ZoneShape{
-				Points: make([]geom.Vec3, len(s.Points)),
-				ZMin:   float32(s.ZMin),
-				ZMax:   float32(s.ZMax),
-				Closed: !open,
-				Color:  zoneColor,
-				Marked: -1,
+				Points:    make([]geom.Vec3, len(pts)),
+				ZMin:      float32(zmin),
+				ZMax:      float32(zmax),
+				Closed:    !open,
+				Color:     zoneColor,
+				Marked:    -1,
+				Midpoints: current,
 			}
 			if open {
 				rs.Marked = 0
 			}
-			for k, p := range s.Points {
+			if v, ok := e.selected(); ok && current {
+				rs.Marked = v
+			}
+			for k, p := range pts {
 				rs.Points[k] = geom.Vec3{X: float32(p.X), Y: float32(p.Y), Z: float32(p.Z)}
 			}
 			shapes = append(shapes, rs)

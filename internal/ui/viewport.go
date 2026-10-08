@@ -14,8 +14,14 @@ import (
 )
 
 // viewportKeys are the keys the viewport listens to while it has focus: the
-// fly keys, and Enter, which closes the polygon being drawn.
-var viewportKeys = []key.Name{"W", "A", "S", "D", "Q", "E", key.NameShift, key.NameReturn, key.NameEnter}
+// fly keys, Enter, which closes the polygon being drawn, and Delete, which
+// removes the selected vertex.
+var viewportKeys = []key.Name{"W", "A", "S", "D", "Q", "E", key.NameShift, key.NameReturn, key.NameEnter, key.NameDeleteForward}
+
+// shortcutKeys reach the viewport with the shortcut modifier (Ctrl) held
+// unless the focused widget takes them (a text field's own Ctrl+Z): Z
+// undoes, Y and Shift+Z redo.
+var shortcutKeys = []key.Name{"Z", "Y"}
 
 // Viewport is the area of the window the 3D scene is drawn into. It paints
 // nothing: the renderer fills the area before Gio draws, and any Gio content
@@ -28,8 +34,8 @@ type Viewport struct {
 
 // Update returns the next input event for the viewport: a pointer.Event
 // with Position relative to the viewport's top-left corner, a key.Event of
-// a fly key or Enter, or a key.FocusEvent. Call it until it returns false,
-// before Layout, the way Gio widgets are driven.
+// a fly key, Enter, Delete or a Ctrl shortcut, or a key.FocusEvent. Call it
+// until it returns false, before Layout, the way Gio widgets are driven.
 func (v *Viewport) Update(gtx layout.Context) (event.Event, bool) {
 	filters := []event.Filter{
 		pointer.Filter{
@@ -42,6 +48,9 @@ func (v *Viewport) Update(gtx layout.Context) (event.Event, bool) {
 	}
 	for _, n := range viewportKeys {
 		filters = append(filters, key.Filter{Focus: v, Name: n, Optional: key.ModShift})
+	}
+	for _, n := range shortcutKeys {
+		filters = append(filters, key.Filter{Name: n, Required: key.ModShortcut, Optional: key.ModShift})
 	}
 	for {
 		ev, ok := gtx.Event(filters...)

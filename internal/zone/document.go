@@ -9,8 +9,9 @@ import (
 
 // Document holds a project's zones. It changes only through Apply.
 type Document struct {
-	zones  []Zone
-	lastID ZoneID
+	zones   []Zone
+	lastID  ZoneID
+	history history
 }
 
 // NewDocument returns an empty document.
@@ -53,8 +54,9 @@ type Command interface {
 	apply(d *Document) error
 }
 
-// Apply runs c on d. A command that fails leaves d unchanged.
-func (d *Document) Apply(c Command) error { return c.apply(d) }
+// Apply runs c on d and records the step for Undo. A command that fails
+// leaves d unchanged and records nothing.
+func (d *Document) Apply(c Command) error { return d.record(c) }
 
 // CreateZone adds an empty zone. ID comes from Document.NewZoneID.
 type CreateZone struct {
