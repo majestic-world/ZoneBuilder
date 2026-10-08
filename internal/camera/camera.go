@@ -131,6 +131,23 @@ func (c *Camera) Ray(x, y float32, width, height int) (origin, dir geom.Vec3) {
 	return c.Position, dir
 }
 
+// Project is the pixel (origin top-left, y down) of a width×height viewport
+// that render-space point p lands on, the inverse of Ray; ok is false when
+// p is not in front of the camera.
+func (c *Camera) Project(p geom.Vec3, width, height int) (x, y float32, ok bool) {
+	w, h := float32(max(width, 1)), float32(max(height, 1))
+	d := p.Sub(c.Position)
+	depth := d.Dot(c.Forward())
+	if depth < Near {
+		return 0, 0, false
+	}
+	tan := float32(math.Tan(FovY / 2))
+	right, up := c.Basis()
+	ndcX := d.Dot(right) / (depth * tan * w / h)
+	ndcY := d.Dot(up) / (depth * tan)
+	return (ndcX + 1) / 2 * w, (1 - ndcY) / 2 * h, true
+}
+
 func atan2(y, x float32) float32 { return float32(math.Atan2(float64(y), float64(x))) }
 func cos(a float32) float32      { return float32(math.Cos(float64(a))) }
 func sin(a float32) float32      { return float32(math.Sin(float64(a))) }
