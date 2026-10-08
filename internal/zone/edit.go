@@ -24,7 +24,8 @@ func (c MoveVertex) apply(d *Document) error {
 
 // InsertVertex inserts Point into a shape so it becomes vertex Index: 0
 // puts it first, len(Points) appends it, and an index in between puts it on
-// the edge from vertex Index-1 to the old vertex Index.
+// the edge from vertex Index-1 to the old vertex Index. A rectangle is
+// always its 2 corners: inserting into it fails.
 type InsertVertex struct {
 	Zone  ZoneID
 	Shape int
@@ -37,6 +38,9 @@ func (c InsertVertex) apply(d *Document) error {
 	if err != nil {
 		return err
 	}
+	if s.Kind == Rectangle {
+		return fmt.Errorf("zone: shape %d is a rectangle; its 2 corners are fixed", c.Shape)
+	}
 	if c.Index < 0 || c.Index > len(s.Points) {
 		return fmt.Errorf("zone: cannot insert vertex %d into a shape of %d", c.Index, len(s.Points))
 	}
@@ -46,7 +50,8 @@ func (c InsertVertex) apply(d *Document) error {
 	return nil
 }
 
-// RemoveVertex deletes a shape's vertex Index.
+// RemoveVertex deletes a shape's vertex Index. A rectangle is always its 2
+// corners: removing one fails.
 type RemoveVertex struct {
 	Zone  ZoneID
 	Shape int
@@ -57,6 +62,9 @@ func (c RemoveVertex) apply(d *Document) error {
 	s, err := d.shape(c.Zone, c.Shape)
 	if err != nil {
 		return err
+	}
+	if s.Kind == Rectangle {
+		return fmt.Errorf("zone: shape %d is a rectangle; its 2 corners are fixed", c.Shape)
 	}
 	if c.Index < 0 || c.Index >= len(s.Points) {
 		return fmt.Errorf("zone: shape %d has no vertex %d", c.Shape, c.Index)

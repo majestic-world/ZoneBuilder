@@ -194,6 +194,11 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 							status = msg
 						}
 					}
+					if e.Name == key.NameEscape && e.State == key.Press {
+						if msg := zones.escape(); msg != "" {
+							status = msg
+						}
+					}
 				}
 			}
 			if shell.Browse.Clicked(gtx) {
@@ -225,7 +230,10 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 			default:
 			}
 			if shell.Zone.CreateRequested(gtx) {
-				status = zones.create(shell.Zone.Name.Text(), shell.Zone.Type())
+				status = zones.create(shell.Zone.Name.Text(), shell.Zone.Type(), shell.Zone.Tools.Shape)
+			}
+			if t, ok := shell.Zone.Tools.Requested(gtx); ok {
+				status = zones.arm(t, shell.Zone.Tools.Banned.Value)
 			}
 			if shell.Zone.Compile.Clicked(gtx) {
 				status = zones.compile(shell.Zone.Output.Text())
@@ -272,6 +280,12 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 			if msg := zones.panel(gtx, &shell.Edit, current); msg != "" {
 				status = msg
 			}
+			if zones.anchored && current != nil && probe.inside {
+				zones.hoverAt(pickAt(current, &cam, probe.cursor, shell.Viewport.Size()))
+			} else {
+				zones.hoverAt(scene.Hit{}, false)
+			}
+			shell.Zone.Tools.Armed, shell.Zone.Tools.Active = zones.tool, zones.armed
 
 			rect := shell.Layout(gtx, panelLines(g, status, current, &cam))
 			if e.Size != size || rect != vpRect {

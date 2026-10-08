@@ -104,10 +104,14 @@ func (e *zoneEditor) selectVertex(id zone.ZoneID, shape, index int) {
 	e.version++
 }
 
-// sync drops UI state that an Undo or Redo left pointing at nothing.
+// sync drops UI state that an Undo or Redo left pointing at nothing: the
+// polygon being drawn, and the armed tool when its zone is gone.
 func (e *zoneEditor) sync() {
 	if _, _, ok := e.currentShape(); !ok {
 		e.drawing = false
+	}
+	if _, ok := e.doc.Zone(e.zone); !ok {
+		e.armed, e.anchored, e.hovering = false, false, false
 	}
 	e.drag = drag{}
 }
@@ -151,7 +155,7 @@ func (e *zoneEditor) viewportEvent(s *scene.Scene, cam *camera.Camera, ev event.
 			return e.removeVertex(), true
 		}
 	case pointer.Event:
-		if s == nil || e.drawing {
+		if s == nil || e.drawing || e.armed {
 			return "", false
 		}
 		if e.drag.kind != dragNone {
@@ -190,7 +194,7 @@ func (e *zoneEditor) press(s *scene.Scene, cam *camera.Camera, ev pointer.Event,
 		}
 		return fmt.Sprintf("Vértice %d de %s: %d %d %d", hit.index+1, z.Name, p.X, p.Y, p.Z), true
 	}
-	if _, sh, ok := e.currentShape(); ok && len(sh.Points) >= 2 {
+	if _, sh, ok := e.currentShape(); ok && sh.Kind != zone.Rectangle && len(sh.Points) >= 2 {
 		for i := range sh.Points {
 			if d, ok := screenDist(s, cam, midpoint(sh.Points, i), ev.Position, vp); ok && d <= grabSlop {
 				msg := e.insertAfter(i)
@@ -294,7 +298,10 @@ func (e *zoneEditor) moveShape(dx, dy, dz int) string {
 // from vertex i to the next one and selects it.
 func (e *zoneEditor) insertAfter(i int) string {
 	_, sh, ok := e.currentShape()
-	if !ok || len(sh.Points) < 2 {
+	switch {
+	case ok && sh.Kind == zone.Rectangle:
+		return "O retângulo tem 2 cantos fixos: mova-os em vez de inserir"
+	case !ok || len(sh.Points) < 2:
 		return "Selecione um shape com ao menos 2 vértices"
 	}
 	p := midpoint(sh.Points, i)
@@ -310,6 +317,9 @@ func (e *zoneEditor) removeVertex() string {
 	v, ok := e.selected()
 	if !ok {
 		return "Selecione um vértice para apagar"
+	}
+	if _, sh, _ := e.currentShape(); sh.Kind == zone.Rectangle {
+		return "O retângulo tem 2 cantos fixos: mova-os em vez de apagar"
 	}
 	if !e.apply(zone.RemoveVertex{Zone: e.zone, Shape: e.shape, Index: v}) {
 		return "Não foi possível apagar o vértice"
@@ -331,9 +341,14 @@ func (e *zoneEditor) groundZRange(s *scene.Scene) string {
 	case !ok || len(sh.Points) == 0:
 		return "Selecione um shape com vértices"
 	}
-	ground := make([]zone.Point, 0, len(sh.Points))
+	pts := sh.Points
+	if sh.Kind == zone.Rectangle && len(pts) == 2 {
+		c := zone.RectangleCorners(pts[0], pts[1])
+		pts = c[:]
+	}
+	ground := make([]zone.Point, 0, len(pts))
 	missed := 0
-	for i, p := range sh.Points {
+	for i, p := range pts {
 		z, ok := groundUnder(s, p)
 		if !ok {
 			log.Printf("zona: nenhum chão sob o vértice %d (%d %d)", i+1, p.X, p.Y)
@@ -421,7 +436,11 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.Scene) 
 	v, vok := e.selected()
 	p.Shape, p.Vertex = "", ""
 	if ok {
-		p.Shape = fmt.Sprintf("Shape %d de %s: %s, z %d … %d", e.shape+1, z.Name, count(len(sh.Points), "vértice", "vértices"), sh.ZMin, sh.ZMax)
+		kind := count(len(sh.Points), "vértice", "vértices")
+		if sh.Kind == zone.Rectangle {
+			kind = "retângulo"
+		}
+		p.Shape = fmt.Sprintf("Shape %d de %s: %s, z %d … %d", e.shape+1, z.Name, kind, sh.ZMin, sh.ZMax)
 	}
 	if vok {
 		p.Vertex = fmt.Sprintf("Vértice %d: x y z", v+1)

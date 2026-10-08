@@ -58,21 +58,29 @@ type ZoneID int
 // Point is a vertex in server coordinates.
 type Point struct{ X, Y, Z int }
 
-// Shape is a polygon: its vertices in order (the closing edge from the last
-// back to the first is implied) and the one Z range the whole prism spans.
-// Each vertex keeps the Z it was picked at, which the Z range is suggested
-// from; the XML carries only the range.
+// Shape is a polygon or a rectangle and the one Z range its prism spans.
+// A polygon's Points are its vertices in order (the closing edge from the
+// last back to the first is implied); a rectangle's are 2 opposite corners.
+// Each point keeps the Z it was picked at, which the Z range is suggested
+// from; the XML carries only the range. A banned shape is an exclusion: it
+// cuts its area out of the zone's included shapes.
 type Shape struct {
+	Kind       ShapeKind
+	Banned     bool
 	Points     []Point
 	ZMin, ZMax int
 }
 
-// Zone is a named, typed set of shapes.
+// Zone is a named, typed set of shapes, included and banned, and the points
+// the server sends players to on restart: RestartPoints for any player,
+// PKRestartPoints for player killers.
 type Zone struct {
-	ID     ZoneID
-	Name   string
-	Type   Type
-	Shapes []Shape
+	ID              ZoneID
+	Name            string
+	Type            Type
+	Shapes          []Shape
+	RestartPoints   []Point
+	PKRestartPoints []Point
 }
 
 // DefaultZMargin is how far the suggested Z range reaches below the lowest

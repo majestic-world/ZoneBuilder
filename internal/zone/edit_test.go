@@ -2,6 +2,7 @@ package zone_test
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 
 	"zonebuilder/internal/zone"
@@ -104,6 +105,50 @@ func TestVertexEditsOutOfRangeFailUnchanged(t *testing.T) {
 	}
 }
 
+// A rectangle stays its 2 corners: inserting, removing or appending a
+// vertex fails and leaves the document as it was, while moving a corner or
+// the whole rectangle shows in its compiled 2 coords. Catches a rectangle
+// edited into 1 or 3 corners, which the ZoneParser cannot read.
+func TestRectangleEditsKeepTwoCorners(t *testing.T) {
+	d := zone.NewDocument()
+	id := d.NewZoneID()
+	apply(t, d,
+		zone.CreateZone{ID: id, Name: "[zb_rect]", Type: zone.PeaceZone},
+		zone.AddShape{Zone: id, Kind: zone.Rectangle, Banned: true, ZMin: -3700, ZMax: -3100, Points: []zone.Point{
+			{X: 82000, Y: 148000, Z: -3467}, {X: 82800, Y: 148700, Z: -3404},
+		}},
+	)
+	before := compiled(t, d)
+	for _, c := range []zone.Command{
+		zone.InsertVertex{Zone: id, Shape: 0, Index: 1, Point: zone.Point{X: 82400, Y: 148000}},
+		zone.InsertVertex{Zone: id, Shape: 0, Index: 2, Point: zone.Point{X: 82400, Y: 148000}},
+		zone.RemoveVertex{Zone: id, Shape: 0, Index: 1},
+		zone.AddVertex{Zone: id, Shape: 0, Point: zone.Point{X: 82400, Y: 148000}},
+	} {
+		if err := d.Apply(c); err == nil {
+			t.Errorf("Apply(%#v) on a rectangle succeeded, want an error", c)
+		}
+	}
+	if got := compiled(t, d); !reflect.DeepEqual(got, before) {
+		t.Errorf("failed rectangle edits changed the document:\n%q\nwant\n%q", got, before)
+	}
+
+	apply(t, d, zone.MoveVertex{Zone: id, Shape: 0, Index: 1, Point: zone.Point{X: 82900, Y: 148600, Z: -3400}})
+	apply(t, d, zone.MoveShape{Zone: id, Shape: 0, DX: 100, DY: 100, DZ: 10})
+	z, _ := d.Zone(id)
+	if s := z.Shapes[0]; s.Kind != zone.Rectangle || len(s.Points) != 2 ||
+		s.Points[0] != (zone.Point{X: 82100, Y: 148100, Z: -3457}) || s.Points[1] != (zone.Point{X: 83000, Y: 148700, Z: -3390}) ||
+		s.ZMin != -3690 || s.ZMax != -3090 {
+		t.Errorf("rectangle after moving corner 2 and the shape: %+v", s)
+	}
+	// The banned rectangle still compiles as the 4-corner banned_polygon of
+	// its moved corners.
+	want := []string{"82100 148100 -3690 -3090", "83000 148100 -3690 -3090", "83000 148700 -3690 -3090", "82100 148700 -3690 -3090"}
+	if got := coords(t, d); !reflect.DeepEqual(got, want) {
+		t.Errorf("coords %q, want %q", got, want)
+	}
+}
+
 // A sequence of commands followed by as many Undo calls gives back the
 // initial document, step by step in reverse; as many Redo calls reapply
 // every step. A new command after an Undo drops the steps that could have
@@ -129,6 +174,18 @@ func TestUndoReturnsEachStepAndRedoReapplies(t *testing.T) {
 		zone.RemoveVertex{Zone: base, Shape: 0, Index: 0},
 		zone.MoveShape{Zone: id, Shape: 0, DX: 1000, DY: 2000, DZ: -30},
 		zone.SetZRange{Zone: base, Shape: 0, ZMin: -500, ZMax: 500},
+		zone.AddShape{Zone: id, Kind: zone.Rectangle, Banned: true, ZMin: -40, ZMax: 40, Points: []zone.Point{
+			{X: 20, Y: 20, Z: -5}, {X: 60, Y: 70, Z: -6},
+		}},
+		zone.MoveVertex{Zone: id, Shape: 1, Index: 0, Point: zone.Point{X: 25, Y: 15, Z: -4}},
+		zone.AddShape{Zone: base, Banned: true, ZMin: -9, ZMax: 9, Points: []zone.Point{
+			{X: 100, Y: 100}, {X: 200, Y: 100}, {X: 150, Y: 200},
+		}},
+		zone.AddRestartPoint{Zone: id, Point: zone.Point{X: 50, Y: 50, Z: -5}},
+		zone.AddRestartPoint{Zone: id, Point: zone.Point{X: 55, Y: 50, Z: -5}},
+		zone.AddRestartPoint{Zone: id, PK: true, Point: zone.Point{X: 60, Y: 60, Z: -6}},
+		zone.RemoveRestartPoint{Zone: id, Index: 0},
+		zone.RemoveRestartPoint{Zone: id, PK: true, Index: 0},
 	}
 	states := [][]zone.Zone{initial}
 	for _, c := range cmds {
@@ -201,6 +258,10 @@ func clonedZones(d *zone.Document) []zone.Zone {
 			out[i].Shapes[k] = s
 			out[i].Shapes[k].Points = append([]zone.Point(nil), s.Points...)
 		}
+	}
+	for i, z := range zs {
+		out[i].RestartPoints = slices.Clone(z.RestartPoints)
+		out[i].PKRestartPoints = slices.Clone(z.PKRestartPoints)
 	}
 	return out
 }
