@@ -19,7 +19,8 @@ const (
 	FormatG16   = 10
 )
 
-// Mip is one level of the chain, largest first. Data aliases the package.
+// Mip is one level of the chain, largest first. Data aliases the package
+// until Texture.Own copies it.
 type Mip struct {
 	Width, Height int
 	Data          []byte
@@ -83,6 +84,22 @@ func Read(p *l2pkg.Package, i int) (*Texture, error) {
 		return nil, fmt.Errorf("textura, mips: %w", err)
 	}
 	return t, nil
+}
+
+// Own copies the mip data out of the package into one allocation of the
+// texture's own. Data otherwise aliases the whole package file, which a
+// texture kept after loading (a scene batch's) would hold in memory.
+func (t *Texture) Own() {
+	n := 0
+	for _, m := range t.Mips {
+		n += len(m.Data)
+	}
+	buf := make([]byte, 0, n)
+	for i := range t.Mips {
+		start := len(buf)
+		buf = append(buf, t.Mips[i].Data...)
+		t.Mips[i].Data = buf[start:len(buf):len(buf)]
+	}
 }
 
 // Heights is the G16 height field of a TerrainInfo's TerrainMap: mip 0 as

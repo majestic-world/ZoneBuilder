@@ -46,7 +46,7 @@ func (e *zoneEditor) problemCounts() map[zone.ZoneID]int {
 // where the problem is: the vertex or restart point, else the shape, else
 // the zone. While a polygon is being drawn the selection stays on it, but
 // the camera still goes. It returns the status line.
-func (e *zoneEditor) goToProblem(i int, s *scene.Scene, cam *camera.Camera) string {
+func (e *zoneEditor) goToProblem(i int, s *scene.World, cam *camera.Camera) string {
 	if i < 0 || i >= len(e.problems) {
 		return ""
 	}
@@ -110,7 +110,7 @@ func (e *zoneEditor) goToProblem(i int, s *scene.Scene, cam *camera.Camera) stri
 
 // pointBox is the box a single server point is framed as, in s's render
 // space (the same size goTo frames).
-func pointBox(s *scene.Scene, p zone.Point) geom.Box {
+func pointBox(s *scene.World, p zone.Point) geom.Box {
 	c := renderPoint(s, p)
 	h := geom.Vec3{X: goToHalfSize, Y: goToHalfSize, Z: goToHalfSize}
 	return geom.Box{Min: c.Sub(h), Max: c.Add(h)}

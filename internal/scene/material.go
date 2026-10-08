@@ -240,6 +240,10 @@ func (ld *loader) textureAt(p *l2pkg.Package, i int) (textureEntry, error) {
 	}
 	if e.err != nil {
 		e.err = fmt.Errorf("%s: %w", t.Path, e.err)
+	} else {
+		// A drawable texture outlives the Load in the scene's batches:
+		// keep its mips, not the whole package they alias.
+		t.Own()
 	}
 	ld.textures[key] = e
 	return e, nil

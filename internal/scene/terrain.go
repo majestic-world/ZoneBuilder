@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"bytes"
 	"fmt"
 
 	"zonebuilder/internal/geom"
@@ -46,6 +47,8 @@ func (s *Scene) addTerrain(ld *loader, m *l2pkg.Package, t Tile) error {
 	if w < 2 || h < 2 {
 		return fmt.Errorf("heightmap de %d×%d: o terreno precisa de pelo menos 2×2", w, h)
 	}
+	// The bitmaps are copied: they alias the map package, which the
+	// terrain would otherwise hold in memory for as long as it lives.
 	ter := Terrain{
 		Tile:           t,
 		Width:          w,
@@ -53,8 +56,8 @@ func (s *Scene) addTerrain(ld *loader, m *l2pkg.Package, t Tile) error {
 		Heights:        heights,
 		Position:       vec(info.Position(w, h)),
 		Scale:          vec(info.Scale()),
-		QuadVisibility: info.QuadVisibilityBitmap,
-		EdgeTurn:       info.EdgeTurnBitmap,
+		QuadVisibility: bytes.Clone(info.QuadVisibilityBitmap),
+		EdgeTurn:       bytes.Clone(info.EdgeTurnBitmap),
 		FallbackScale:  info.BrokenScale(),
 	}
 	// The grid every layer shares: positions, mask UVs spanning the tile,

@@ -101,7 +101,7 @@ func (e *zoneEditor) points() []zone.Point {
 
 // click handles a click at viewport pixel p that picked h (ok: something
 // was hit). It returns the status line, or "" when no tool is armed.
-func (e *zoneEditor) click(s *scene.Scene, cam *camera.Camera, p f32.Point, viewport image.Point, h scene.Hit, ok bool) string {
+func (e *zoneEditor) click(s *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point, h scene.Hit, ok bool) string {
 	if !e.armed {
 		return ""
 	}
@@ -367,7 +367,7 @@ func overlayShape(pts []zone.Point, zmin, zmax int, color [3]float32) render.Zon
 
 // renderPoint is server point p in s's rebased render space, where the
 // camera lives.
-func renderPoint(s *scene.Scene, p zone.Point) geom.Vec3 {
+func renderPoint(s *scene.World, p zone.Point) geom.Vec3 {
 	w := scene.FromServer(serverVec(p))
 	return scene.ToRender(w.Sub(s.Origin))
 }

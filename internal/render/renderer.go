@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"image"
 	"slices"
+	"time"
 
 	"zonebuilder/internal/camera"
+	"zonebuilder/internal/geom"
 	"zonebuilder/internal/render/gles"
 	"zonebuilder/internal/scene"
 )
@@ -97,10 +99,40 @@ func New(surfaceSRGB bool) (*Renderer, error) {
 	return r, nil
 }
 
-// SetScene uploads s to the GPU, replacing the previous scene; nil leaves
-// the viewport empty. s is only read during the call.
-func (r *Renderer) SetScene(s *scene.Scene) {
-	r.scene.upload(s)
+// SetOrigin sets the rebase origin of the scenes drawn (scene.World's
+// Origin): the camera's render space has it at zero.
+func (r *Renderer) SetOrigin(origin geom.Vec3) {
+	r.scene.rebase = origin
+}
+
+// AddScene queues the scene p was prepared from for upload. Upload puts it
+// on the GPU a little per frame; it is drawn once it is all there.
+func (r *Renderer) AddScene(p *Prepared) {
+	r.scene.add(p)
+}
+
+// RemoveScene stops drawing s, uploaded or still queued, and leaves its
+// GPU copy for Upload to free; a texture another scene uses stays.
+func (r *Renderer) RemoveScene(s *scene.Scene) {
+	r.scene.remove(s)
+}
+
+// Upload spends about budget, at least one step, freeing the removed
+// scenes and then uploading the queued ones. It returns the scenes that
+// became complete (and drawn), and whether work remains for later frames.
+func (r *Renderer) Upload(budget time.Duration) (done []*scene.Scene, more bool) {
+	return r.scene.upload(budget)
+}
+
+// UploadProgress is how much of s is on the GPU, 0 to 1; false when s was
+// never added or was removed.
+func (r *Renderer) UploadProgress(s *scene.Scene) (float32, bool) {
+	return r.scene.progress(s)
+}
+
+// Stats are the counts of the last DrawViewport.
+func (r *Renderer) Stats() DrawStats {
+	return r.scene.stats
 }
 
 // SetZones replaces the zone shapes drawn over the scene (nil: none).
@@ -142,7 +174,7 @@ func (r *Renderer) DrawViewport(rect image.Rectangle, window image.Point, cam *c
 	proj := reversedPerspective(camera.FovY, aspect, camera.Near, cam.Far)
 	viewProj := mul(proj, mul(view, unrealToRender))
 	r.scene.draw(viewProj, scene.ToRender(cam.Position))
-	r.zones.draw(viewProj, r.scene.rebase)
+	r.zones.draw(viewProj, [3]float32{r.scene.rebase.X, r.scene.rebase.Y, r.scene.rebase.Z})
 
 	gles.Disable(gles.DEPTH_TEST)
 	gles.ClipControlEXT(gles.LOWER_LEFT_EXT, gles.NEGATIVE_ONE_TO_ONE_EXT)
