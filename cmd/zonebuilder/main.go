@@ -284,6 +284,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				status = zones.compile(shell.Zone.Output.Text())
 				sess.outputUsed(shell.Zone.Output.Text())
 			}
+			if msg := shell.Props.Update(gtx, zones); msg != "" {
+				status = msg
+			}
 			if msg, load := sess.update(gtx, w, shell, zones, tiles, loading); msg != "" || len(load) > 0 {
 				status = msg
 				if len(load) > 0 {

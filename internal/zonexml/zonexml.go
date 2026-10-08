@@ -25,12 +25,20 @@ const FilePrefix = "zonebuilder_"
 type Zone struct {
 	Name string
 	// Type is the ZoneType value, written as is.
-	Type   string
+	Type string
+	// Params are written as <set name val /> lines before the shapes, in
+	// this order.
+	Params []Param
 	Shapes []Shape
 	// RestartPoints and PKRestartPoints are x y z, written as one
 	// <restart_point> and one <PKrestart_point> block (the parser keeps
 	// only the last block of each).
 	RestartPoints, PKRestartPoints [][3]int
+}
+
+// Param is one <set name="Name" val="Value" />.
+type Param struct {
+	Name, Value string
 }
 
 // Shape is one <polygon>, <rectangle> or, when Banned, <banned_polygon>:
@@ -78,6 +86,9 @@ func encode(zones []Zone) []byte {
 	b.WriteString("<list>\n")
 	for _, z := range zones {
 		fmt.Fprintf(&b, "\t<zone name=\"%s\" type=\"%s\" >\n", attr(z.Name), attr(z.Type))
+		for _, p := range z.Params {
+			fmt.Fprintf(&b, "\t\t<set name=\"%s\" val=\"%s\" />\n", attr(p.Name), attr(p.Value))
+		}
 		for _, s := range z.Shapes {
 			elem := "polygon"
 			if s.Rectangle {
