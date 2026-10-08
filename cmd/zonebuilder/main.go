@@ -5,12 +5,14 @@
 package main
 
 import (
+	"cmp"
 	"flag"
 	"fmt"
 	"image"
 	"log"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"gioui.org/app"
@@ -25,6 +27,7 @@ import (
 
 	"zonebuilder/internal/camera"
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/project"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/render/egl"
 	"zonebuilder/internal/scene"
@@ -32,11 +35,18 @@ import (
 )
 
 func main() {
-	client := flag.String("client", os.Getenv("ZB_CLIENT"), "pasta do cliente (acima de Maps) que o campo traz preenchida")
-	tile := flag.String("tile", "22_22", "tile que o campo traz preenchido")
-	out := flag.String("out", "", "pasta de saída do XML que o campo traz preenchida")
+	client := flag.String("client", "", "pasta do cliente (acima de Maps) que o campo traz preenchida; vazio usa a da configuração do usuário, depois ZB_CLIENT")
+	tile := flag.String("tile", "", "tile que o campo traz preenchido; vazio usa o mapa mais recente, depois 22_22")
+	out := flag.String("out", "", "pasta de saída do XML que o campo traz preenchida; vazio usa a da configuração do usuário")
+	proj := flag.String("project", "", "projeto ("+project.Ext+") aberto ao iniciar")
 	pose := flag.String("camera", "", `pose da câmera ao abrir um tile, "x,y,z,yaw,pitch": posição de mundo (coordenadas do servidor) e ângulos em radianos, no formato que o log "cena: câmera" imprime; vazio enquadra o mapa`)
 	flag.Parse()
+	sess := loadSession()
+	fields := startFields{
+		client: cmp.Or(*client, sess.cfg.Client, os.Getenv("ZB_CLIENT")),
+		tile:   cmp.Or(*tile, firstOr(sess.cfg.RecentMaps, ""), "22_22"),
+		out:    cmp.Or(*out, sess.cfg.Output),
+	}
 	var start *cameraPose
 	if *pose != "" {
 		p, err := parsePose(*pose)
@@ -48,7 +58,7 @@ func main() {
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("Zone Builder"), app.Size(unit.Dp(1280), unit.Dp(800)), app.CustomRenderer(true))
-		if err := run(w, *client, *tile, *out, start); err != nil {
+		if err := run(w, sess, fields, *proj, start); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
@@ -112,20 +122,44 @@ func (g *gfx) release() {
 
 // loaded is the outcome of a background scene.Load.
 type loaded struct {
-	tile  scene.Tile
+	root  string
+	tiles []scene.Tile
 	scene *scene.Scene
 	err   error
 	took  time.Duration
 }
 
-func run(w *app.Window, client, tile, out string, start *cameraPose) error {
+// startFields are what the client, tile and output fields hold on start.
+type startFields struct{ client, tile, out string }
+
+// firstOr is s[0], or def when s is empty.
+func firstOr(s []string, def string) string {
+	if len(s) == 0 {
+		return def
+	}
+	return s[0]
+}
+
+// startLoad loads tiles of the client at root in the background; the
+// outcome arrives on loads.
+func startLoad(w *app.Window, loads chan<- loaded, root string, tiles []scene.Tile) {
+	go func() {
+		began := time.Now()
+		s, err := scene.Load(root, tiles)
+		loads <- loaded{root: root, tiles: tiles, scene: s, err: err, took: time.Since(began)}
+		w.Invalidate()
+	}()
+}
+
+func run(w *app.Window, sess *session, fields startFields, proj string, start *cameraPose) error {
 	// EGL binds the context to an OS thread: keep this goroutine on one.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
-	shell := ui.NewShell(th, client, tile, out)
+	shell := ui.NewShell(th, fields.client, fields.tile, fields.out)
+	shell.Project.RecentMaps = sess.cfg.RecentMaps
 
 	var (
 		ops      op.Ops
@@ -144,10 +178,20 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 		outputs  = make(chan string, 1)
 		probe    cursorProbe
 		zones    = newZoneEditor()
+		// tiles are the open map tiles, which the project file keeps.
+		tiles []scene.Tile
 		// zonesShown is the zones.version the renderer last got.
 		zonesShown = -1
 	)
 	defer func() { g.release() }()
+	if proj != "" {
+		var load []scene.Tile
+		status, load = sess.open(w, shell, zones, proj)
+		if len(load) > 0 {
+			tiles, loading = load, true
+			startLoad(w, loads, shell.Client.Text(), load)
+		}
+	}
 
 	for {
 		switch e := w.Event().(type) {
@@ -216,6 +260,7 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 			select {
 			case p := <-outputs:
 				shell.Zone.Output.SetText(p)
+				sess.outputUsed(p)
 			default:
 			}
 			if shell.Zone.CreateRequested(gtx) {
@@ -223,20 +268,28 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 			}
 			if shell.Zone.Compile.Clicked(gtx) {
 				status = zones.compile(shell.Zone.Output.Text())
+				sess.outputUsed(shell.Zone.Output.Text())
 			}
-			if shell.OpenRequested(gtx) && !loading {
+			if msg, load := sess.update(gtx, w, shell, zones, tiles, loading); msg != "" || len(load) > 0 {
+				status = msg
+				if len(load) > 0 {
+					tiles, loading = load, true
+					status = "Carregando " + strings.Join(tileNames(load), ", ") + "…"
+					startLoad(w, loads, shell.Client.Text(), load)
+				}
+			}
+			openTile := shell.OpenRequested(gtx)
+			if m, ok := shell.Project.RecentMapClicked(gtx); ok {
+				shell.Tile.SetText(m)
+				openTile = true
+			}
+			if openTile && !loading {
 				t, err := scene.ParseTile(shell.Tile.Text())
 				if err != nil {
 					status = err.Error()
 				} else {
 					loading, status = true, "Carregando "+t.Name()+"…"
-					root := shell.Client.Text()
-					go func() {
-						start := time.Now()
-						s, err := scene.Load(root, []scene.Tile{t})
-						loads <- loaded{tile: t, scene: s, err: err, took: time.Since(start)}
-						w.Invalidate()
-					}()
+					startLoad(w, loads, shell.Client.Text(), []scene.Tile{t})
 				}
 			}
 			select {
@@ -244,16 +297,18 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 				loading = false
 				if r.err != nil {
 					status = r.err.Error()
-					log.Printf("cena: %s: %v", r.tile.Name(), r.err)
+					log.Printf("cena: %s: %v", strings.Join(tileNames(r.tiles), ", "), r.err)
 					break
 				}
-				current, uploaded = r.scene, false
+				current, uploaded, tiles = r.scene, false, r.tiles
+				sess.mapOpened(r.root, r.tiles)
+				shell.Project.RecentMaps = sess.cfg.RecentMaps
 				cam = camera.ForBounds(renderBox(current, current.Framing))
 				if start != nil {
 					start.apply(&cam, current)
 				}
 				log.Printf("cena: câmera %s", formatPose(&cam, current))
-				status = r.tile.Name()
+				status = strings.Join(tileNames(r.tiles), ", ")
 				logScene(r)
 				probe.click = scene.Hit{}
 				probe.clickHit = false
@@ -317,7 +372,7 @@ func worldPosition(s *scene.Scene, p geom.Vec3) geom.Vec3 {
 func logScene(r loaded) {
 	s := r.scene
 	log.Printf("cena: %s carregado em %v: %s, origem de rebase %v",
-		r.tile.Name(), r.took.Round(time.Millisecond), count(len(s.Batches), "batch", "batches"), s.Origin)
+		strings.Join(tileNames(r.tiles), ", "), r.took.Round(time.Millisecond), count(len(s.Batches), "batch", "batches"), s.Origin)
 	for _, t := range s.Terrains {
 		ox, oy := t.Tile.Origin()
 		textured := 0
