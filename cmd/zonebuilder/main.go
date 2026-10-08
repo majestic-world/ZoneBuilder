@@ -35,11 +35,20 @@ func main() {
 	client := flag.String("client", os.Getenv("ZB_CLIENT"), "pasta do cliente (acima de Maps) que o campo traz preenchida")
 	tile := flag.String("tile", "22_22", "tile que o campo traz preenchido")
 	out := flag.String("out", "", "pasta de saída do XML que o campo traz preenchida")
+	pose := flag.String("camera", "", `pose da câmera ao abrir um tile, "x,y,z,yaw,pitch": posição de mundo (coordenadas do servidor) e ângulos em radianos, no formato que o log "cena: câmera" imprime; vazio enquadra o mapa`)
 	flag.Parse()
+	var start *cameraPose
+	if *pose != "" {
+		p, err := parsePose(*pose)
+		if err != nil {
+			log.Fatalf("-camera: %v", err)
+		}
+		start = &p
+	}
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("Zone Builder"), app.Size(unit.Dp(1280), unit.Dp(800)), app.CustomRenderer(true))
-		if err := run(w, *client, *tile, *out); err != nil {
+		if err := run(w, *client, *tile, *out, start); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
@@ -81,8 +90,8 @@ func newGfx(w *app.Window, ve app.Win32ViewEvent) (*gfx, error) {
 	i := g.renderer.Info
 	log.Printf("gfx: %s", ctx.Describe())
 	log.Printf("gfx: %s | %s", i.Version, i.Renderer)
-	log.Printf("gfx: GL_EXT_clip_control=%t DXT1/3/5+sRGB=%t GL_EXT_texture_compression_s3tc=%t surface sRGB=%t",
-		i.ClipControl, i.DXT, i.S3TC, ctx.SRGB)
+	log.Printf("gfx: GL_EXT_clip_control=%t DXT1/3/5+sRGB=%t GL_EXT_texture_compression_s3tc=%t anisotropic=%t surface sRGB=%t",
+		i.ClipControl, i.DXT, i.S3TC, i.Anisotropic, ctx.SRGB)
 	return g, nil
 }
 
@@ -109,7 +118,7 @@ type loaded struct {
 	took  time.Duration
 }
 
-func run(w *app.Window, client, tile, out string) error {
+func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 	// EGL binds the context to an OS thread: keep this goroutine on one.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -240,6 +249,10 @@ func run(w *app.Window, client, tile, out string) error {
 				}
 				current, uploaded = r.scene, false
 				cam = camera.ForBounds(renderBox(current, current.Framing))
+				if start != nil {
+					start.apply(&cam, current)
+				}
+				log.Printf("cena: câmera %s", formatPose(&cam, current))
 				status = r.tile.Name()
 				logScene(r)
 				probe.click = scene.Hit{}
@@ -307,10 +320,20 @@ func logScene(r loaded) {
 		r.tile.Name(), r.took.Round(time.Millisecond), count(len(s.Batches), "batch", "batches"), s.Origin)
 	for _, t := range s.Terrains {
 		ox, oy := t.Tile.Origin()
-		log.Printf("cena: terreno %s: %d×%d amostras, %s, faixa x [%.1f, %.1f] y [%.1f, %.1f] z [%.1f, %.1f]; início do tile (%.0f, %.0f); fallback MapX/MapY=%t",
+		textured := 0
+		for _, b := range t.Layers {
+			if s.Batches[b].Texture != nil {
+				textured++
+			}
+		}
+		log.Printf("cena: terreno %s: %d×%d amostras, %s, %s, faixa x [%.1f, %.1f] y [%.1f, %.1f] z [%.1f, %.1f]; início do tile (%.0f, %.0f); fallback MapX/MapY=%t",
 			t.Tile.Name(), t.Width, t.Height, count(len(s.Batches[t.Batch].Indices)/3, "triângulo", "triângulos"),
+			count(textured, "camada texturizada", "camadas texturizadas"),
 			t.Bounds.Min.X, t.Bounds.Max.X, t.Bounds.Min.Y, t.Bounds.Max.Y, t.Bounds.Min.Z, t.Bounds.Max.Z,
 			ox, oy, t.FallbackScale)
+	}
+	if n := len(s.BSPSurfaces); n > 0 {
+		log.Printf("cena: BSP: %s, %s", count(n, "superfície", "superfícies"), count(bspTriangles(s), "triângulo", "triângulos"))
 	}
 	for _, w := range s.Warnings {
 		log.Printf("cena: aviso: %s", w)
@@ -339,6 +362,9 @@ func panelLines(g *gfx, status string, s *scene.Scene, cam *camera.Camera) []str
 			lines = append(lines, "O mapa não tem terreno")
 		}
 		lines = append(lines, s.Warnings...)
+		if n := len(s.BSPSurfaces); n > 0 {
+			lines = append(lines, fmt.Sprintf("BSP: %s, %s", count(n, "superfície", "superfícies"), count(bspTriangles(s), "triângulo", "triângulos")))
+		}
 		p := worldPosition(s, cam.Position)
 		lines = append(lines, fmt.Sprintf("Câmera: %.0f %.0f %.0f", p.X, p.Y, p.Z))
 	}
@@ -350,6 +376,14 @@ func panelLines(g *gfx, status string, s *scene.Scene, cam *camera.Camera) []str
 		lines = append(lines, g.renderer.Info.Renderer)
 	}
 	return lines
+}
+
+func bspTriangles(s *scene.Scene) int {
+	n := 0
+	for _, sf := range s.BSPSurfaces {
+		n += sf.Count / 3
+	}
+	return n
 }
 
 // count inflects a noun to n ("1 triângulo", "2 triângulos").

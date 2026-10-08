@@ -29,6 +29,9 @@ type Info struct {
 	// S3TC is the literal GL_EXT_texture_compression_s3tc string, logged for
 	// the record; ANGLE on D3D11 does not list it.
 	S3TC bool
+	// Anisotropic is GL_EXT_texture_filter_anisotropic; without it material
+	// textures are sampled trilinear only.
+	Anisotropic bool
 }
 
 func queryInfo() Info {
@@ -42,7 +45,8 @@ func queryInfo() Info {
 			has("GL_ANGLE_texture_compression_dxt3") &&
 			has("GL_ANGLE_texture_compression_dxt5") &&
 			has("GL_EXT_texture_compression_s3tc_srgb"),
-		S3TC: has("GL_EXT_texture_compression_s3tc"),
+		S3TC:        has("GL_EXT_texture_compression_s3tc"),
+		Anisotropic: has("GL_EXT_texture_filter_anisotropic"),
 	}
 }
 
@@ -82,7 +86,7 @@ func New(surfaceSRGB bool) (*Renderer, error) {
 	if r.comp, err = newCompositor(); err != nil {
 		return nil, err
 	}
-	if r.scene, err = newSceneRenderer(); err != nil {
+	if r.scene, err = newSceneRenderer(r.Info.Anisotropic); err != nil {
 		r.Release()
 		return nil, err
 	}
