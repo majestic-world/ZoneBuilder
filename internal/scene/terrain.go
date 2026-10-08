@@ -105,3 +105,13 @@ func bit(b []byte, i int) bool {
 }
 
 func vec(v [3]float32) geom.Vec3 { return geom.Vec3{X: v[0], Y: v[1], Z: v[2]} }
+
+// footprint is UE2-Studio's TerrainInfo footprint: the X/Y area of
+// Width×Height samples from Position (Z left at 0), the map extent the
+// off-map filter measures against.
+func (t *Terrain) footprint() *geom.Box {
+	return &geom.Box{
+		Min: geom.Vec3{X: t.Position.X, Y: t.Position.Y},
+		Max: geom.Vec3{X: t.Position.X + float32(t.Width)*t.Scale.X, Y: t.Position.Y + float32(t.Height)*t.Scale.Y},
+	}
+}

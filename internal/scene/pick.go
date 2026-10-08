@@ -20,6 +20,9 @@ const (
 	SurfaceTerrain Surface = iota + 1
 )
 
+// SurfaceBSP is a surface of a map's Level.Model.
+const SurfaceBSP Surface = 2
+
 // Hit is where a ray first meets the scene.
 type Hit struct {
 	// Pos is the hit in server coordinates (ToServer of the surface point):
@@ -30,10 +33,10 @@ type Hit struct {
 	Surface  Surface
 }
 
-// Pick returns the nearest point where r meets the scene's geometry, or
-// false when it meets nothing (it misses every terrain, points away from
-// them, or has no direction). Only drawn triangles are hit: an invisible
-// terrain quad is a hole.
+// Pick returns the nearest point where r meets the scene's geometry
+// (terrain or BSP), or false when it meets nothing. Only drawn triangles
+// are hit: an invisible terrain quad is a hole, and BSP surfaces Load
+// skipped (invisible, portal, backdrop, region-filtered) do not exist.
 func (s *Scene) Pick(r Ray) (Hit, bool) {
 	if r.Dir.Dot(r.Dir) == 0 {
 		return Hit{}, false
@@ -45,6 +48,7 @@ func (s *Scene) Pick(r Ray) (Hit, bool) {
 			best = Hit{Pos: ToServer(r.Origin.Add(r.Dir.Scale(d))), Distance: d, Surface: SurfaceTerrain}
 		}
 	}
+	s.pickTriangles(r, &best)
 	return best, best.Surface != 0
 }
 
