@@ -30,6 +30,10 @@ const (
 	BACK                 = 0x0405
 	GREATER              = 0x0204
 	LESS                 = 0x0201
+	GEQUAL               = 0x0206
+	SRC_ALPHA            = 0x0302
+	ONE_MINUS_SRC_ALPHA  = 0x0303
+	TEXTURE1             = 0x84C1
 	COLOR_BUFFER_BIT     = 0x4000
 	DEPTH_BUFFER_BIT     = 0x0100
 	TEXTURE_2D           = 0x0DE1
@@ -72,4 +76,7 @@ const (
 	COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT = 0x8C4D
 	COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT = 0x8C4E
 	COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT = 0x8C4F
+
+	// GL_EXT_texture_filter_anisotropic.
+	TEXTURE_MAX_ANISOTROPY_EXT = 0x84FE
 )

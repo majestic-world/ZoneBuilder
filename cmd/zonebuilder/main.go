@@ -32,11 +32,20 @@ import (
 func main() {
 	client := flag.String("client", os.Getenv("ZB_CLIENT"), "pasta do cliente (acima de Maps) que o campo traz preenchida")
 	tile := flag.String("tile", "22_22", "tile que o campo traz preenchido")
+	pose := flag.String("camera", "", `pose da câmera ao abrir um tile, "x,y,z,yaw,pitch": posição de mundo (coordenadas do servidor) e ângulos em radianos, no formato que o log "cena: câmera" imprime; vazio enquadra o mapa`)
 	flag.Parse()
+	var start *cameraPose
+	if *pose != "" {
+		p, err := parsePose(*pose)
+		if err != nil {
+			log.Fatalf("-camera: %v", err)
+		}
+		start = &p
+	}
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("Zone Builder"), app.Size(unit.Dp(1280), unit.Dp(800)), app.CustomRenderer(true))
-		if err := run(w, *client, *tile); err != nil {
+		if err := run(w, *client, *tile, start); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
@@ -78,8 +87,8 @@ func newGfx(w *app.Window, ve app.Win32ViewEvent) (*gfx, error) {
 	i := g.renderer.Info
 	log.Printf("gfx: %s", ctx.Describe())
 	log.Printf("gfx: %s | %s", i.Version, i.Renderer)
-	log.Printf("gfx: GL_EXT_clip_control=%t DXT1/3/5+sRGB=%t GL_EXT_texture_compression_s3tc=%t surface sRGB=%t",
-		i.ClipControl, i.DXT, i.S3TC, ctx.SRGB)
+	log.Printf("gfx: GL_EXT_clip_control=%t DXT1/3/5+sRGB=%t GL_EXT_texture_compression_s3tc=%t anisotropic=%t surface sRGB=%t",
+		i.ClipControl, i.DXT, i.S3TC, i.Anisotropic, ctx.SRGB)
 	return g, nil
 }
 
@@ -106,7 +115,7 @@ type loaded struct {
 	took  time.Duration
 }
 
-func run(w *app.Window, client, tile string) error {
+func run(w *app.Window, client, tile string, start *cameraPose) error {
 	// EGL binds the context to an OS thread: keep this goroutine on one.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -196,6 +205,10 @@ func run(w *app.Window, client, tile string) error {
 				}
 				current, uploaded = r.scene, false
 				cam = camera.ForBounds(renderBox(current, current.Framing))
+				if start != nil {
+					start.apply(&cam, current)
+				}
+				log.Printf("cena: câmera %s", formatPose(&cam, current))
 				status = r.tile.Name()
 				logScene(r)
 			default:
@@ -255,8 +268,15 @@ func logScene(r loaded) {
 		r.tile.Name(), r.took.Round(time.Millisecond), count(len(s.Batches), "batch", "batches"), s.Origin)
 	for _, t := range s.Terrains {
 		ox, oy := t.Tile.Origin()
-		log.Printf("cena: terreno %s: %d×%d amostras, %s, faixa x [%.1f, %.1f] y [%.1f, %.1f] z [%.1f, %.1f]; início do tile (%.0f, %.0f); fallback MapX/MapY=%t",
+		textured := 0
+		for _, b := range t.Layers {
+			if s.Batches[b].Texture != nil {
+				textured++
+			}
+		}
+		log.Printf("cena: terreno %s: %d×%d amostras, %s, %s, faixa x [%.1f, %.1f] y [%.1f, %.1f] z [%.1f, %.1f]; início do tile (%.0f, %.0f); fallback MapX/MapY=%t",
 			t.Tile.Name(), t.Width, t.Height, count(len(s.Batches[t.Batch].Indices)/3, "triângulo", "triângulos"),
+			count(textured, "camada texturizada", "camadas texturizadas"),
 			t.Bounds.Min.X, t.Bounds.Max.X, t.Bounds.Min.Y, t.Bounds.Max.Y, t.Bounds.Min.Z, t.Bounds.Max.Z,
 			ox, oy, t.FallbackScale)
 	}
