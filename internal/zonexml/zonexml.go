@@ -25,8 +25,16 @@ const FilePrefix = "zonebuilder_"
 type Zone struct {
 	Name string
 	// Type is the ZoneType value, written as is.
-	Type     string
+	Type string
+	// Params are written as <set name val /> lines before the shapes, in
+	// this order.
+	Params   []Param
 	Polygons []Polygon
+}
+
+// Param is one <set name="Name" val="Value" />.
+type Param struct {
+	Name, Value string
 }
 
 // Polygon is one <polygon>: its vertices (x, y) and the Z range every
@@ -71,6 +79,9 @@ func encode(zones []Zone) []byte {
 	b.WriteString("<list>\n")
 	for _, z := range zones {
 		fmt.Fprintf(&b, "\t<zone name=\"%s\" type=\"%s\" >\n", attr(z.Name), attr(z.Type))
+		for _, p := range z.Params {
+			fmt.Fprintf(&b, "\t\t<set name=\"%s\" val=\"%s\" />\n", attr(p.Name), attr(p.Value))
+		}
 		for _, p := range z.Polygons {
 			b.WriteString("\t\t<polygon>\n")
 			for _, pt := range p.Points {

@@ -154,6 +154,9 @@ func (d *Document) Compile(selection []ZoneID) ([]zonexml.File, error) {
 			return nil, err
 		}
 		x := zonexml.Zone{Name: z.Name, Type: string(z.Type)}
+		for _, p := range z.Params {
+			x.Params = append(x.Params, zonexml.Param{Name: p.Name, Value: p.Value})
+		}
 		for _, s := range z.Shapes {
 			p := zonexml.Polygon{Points: make([][2]int, len(s.Points)), ZMin: s.ZMin, ZMax: s.ZMax}
 			for i, pt := range s.Points {

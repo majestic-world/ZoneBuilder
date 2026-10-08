@@ -72,7 +72,16 @@ type Zone struct {
 	ID     ZoneID
 	Name   string
 	Type   Type
+	// Params are the zone's <set> parameters in document order: the order
+	// they were first set, which is the order they compile in.
+	Params []Param
 	Shapes []Shape
+}
+
+// Param is one <set name val> of a zone: a known ZoneTemplate parameter
+// (see KnownParams) or a free one that scripts read.
+type Param struct {
+	Name, Value string
 }
 
 // DefaultZMargin is how far the suggested Z range reaches below the lowest
