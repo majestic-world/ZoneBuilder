@@ -11,8 +11,11 @@ import (
 
 // Texture formats (ETextureFormat) the readers here know.
 const (
-	FormatDXT1 = 3
-	FormatG16  = 10
+	FormatDXT1  = 3
+	FormatRGBA8 = 5
+	FormatDXT3  = 7
+	FormatDXT5  = 8
+	FormatG16   = 10
 )
 
 // Mip is one level of the chain, largest first. Data aliases the package.
@@ -23,6 +26,8 @@ type Mip struct {
 
 // Texture is a decoded Texture export.
 type Texture struct {
+	// Path is the export's dotted name, Package.Group.Name.
+	Path         string
 	Format       uint8
 	USize, VSize int
 	Mips         []Mip
@@ -40,6 +45,7 @@ func Read(p *l2pkg.Package, i int) (*Texture, error) {
 		return nil, err
 	}
 	t := &Texture{}
+	t.Path, _ = p.ObjectPath(int32(i + 1))
 	t.Format, _ = props.Byte("Format")
 	u, _ := props.Int("USize")
 	v, _ := props.Int("VSize")

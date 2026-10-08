@@ -4,6 +4,7 @@ package unreal
 
 import (
 	"fmt"
+	"math"
 
 	"zonebuilder/internal/l2pkg"
 	"zonebuilder/internal/texture"
@@ -23,6 +24,41 @@ type TerrainInfo struct {
 	EdgeTurnBitmap       []byte
 	MapX, MapY           int32
 	Location             [3]float32
+	// Layers are the configured slots of the Layers array, in order, with
+	// the slots that have no Texture dropped.
+	Layers []TerrainLayer
+}
+
+// TerrainLayer is one entry of TerrainInfo.Layers. Port of UE2-Studio
+// objects.rs TerrainLayer, defaults included.
+type TerrainLayer struct {
+	// Texture is the layer's material, AlphaMap the Texture whose R channel
+	// is its coverage (0: none, the layer covers everything). Both are
+	// object references in the map package's index space.
+	Texture, AlphaMap int32
+	// UScale and VScale divide the UV (a zero in the file reads as 1);
+	// UPan and VPan offset it before the division; TextureRotation turns
+	// it, read as degrees like UE2-Studio does.
+	UScale, VScale, UPan, VPan, TextureRotation float32
+}
+
+// UVMapping is the layer's material texture coordinate as a function of
+// heightmap sample (x, y). Port of UE2-Studio's terrain_layer_uv: the
+// sample's grid position rotated, panned, then divided by the scale.
+func (l *TerrainLayer) UVMapping() func(x, y int) [2]float32 {
+	// The angle is rounded to float32 first, as UE2-Studio's f32
+	// to_radians does: at the ~65000 degrees some maps store, that
+	// rounding moves the UVs visibly.
+	angle := l.TextureRotation * float32(math.Pi/180)
+	sin, cos := math.Sincos(float64(angle))
+	s, c := float32(sin), float32(cos)
+	return func(x, y int) [2]float32 {
+		fx, fy := float32(x), float32(y)
+		return [2]float32{
+			(fx*c - fy*s + l.UPan) / l.UScale,
+			(fx*s + fy*c + l.VPan) / l.VScale,
+		}
+	}
 }
 
 // FindTerrainInfo is the 0-based index of the first TerrainInfo export of
@@ -54,6 +90,24 @@ func ReadTerrainInfo(p *l2pkg.Package, i int) (*TerrainInfo, error) {
 	t.MapX, _ = props.Int("MapX")
 	t.MapY, _ = props.Int("MapY")
 	t.Location, _ = props.Vector("Location")
+	for _, slot := range props.StructSlots("Layers") {
+		tex, _ := slot.Index("Texture")
+		if tex == 0 {
+			continue
+		}
+		l := TerrainLayer{Texture: tex, UScale: 1, VScale: 1}
+		l.AlphaMap, _ = slot.Index("AlphaMap")
+		if v, ok := slot.Float("UScale"); ok && v != 0 {
+			l.UScale = v
+		}
+		if v, ok := slot.Float("VScale"); ok && v != 0 {
+			l.VScale = v
+		}
+		l.UPan, _ = slot.Float("UPan")
+		l.VPan, _ = slot.Float("VPan")
+		l.TextureRotation, _ = slot.Float("TextureRotation")
+		t.Layers = append(t.Layers, l)
+	}
 	return t, nil
 }
 
