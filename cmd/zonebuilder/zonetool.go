@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"log"
@@ -47,6 +48,10 @@ type zoneEditor struct {
 	anchored, hovering bool
 	// version counts changes to what the overlay shows.
 	version int
+	// problems are the problems the problem panel shows (problemRows),
+	// built for version problemsAt-1 (0: never built).
+	problems   []zone.Problem
+	problemsAt int
 	editState
 }
 
@@ -172,6 +177,9 @@ func (e *zoneEditor) compile(dir string) string {
 		return "Escolha a pasta de saída do XML"
 	}
 	files, err := e.doc.Compile(e.doc.ZoneIDs())
+	if b, ok := errors.AsType[*zone.BlockedError](err); ok {
+		return e.blockedStatus(b)
+	}
 	if err != nil {
 		return err.Error()
 	}
@@ -237,6 +245,8 @@ func (e *zoneEditor) overlay() []render.ZoneShape {
 	var shapes []render.ZoneShape
 	for _, z := range e.doc.Zones() {
 		color := linearColor(z.DisplayColor())
+		problem := len(e.doc.ZoneProblems(z.ID)) > 0
+		bad := e.badVertices(z.ID)
 		for i, s := range z.Shapes {
 			open := e.drawing && z.ID == e.zone && i == e.shape
 			if z.Hidden && !open {
@@ -251,6 +261,15 @@ func (e *zoneEditor) overlay() []render.ZoneShape {
 				pts = c[:]
 			}
 			rs := overlayShape(pts, zmin, zmax, shapeColor(s.Banned, color))
+			// The polygon being drawn is incomplete by nature: no flag.
+			if !open {
+				rs.Problem, rs.BadVertices = problem, bad[i]
+			}
+			if rect {
+				for k, v := range rs.BadVertices {
+					rs.BadVertices[k] = 2 * v // stored corner 1 is outline corner 2 (RectangleCorners)
+				}
+			}
 			// A rectangle's edges have no midpoint handles: it stays 2
 			// corners, so no vertex can be inserted into it.
 			rs.Midpoints = current && !rect
@@ -269,10 +288,14 @@ func (e *zoneEditor) overlay() []render.ZoneShape {
 			continue
 		}
 		for _, p := range z.RestartPoints {
-			shapes = append(shapes, restartPin(p, restartColor))
+			pin := restartPin(p, restartColor)
+			pin.Problem = problem
+			shapes = append(shapes, pin)
 		}
 		for _, p := range z.PKRestartPoints {
-			shapes = append(shapes, restartPin(p, pkRestartColor))
+			pin := restartPin(p, pkRestartColor)
+			pin.Problem = problem
+			shapes = append(shapes, pin)
 		}
 	}
 	if pv, ok := e.preview(); ok {

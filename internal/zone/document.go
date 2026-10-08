@@ -12,6 +12,10 @@ type Document struct {
 	zones   []Zone
 	lastID  ZoneID
 	history history
+	// problems caches Problems while checked is set; every change of the
+	// zones clears it (changed).
+	problems []Problem
+	checked  bool
 }
 
 // NewDocument returns an empty document.
@@ -164,8 +168,19 @@ func (d *Document) shape(id ZoneID, shape int) (*Shape, error) {
 // Compile turns the zones in selection into the server's XML: one file per
 // type, zones in name order, every shape coords carrying the shape's Z
 // range, exclusions as banned_polygon, restart points as x y z. Writing the
-// files is up to the caller (zonexml.Write).
+// files is up to the caller (zonexml.Write). While a selected zone has a
+// problem nothing is compiled: the error is a *BlockedError.
 func (d *Document) Compile(selection []ZoneID) ([]zonexml.File, error) {
+	var blocked []Problem
+	for _, id := range selection {
+		if _, err := d.zone(id); err != nil {
+			return nil, err
+		}
+		blocked = append(blocked, d.ZoneProblems(id)...)
+	}
+	if len(blocked) > 0 {
+		return nil, &BlockedError{Problems: blocked}
+	}
 	zones := make([]zonexml.Zone, 0, len(selection))
 	for _, id := range selection {
 		z, err := d.zone(id)

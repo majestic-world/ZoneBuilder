@@ -26,6 +26,7 @@ func (d *Document) record(c Command) error {
 	}
 	d.history.undo = append(d.history.undo, before)
 	d.history.redo = nil
+	d.changed()
 	return nil
 }
 
@@ -38,6 +39,7 @@ func (d *Document) Undo() bool {
 	h.redo = append(h.redo, d.zones)
 	d.zones = h.undo[len(h.undo)-1]
 	h.undo = h.undo[:len(h.undo)-1]
+	d.changed()
 	return true
 }
 
@@ -51,6 +53,7 @@ func (d *Document) Redo() bool {
 	h.undo = append(h.undo, d.zones)
 	d.zones = h.redo[len(h.redo)-1]
 	h.redo = h.redo[:len(h.redo)-1]
+	d.changed()
 	return true
 }
 
