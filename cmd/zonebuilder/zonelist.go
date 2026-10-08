@@ -66,8 +66,8 @@ func (e *zoneEditor) rows() []ui.ZoneRow {
 	return rows
 }
 
-// selected is the zone the list shows as selected (0: none).
-func (e *zoneEditor) selected() zone.ZoneID {
+// selectedZone is the zone the list shows as selected (0: none).
+func (e *zoneEditor) selectedZone() zone.ZoneID {
 	if _, ok := e.doc.Zone(e.zone); !ok {
 		return 0
 	}

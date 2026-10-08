@@ -48,7 +48,7 @@ func TestMeshActorsMatchUE2Studio(t *testing.T) {
 		for i := range s.Actors {
 			a := &s.Actors[i]
 			byExport[a.Export] = a
-			tris += a.Count / 3
+			tris += a.Triangles()
 		}
 		if len(s.Actors) != c.actors || tris != c.tris {
 			t.Errorf("%s: %d atores com %d triângulos, quero %d com %d", c.tile, len(s.Actors), tris, c.actors, c.tris)

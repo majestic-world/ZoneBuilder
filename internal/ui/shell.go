@@ -41,6 +41,10 @@ type Shell struct {
 	Zone ZonePanel
 	// Zones is the zone list.
 	Zones ZoneList
+	// Props edits the selected zone's type and parameters.
+	Props PropertiesPanel
+	// Edit holds the undo and shape/vertex editing controls.
+	Edit EditPanel
 	// Status is the status bar's text.
 	Status string
 	list   widget.List
@@ -57,6 +61,8 @@ func NewShell(th *material.Theme, client, tile, output string) *Shell {
 	s.Tile.SetText(tile)
 	s.Zone.init(output)
 	s.Zones.init()
+	s.Props.init()
+	s.Edit.init()
 	s.list.Axis = layout.Vertical
 	return s
 }
@@ -139,6 +145,8 @@ func (s *Shell) panel(gtx layout.Context, lines []string) layout.Dimensions {
 		}
 		children = append(children, s.zonePanel()...)
 		children = append(children, s.zoneList()...)
+		children = append(children, s.propertiesPanel()...)
+		children = append(children, s.editPanel()...)
 		// One list item holding the whole column: the panel scrolls when
 		// the window is too short for it.
 		return material.List(s.Theme, &s.list).Layout(gtx, 1, func(gtx layout.Context, _ int) layout.Dimensions {
@@ -169,6 +177,7 @@ func (s *Shell) field(e *widget.Editor, hint string) layout.Widget {
 					gtx.Constraints.Min.X = gtx.Constraints.Max.X
 					ed := material.Editor(s.Theme, e, hint)
 					ed.Color = panelText
+					ed.HintColor = dimText
 					return layout.UniformInset(unit.Dp(6)).Layout(gtx, ed.Layout)
 				}),
 			)

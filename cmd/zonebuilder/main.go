@@ -172,7 +172,13 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 				if !ok {
 					break
 				}
-				fly.Handle(ev, &cam)
+				if msg, used := zones.viewportEvent(current, &cam, ev, shell.Viewport.Size()); used {
+					if msg != "" {
+						status = msg
+					}
+				} else {
+					fly.Handle(ev, &cam)
+				}
 				switch e := ev.(type) {
 				case pointer.Event:
 					if probe.handle(e) && current != nil {
@@ -185,6 +191,11 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 				case key.Event:
 					if (e.Name == key.NameReturn || e.Name == key.NameEnter) && e.State == key.Press {
 						if msg := zones.close(); msg != "" {
+							status = msg
+						}
+					}
+					if e.Name == key.NameEscape && e.State == key.Press {
+						if msg := zones.escape(); msg != "" {
 							status = msg
 						}
 					}
@@ -219,7 +230,10 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 			default:
 			}
 			if shell.Zone.CreateRequested(gtx) {
-				status = zones.create(shell.Zone.Name.Text(), shell.Zone.Type())
+				status = zones.create(shell.Zone.Name.Text(), shell.Zone.Type(), shell.Zone.Tools.Shape)
+			}
+			if t, ok := shell.Zone.Tools.Requested(gtx); ok {
+				status = zones.arm(t, shell.Zone.Tools.Banned.Value)
 			}
 			if shell.Zone.Compile.Clicked(gtx) {
 				status = zones.compile(shell.Zone.Output.Text())
@@ -228,6 +242,9 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 				if msg := zones.listRequest(req, current, &cam); msg != "" {
 					status = msg
 				}
+			}
+			if msg := shell.Props.Update(gtx, zones); msg != "" {
+				status = msg
 			}
 			if shell.OpenRequested(gtx) && !loading {
 				t, err := scene.ParseTile(shell.Tile.Text())
@@ -268,7 +285,16 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 			moving := fly.Step(&cam, gtx.Now)
 			shell.Status = probe.status(current, &cam, shell.Viewport.Size())
 			shell.Zone.Info = zones.info()
-			shell.Zones.Rows, shell.Zones.Selected = zones.rows(), zones.selected()
+			shell.Zones.Rows, shell.Zones.Selected = zones.rows(), zones.selectedZone()
+			if msg := zones.panel(gtx, &shell.Edit, current); msg != "" {
+				status = msg
+			}
+			if zones.anchored && current != nil && probe.inside {
+				zones.hoverAt(pickAt(current, &cam, probe.cursor, shell.Viewport.Size()))
+			} else {
+				zones.hoverAt(scene.Hit{}, false)
+			}
+			shell.Zone.Tools.Armed, shell.Zone.Tools.Active = zones.tool, zones.armed
 
 			rect := shell.Layout(gtx, panelLines(g, status, current, &cam))
 			if e.Size != size || rect != vpRect {
@@ -342,6 +368,13 @@ func logScene(r loaded) {
 		log.Printf("cena: BSP: %s, %s", count(n, "superfície", "superfícies"), count(bspTriangles(s), "triângulo", "triângulos"))
 	}
 	log.Printf("cena: %s", meshSummary(s))
+	untextured := 0
+	for _, b := range s.Batches {
+		if b.Texture == nil {
+			untextured += len(b.Indices) / 3
+		}
+	}
+	log.Printf("cena: %s sem textura", count(untextured, "triângulo", "triângulos"))
 	for _, w := range s.Warnings {
 		log.Printf("cena: aviso: %s", w)
 	}
@@ -390,7 +423,7 @@ func panelLines(g *gfx, status string, s *scene.Scene, cam *camera.Camera) []str
 func meshSummary(s *scene.Scene) string {
 	tris := 0
 	for i := range s.Actors {
-		tris += s.Actors[i].Count / 3
+		tris += s.Actors[i].Triangles()
 	}
 	return fmt.Sprintf("Static meshes: %s, %s",
 		count(len(s.Actors), "ator", "atores"), count(tris, "triângulo", "triângulos"))

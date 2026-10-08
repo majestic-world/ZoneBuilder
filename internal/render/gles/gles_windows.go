@@ -33,6 +33,8 @@ var (
 	pTexImage2D, pTexParameteri, pUniform1i, pUniform3f, pUniformMatrix4fv, pUseProgram,
 	pVertexAttribPointer, pViewport uintptr
 
+	pBlendFuncSeparate uintptr
+
 	// pClipControlEXT is GL_EXT_clip_control's entry point; zero when absent.
 	pClipControlEXT uintptr
 )
@@ -62,6 +64,7 @@ func load() error {
 		{"glAttachShader", &pAttachShader},
 		{"glBindBuffer", &pBindBuffer},
 		{"glBlendFunc", &pBlendFunc},
+		{"glBlendFuncSeparate", &pBlendFuncSeparate},
 		{"glDepthMask", &pDepthMask},
 		{"glBindFramebuffer", &pBindFramebuffer},
 		{"glBindRenderbuffer", &pBindRenderbuffer},
@@ -335,6 +338,10 @@ func TexParameteri(target, pname uint32, v int32) {
 
 func Uniform3f(loc int32, x, y, z float32) {
 	syscall.SyscallN(pUniform3f, uintptr(loc), f2u(x), f2u(y), f2u(z))
+}
+
+func BlendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha uint32) {
+	syscall.SyscallN(pBlendFuncSeparate, uintptr(srcRGB), uintptr(dstRGB), uintptr(srcAlpha), uintptr(dstAlpha))
 }
 
 func UniformMatrix4fv(loc int32, m *[16]float32) {
