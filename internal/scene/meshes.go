@@ -63,10 +63,11 @@ type meshCache map[meshKey]*unreal.StaticMesh
 
 // addMeshes adds the static mesh actors of map m (tile t): every export of
 // a MeshActorClasses class that the Level places, in UE2-Studio's order
-// (class by class, then export order). An actor whose mesh package or
-// object the client lacks is skipped; each missing package becomes one
-// warning naming it.
-func (s *Scene) addMeshes(c *l2pkg.Client, meshes meshCache, m *l2pkg.Package, t Tile) error {
+// (class by class, then export order). footprint is the tile's terrain
+// footprint for the region filters, nil without terrain. An actor whose
+// mesh package or object the client lacks is skipped; each missing package
+// becomes one warning naming it.
+func (s *Scene) addMeshes(c *l2pkg.Client, meshes meshCache, m *l2pkg.Package, t Tile, footprint *geom.Box) error {
 	li := unreal.FindLevel(m)
 	if li < 0 {
 		return nil
@@ -81,7 +82,6 @@ func (s *Scene) addMeshes(c *l2pkg.Client, meshes meshCache, m *l2pkg.Package, t
 			placed[int(ref-1)] = true
 		}
 	}
-	footprint, hasMap := s.footprint(t)
 	missing := map[string]int{}
 	for _, class := range unreal.MeshActorClasses {
 		for i := range m.Exports {
@@ -109,7 +109,7 @@ func (s *Scene) addMeshes(c *l2pkg.Client, meshes meshCache, m *l2pkg.Package, t
 				Tile: t, Export: i, Name: m.Exports[i].ObjectName, Class: class, Mesh: path,
 				Actor: *a, Hidden: a.Hidden || a.DeleteMe, Bounds: geom.EmptyBox(),
 			}
-			if s.placeMesh(&ma, m, owner, mesh, footprint, hasMap) {
+			if s.placeMesh(&ma, m, owner, mesh, footprint) {
 				s.Actors = append(s.Actors, ma)
 			}
 		}
@@ -132,7 +132,7 @@ func (s *Scene) addMeshes(c *l2pkg.Client, meshes meshCache, m *l2pkg.Package, t
 // placeMesh transforms the actor's mesh into the scene's mesh batch, minus
 // the sections the region filters drop, and registers it for picking. It
 // reports false when no section survives (UE2-Studio then drops the actor).
-func (s *Scene) placeMesh(ma *MeshActor, m, owner *l2pkg.Package, mesh *unreal.StaticMesh, footprint geom.Box, hasMap bool) bool {
+func (s *Scene) placeMesh(ma *MeshActor, m, owner *l2pkg.Package, mesh *unreal.StaticMesh, footprint *geom.Box) bool {
 	xf := ma.Actor.Transform()
 	world := make([]geom.Vec3, len(mesh.Positions))
 	for k, p := range mesh.Positions {
@@ -156,7 +156,7 @@ func (s *Scene) placeMesh(ma *MeshActor, m, owner *l2pkg.Package, mesh *unreal.S
 				box.Include(world[v])
 			}
 		}
-		if len(tris) == 0 || exceedsRegionTile(box) || hasMap && offMap(box, footprint) {
+		if len(tris) == 0 || outsideRegion(box, footprint) {
 			continue
 		}
 		mat := MaterialRef{Package: owner}
@@ -221,33 +221,4 @@ func loadMesh(c *l2pkg.Client, meshes meshCache, m *l2pkg.Package, ref int32) (*
 	}
 	meshes[key] = mesh
 	return owner, mesh, nil
-}
-
-// footprint is the horizontal extent of tile t's terrain, the map the
-// off-map filter measures against; false when the tile has no terrain.
-func (s *Scene) footprint(t Tile) (geom.Box, bool) {
-	for i := range s.Terrains {
-		ter := &s.Terrains[i]
-		if ter.Tile == t {
-			size := geom.Vec3{X: float32(ter.Width) * ter.Scale.X, Y: float32(ter.Height) * ter.Scale.Y}
-			return geom.Box{Min: ter.Position, Max: ter.Position.Add(size)}, true
-		}
-	}
-	return geom.Box{}, false
-}
-
-// exceedsRegionTile drops a section wider than two tiles on X or Y: zone
-// backdrop sheets, not tile detail (UE2-Studio exceeds_region_tile).
-func exceedsRegionTile(b geom.Box) bool {
-	size := b.Size()
-	return max(size.X, size.Y) > 2*TileSpan
-}
-
-// offMap drops a section whose horizontal centre lies more than a tile
-// outside the terrain's footprint: props parked far from the map
-// (UE2-Studio is_off_map).
-func offMap(b, footprint geom.Box) bool {
-	c := b.Center()
-	return c.X < footprint.Min.X-TileSpan || c.X > footprint.Max.X+TileSpan ||
-		c.Y < footprint.Min.Y-TileSpan || c.Y > footprint.Max.Y+TileSpan
 }

@@ -19,6 +19,7 @@ import (
 
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/l2pkg"
+	"zonebuilder/internal/texture"
 )
 
 // TileSpan is the world size of one map tile on X and Y.
@@ -82,35 +83,59 @@ func (t Tile) Origin() (x, y float32) {
 	return float32((t.X - 20) * TileSpan), float32((t.Y - 18) * TileSpan)
 }
 
-// RenderMode is how a batch is drawn. Only opaque geometry exists so far.
+// RenderMode is how a batch is drawn. The values run in the order the
+// renderer draws their passes (UE2-Studio gpu.rs).
 type RenderMode uint8
 
 const (
+	// Opaque writes depth and ignores alpha.
 	Opaque RenderMode = iota
+	// TerrainLayer blends a terrain layer over the layers below it by
+	// Mask's R channel times the texture's alpha, depth-tested >= without
+	// writing depth.
+	TerrainLayer
 )
 
 // Vertex is one batch vertex.
 type Vertex struct {
 	// Pos is the absolute world position, Unreal basis.
 	Pos geom.Vec3
+	// UV is the Texture coordinate, sampled with repeat.
+	UV [2]float32
+	// MaskUV is the Mask coordinate, 0..1 across the mask.
+	MaskUV [2]float32
 }
 
-// Batch is a run of triangles drawn with one material and render mode.
+// Batch is a run of triangles drawn with one texture, mask and render mode.
 type Batch struct {
-	Mode     RenderMode
+	Mode RenderMode
+	// Texture is the bitmap the batch is drawn with; nil draws it
+	// untextured, UE2-Studio's flat grey. Batches sharing a Texture export
+	// share the pointer.
+	Texture *texture.Texture
+	// Mask is the coverage bitmap a TerrainLayer batch is blended by (its
+	// R channel); nil covers everything.
+	Mask     *texture.Texture
 	Vertices []Vertex
 	Indices  []uint32
 	// Bounds is the world AABB of Vertices.
 	Bounds geom.Box
 }
 
-// Terrain is one tile's height field, kept for picking alongside the batch
-// that draws it.
+// Terrain is one tile's height field, kept for picking alongside the
+// batches that draw it.
 type Terrain struct {
 	Tile Tile
-	// Batch is the index into Scene.Batches of the terrain's triangles.
-	// Its vertex k is grid sample (k % Width, k / Width).
+	// Batch is the index into Scene.Batches of the terrain's base: the
+	// first drawn layer, or an untextured grid when no layer can be drawn.
+	// Like every terrain batch, its vertex k is grid sample
+	// (k % Width, k / Width).
 	Batch int
+	// Layers are the indices into Scene.Batches of the drawn layers, in
+	// draw order (TerrainInfo.Layers order); Layers[0] is Batch. A layer
+	// whose texture or alpha map cannot be drawn is left out, as in
+	// UE2-Studio.
+	Layers []int
 	// Width and Height are the heightmap's sample counts; Heights is
 	// row-major, row = y.
 	Width, Height int
@@ -130,8 +155,12 @@ type Terrain struct {
 
 // Scene is everything Load built for a set of tiles.
 type Scene struct {
-	Batches  []Batch
-	Terrains []Terrain
+	Batches []Batch
+	// BSPSurfaces are the drawn surfaces of every tile's Level.Model.
+	BSPSurfaces []BSPSurface
+	// pickables are the triangle sets Pick tests besides the terrains.
+	pickables []triangleSet
+	Terrains  []Terrain
 	// Bounds is the world AABB of every batch vertex.
 	Bounds geom.Box
 	// Framing is Bounds with vertex outliers trimmed, what the opening
@@ -145,9 +174,6 @@ type Scene struct {
 	Warnings []string
 	// Actors are the placed static mesh actors, in load order.
 	Actors []MeshActor
-
-	// pickables are the triangle sets Pick tests besides the terrains.
-	pickables []triangleSet
 	// meshes is 1 + the index of the static mesh batch, 0 before it exists.
 	meshes int
 }
@@ -166,6 +192,7 @@ func Load(clientRoot string, tiles []Tile) (*Scene, error) {
 		return nil, errors.New("nenhum tile para abrir")
 	}
 	c := l2pkg.NewClient(clientRoot)
+	ld := newLoader(c)
 	s := &Scene{}
 	meshes := meshCache{}
 	for _, t := range tiles {
@@ -176,10 +203,18 @@ func Load(clientRoot string, tiles []Tile) (*Scene, error) {
 			}
 			return nil, err
 		}
-		if err := s.addTerrain(c, m, t); err != nil {
+		terrains := len(s.Terrains)
+		if err := s.addTerrain(ld, m, t); err != nil {
 			return nil, fmt.Errorf("%s: terreno: %w", t.Name(), err)
 		}
-		if err := s.addMeshes(c, meshes, m, t); err != nil {
+		var footprint *geom.Box
+		if len(s.Terrains) > terrains {
+			footprint = s.Terrains[terrains].footprint()
+		}
+		if err := s.addBSP(m, t, footprint); err != nil {
+			return nil, fmt.Errorf("%s: BSP: %w", t.Name(), err)
+		}
+		if err := s.addMeshes(c, meshes, m, t, footprint); err != nil {
 			return nil, fmt.Errorf("%s: static meshes: %w", t.Name(), err)
 		}
 	}

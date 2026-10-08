@@ -5,16 +5,19 @@ import (
 
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/l2pkg"
+	"zonebuilder/internal/texture"
 	"zonebuilder/internal/unreal"
 )
 
-// addTerrain adds the terrain of map m (tile t), if it has one: its grid
-// batch and its height field. Port of UE2-Studio's add_terrain and
-// TerrainGrid::new, except that a broken TerrainScale is placed by
-// MapX/MapY instead of being dropped (UE2-Studio draws no terrain then).
-// A terrain whose heightmap is absent (no TerrainMap, or a package the
-// client lacks) becomes a warning, as in UE2-Studio.
-func (s *Scene) addTerrain(c *l2pkg.Client, m *l2pkg.Package, t Tile) error {
+// addTerrain adds the terrain of map m (tile t), if it has one: one batch
+// per drawable layer and its height field. Port of UE2-Studio's
+// add_terrain and TerrainGrid::new, except that a broken TerrainScale is
+// placed by MapX/MapY instead of being dropped (UE2-Studio draws no terrain
+// then), and that a terrain with no drawable layer is drawn untextured
+// rather than not at all. A terrain whose heightmap is absent (no
+// TerrainMap, or a package the client lacks) becomes a warning, as in
+// UE2-Studio.
+func (s *Scene) addTerrain(ld *loader, m *l2pkg.Package, t Tile) error {
 	i := unreal.FindTerrainInfo(m)
 	if i < 0 {
 		return nil
@@ -27,7 +30,7 @@ func (s *Scene) addTerrain(c *l2pkg.Client, m *l2pkg.Package, t Tile) error {
 		s.Warnings = append(s.Warnings, t.Name()+": sem terreno: o TerrainInfo não tem TerrainMap")
 		return nil
 	}
-	hm, err := info.Heightmap(c, m)
+	hm, err := info.Heightmap(ld.c, m)
 	if l2pkg.IsMissing(err) {
 		s.Warnings = append(s.Warnings, fmt.Sprintf("%s: sem terreno: %v", t.Name(), err))
 		return nil
@@ -45,7 +48,6 @@ func (s *Scene) addTerrain(c *l2pkg.Client, m *l2pkg.Package, t Tile) error {
 	}
 	ter := Terrain{
 		Tile:           t,
-		Batch:          len(s.Batches),
 		Width:          w,
 		Height:         h,
 		Heights:        heights,
@@ -55,25 +57,70 @@ func (s *Scene) addTerrain(c *l2pkg.Client, m *l2pkg.Package, t Tile) error {
 		EdgeTurn:       info.EdgeTurnBitmap,
 		FallbackScale:  info.BrokenScale(),
 	}
-	b := Batch{Mode: Opaque, Vertices: make([]Vertex, 0, w*h), Bounds: geom.EmptyBox()}
+	// The grid every layer shares: positions, mask UVs spanning the tile,
+	// and the triangles. Only the texture UV differs per layer.
+	grid := make([]Vertex, 0, w*h)
+	ter.Bounds = geom.EmptyBox()
 	for y := range h {
 		for x := range w {
 			p := ter.Vertex(x, y)
-			b.Vertices = append(b.Vertices, Vertex{Pos: p})
-			b.Bounds.Include(p)
+			grid = append(grid, Vertex{Pos: p, MaskUV: [2]float32{float32(x) / float32(w-1), float32(y) / float32(h-1)}})
+			ter.Bounds.Include(p)
 		}
 	}
+	var indices []uint32
 	for y := range h - 1 {
 		for x := range w - 1 {
 			if tris, ok := ter.cell(x, y); ok {
-				b.Indices = append(b.Indices, tris[:]...)
+				indices = append(indices, tris[:]...)
 			}
 		}
 	}
-	ter.Bounds = b.Bounds
-	s.Batches = append(s.Batches, b)
+	for k := range info.Layers {
+		l := &info.Layers[k]
+		tex, mask, err := layerBitmaps(ld, m, l)
+		if err != nil {
+			s.Warnings = append(s.Warnings, fmt.Sprintf("%s: camada %d do terreno não desenhada: %v", t.Name(), k, err))
+			continue
+		}
+		// The first layer is the opaque base; its alpha map is never read
+		// (UE2-Studio's fs_main), so the batch keeps no mask.
+		mode := TerrainLayer
+		if k == 0 {
+			mode, mask = Opaque, nil
+		}
+		uv := l.UVMapping()
+		verts := make([]Vertex, len(grid))
+		for i, v := range grid {
+			v.UV = uv(i%w, i/w)
+			verts[i] = v
+		}
+		ter.Layers = append(ter.Layers, len(s.Batches))
+		s.Batches = append(s.Batches, Batch{Mode: mode, Texture: tex, Mask: mask, Vertices: verts, Indices: indices, Bounds: ter.Bounds})
+	}
+	if len(ter.Layers) == 0 {
+		ter.Layers = append(ter.Layers, len(s.Batches))
+		s.Batches = append(s.Batches, Batch{Mode: Opaque, Vertices: grid, Indices: indices, Bounds: ter.Bounds})
+	}
+	ter.Batch = ter.Layers[0]
 	s.Terrains = append(s.Terrains, ter)
 	return nil
+}
+
+// layerBitmaps are the texture and alpha map a terrain layer of map m is
+// drawn with; a nil mask is a layer with no alpha map, which covers the
+// whole terrain (UE2-Studio's 1×1 white mask). A layer that has an alpha
+// map but cannot read or decode it is not drawn, as in UE2-Studio.
+func layerBitmaps(ld *loader, m *l2pkg.Package, l *unreal.TerrainLayer) (tex, mask *texture.Texture, err error) {
+	if tex, err = ld.texture(m, l.Texture); err != nil {
+		return nil, nil, fmt.Errorf("textura: %w", err)
+	}
+	if l.AlphaMap != 0 {
+		if mask, err = ld.texture(m, l.AlphaMap); err != nil {
+			return nil, nil, fmt.Errorf("alpha map: %w", err)
+		}
+	}
+	return tex, mask, nil
 }
 
 // Vertex is the world position of grid sample (x, y).
@@ -105,3 +152,13 @@ func bit(b []byte, i int) bool {
 }
 
 func vec(v [3]float32) geom.Vec3 { return geom.Vec3{X: v[0], Y: v[1], Z: v[2]} }
+
+// footprint is UE2-Studio's TerrainInfo footprint: the X/Y area of
+// Width×Height samples from Position (Z left at 0), the map extent the
+// off-map filter measures against.
+func (t *Terrain) footprint() *geom.Box {
+	return &geom.Box{
+		Min: geom.Vec3{X: t.Position.X, Y: t.Position.Y},
+		Max: geom.Vec3{X: t.Position.X + float32(t.Width)*t.Scale.X, Y: t.Position.Y + float32(t.Height)*t.Scale.Y},
+	}
+}
