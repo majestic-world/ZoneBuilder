@@ -170,8 +170,12 @@ type Scene struct {
 	// Pos - Origin.
 	Origin geom.Vec3
 	// Warnings are the parts of the tiles that could not be loaded but did
-	// not stop the rest (a missing terrain package).
+	// not stop the rest (a missing terrain or static mesh package).
 	Warnings []string
+	// Actors are the placed static mesh actors, in load order.
+	Actors []MeshActor
+	// meshes is 1 + the index of the static mesh batch, 0 before it exists.
+	meshes int
 }
 
 // ToRender converts an Unreal-basis vector (Z up) to the renderer's Y-up
@@ -190,6 +194,7 @@ func Load(clientRoot string, tiles []Tile) (*Scene, error) {
 	c := l2pkg.NewClient(clientRoot)
 	ld := newLoader(c)
 	s := &Scene{}
+	meshes := meshCache{}
 	for _, t := range tiles {
 		m, err := c.Package(t.Name())
 		if err != nil {
@@ -208,6 +213,9 @@ func Load(clientRoot string, tiles []Tile) (*Scene, error) {
 		}
 		if err := s.addBSP(m, t, footprint); err != nil {
 			return nil, fmt.Errorf("%s: BSP: %w", t.Name(), err)
+		}
+		if err := s.addMeshes(c, meshes, m, t, footprint); err != nil {
+			return nil, fmt.Errorf("%s: static meshes: %w", t.Name(), err)
 		}
 	}
 	s.Bounds = geom.EmptyBox()

@@ -154,8 +154,11 @@ func TestBSPSkipsHiddenSurfaces(t *testing.T) {
 // points are the Giran Castle Town teleport (charmanage.htm:56) and NPCs
 // the datapack spawns in the town (spawn/22_22.xml, line in the name),
 // several inside buildings (warehouse, temple, guild hall); Giran's terrain
-// has a hole under the town, so only BSP can answer here.
+// has a hole under the town, so only BSP can answer here. Two NPCs stand on
+// an interior static mesh laid over the BSP floor (interior_A_s
+// interior_A_501 and interior_A_402), which is nearer and wins.
 func TestPickLandsOnGiranBSPFloors(t *testing.T) {
+	onMesh := map[string]bool{"jurek :330": true, "groot :316": true}
 	s := loadTile(t, "22_22")
 	for _, p := range []struct {
 		name    string
@@ -175,8 +178,12 @@ func TestPickLandsOnGiranBSPFloors(t *testing.T) {
 			t.Errorf("%s: sem acerto", p.name)
 			continue
 		}
-		if h.Surface != scene.SurfaceBSP {
-			t.Errorf("%s: superfície %v, quero BSP", p.name, h.Surface)
+		want := scene.SurfaceBSP
+		if onMesh[p.name] {
+			want = scene.SurfaceMesh
+		}
+		if h.Surface != want {
+			t.Errorf("%s: superfície %v, quero %v", p.name, h.Surface, want)
 		}
 		d := math.Sqrt(float64(sq(h.Pos.X-p.x) + sq(h.Pos.Y-p.y) + sq(h.Pos.Z-p.z)))
 		t.Logf("%s: servidor %v %v %v, pick %.1f %.1f %.1f, Δz %+.1f", p.name, p.x, p.y, p.z, h.Pos.X, h.Pos.Y, h.Pos.Z, h.Pos.Z-p.z)
