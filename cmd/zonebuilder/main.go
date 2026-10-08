@@ -172,7 +172,13 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 				if !ok {
 					break
 				}
-				fly.Handle(ev, &cam)
+				if msg, used := zones.viewportEvent(current, &cam, ev, shell.Viewport.Size()); used {
+					if msg != "" {
+						status = msg
+					}
+				} else {
+					fly.Handle(ev, &cam)
+				}
 				switch e := ev.(type) {
 				case pointer.Event:
 					if probe.handle(e) && current != nil {
@@ -266,6 +272,9 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 			moving := fly.Step(&cam, gtx.Now)
 			shell.Status = probe.status(current, &cam, shell.Viewport.Size())
 			shell.Zone.Info = zones.info()
+			if msg := zones.panel(gtx, &shell.Edit, current); msg != "" {
+				status = msg
+			}
 
 			rect := shell.Layout(gtx, panelLines(g, status, current, &cam))
 			if e.Size != size || rect != vpRect {
