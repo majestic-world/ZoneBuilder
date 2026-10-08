@@ -18,6 +18,8 @@ type Surface uint8
 const (
 	// SurfaceTerrain is a tile's height field.
 	SurfaceTerrain Surface = iota + 1
+	// SurfaceMesh is a placed static mesh actor.
+	SurfaceMesh
 )
 
 // Hit is where a ray first meets the scene.
@@ -31,9 +33,9 @@ type Hit struct {
 }
 
 // Pick returns the nearest point where r meets the scene's geometry, or
-// false when it meets nothing (it misses every terrain, points away from
-// them, or has no direction). Only drawn triangles are hit: an invisible
-// terrain quad is a hole.
+// false when it meets nothing (it misses every terrain and mesh, points
+// away from them, or has no direction). Only drawn triangles are hit: an
+// invisible terrain quad is a hole.
 func (s *Scene) Pick(r Ray) (Hit, bool) {
 	if r.Dir.Dot(r.Dir) == 0 {
 		return Hit{}, false
@@ -45,6 +47,7 @@ func (s *Scene) Pick(r Ray) (Hit, bool) {
 			best = Hit{Pos: ToServer(r.Origin.Add(r.Dir.Scale(d))), Distance: d, Surface: SurfaceTerrain}
 		}
 	}
+	s.pickTriangles(r, &best)
 	return best, best.Surface != 0
 }
 

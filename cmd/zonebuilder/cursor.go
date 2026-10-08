@@ -94,6 +94,8 @@ func surfaceName(s scene.Surface) string {
 	switch s {
 	case scene.SurfaceTerrain:
 		return "terreno"
+	case scene.SurfaceMesh:
+		return "static mesh"
 	}
 	return "superfície desconhecida"
 }

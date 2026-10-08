@@ -20,7 +20,9 @@ func down(x, y float32) scene.Ray {
 // (majestic-datapack gameserver/data/spawn/22_22.xml, line in the name;
 // spawn Z is the ground the server stands them on). At each one the
 // server's geodata (geodata/22_22.l2j) has a single layer within 8 units of
-// the spawn Z, so nothing (bridge, floor, BSP) lies over the terrain there.
+// the spawn Z, so nothing (bridge, floor, BSP) lies over the terrain there
+// near the ground; the ray starts 500 above the spawn, under the floating
+// Superion island meshes thousands of units overhead.
 // Catches a wrong terrain transform, scale, tile origin or server Z offset.
 func TestPickLandsOnGiranServerGround(t *testing.T) {
 	s := loadTile(t, "22_22")
@@ -39,7 +41,7 @@ func TestPickLandsOnGiranServerGround(t *testing.T) {
 		{"atanas :387", 90498, 147535, -3528},
 		{"guard_reikin :388", 90501, 147180, -3530},
 	} {
-		h, ok := s.Pick(down(p.x, p.y))
+		h, ok := s.Pick(scene.Ray{Origin: geom.Vec3{X: p.x, Y: p.y, Z: p.z + 500}, Dir: geom.Vec3{Z: -1}})
 		if !ok {
 			t.Errorf("%s (%v %v %v): sem acerto", p.name, p.x, p.y, p.z)
 			continue

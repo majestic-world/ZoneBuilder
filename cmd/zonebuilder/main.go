@@ -269,6 +269,7 @@ func logScene(r loaded) {
 			t.Bounds.Min.X, t.Bounds.Max.X, t.Bounds.Min.Y, t.Bounds.Max.Y, t.Bounds.Min.Z, t.Bounds.Max.Z,
 			ox, oy, t.FallbackScale)
 	}
+	log.Printf("cena: %s", meshSummary(s))
 	for _, w := range s.Warnings {
 		log.Printf("cena: aviso: %s", w)
 	}
@@ -295,6 +296,7 @@ func panelLines(g *gfx, status string, s *scene.Scene, cam *camera.Camera) []str
 		if len(s.Terrains) == 0 {
 			lines = append(lines, "O mapa não tem terreno")
 		}
+		lines = append(lines, meshSummary(s))
 		lines = append(lines, s.Warnings...)
 		p := worldPosition(s, cam.Position)
 		lines = append(lines, fmt.Sprintf("Câmera: %.0f %.0f %.0f", p.X, p.Y, p.Z))
@@ -307,6 +309,16 @@ func panelLines(g *gfx, status string, s *scene.Scene, cam *camera.Camera) []str
 		lines = append(lines, g.renderer.Info.Renderer)
 	}
 	return lines
+}
+
+// meshSummary is the static mesh actor and triangle counts of s.
+func meshSummary(s *scene.Scene) string {
+	tris := 0
+	for i := range s.Actors {
+		tris += s.Actors[i].Count / 3
+	}
+	return fmt.Sprintf("Static meshes: %s, %s",
+		count(len(s.Actors), "ator", "atores"), count(tris, "triângulo", "triângulos"))
 }
 
 // count inflects a noun to n ("1 triângulo", "2 triângulos").
