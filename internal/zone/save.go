@@ -21,8 +21,8 @@ func (d *Document) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON replaces d with a document MarshalJSON encoded. It rejects
 // zones that no command could have made (an ID used twice or not positive,
-// a type outside the server enum); d is unchanged on error. The loaded
-// document starts a fresh edit history.
+// a type outside the server enum, an unknown shape kind); d is unchanged on
+// error. The loaded document starts a fresh edit history.
 func (d *Document) UnmarshalJSON(data []byte) error {
 	var s savedDocument
 	if err := json.Unmarshal(data, &s); err != nil {
@@ -39,6 +39,11 @@ func (d *Document) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("zone: ID %d is used by more than one zone", z.ID)
 		case !z.Type.Valid():
 			return fmt.Errorf("zone: %s: %q is not a server zone type", z.Name, z.Type)
+		}
+		for i, sh := range z.Shapes {
+			if !sh.Kind.Valid() {
+				return fmt.Errorf("zone: %s: shape %d has unknown kind %d", z.Name, i, sh.Kind)
+			}
 		}
 		seen[z.ID] = true
 		loaded.lastID = max(loaded.lastID, z.ID)

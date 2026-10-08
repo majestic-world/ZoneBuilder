@@ -223,15 +223,20 @@ func parseTiles(names []string) ([]scene.Tile, error) {
 }
 
 // replace makes doc the edited document: the zones of an opened project.
-// A polygon left with fewer than 3 vertices goes back into the polygon
-// tool, so the user carries on drawing it.
+// Tool, selection and drag start over; the Z margin setting stays. The last
+// zone is selected, unless a polygon was left with fewer than 3 vertices:
+// then its zone is, with the polygon tool armed on it, so the user carries
+// on drawing it.
 func (e *zoneEditor) replace(doc *zone.Document) {
-	e.doc, e.drawing = doc, false
-	e.version++
+	margin := e.margin
+	*e = zoneEditor{doc: doc, version: e.version + 1, editState: newEditState()}
+	e.margin = margin
 	for _, z := range doc.Zones() {
+		e.zone = z.ID
 		for i, s := range z.Shapes {
-			if len(s.Points) < 3 {
-				e.drawing, e.zone, e.shape = true, z.ID, i
+			if s.Kind == zone.Polygon && len(s.Points) < 3 {
+				e.zone, e.shape, e.banned = z.ID, i, s.Banned
+				e.tool, e.armed, e.drawing = ui.ToolPolygon, true, true
 				return
 			}
 		}
