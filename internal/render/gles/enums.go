@@ -1,0 +1,75 @@
+package gles
+
+//nolint:revive // GL enum names keep their C spelling.
+const (
+	ARRAY_BUFFER         = 0x8892
+	ELEMENT_ARRAY_BUFFER = 0x8893
+	STATIC_DRAW          = 0x88E4
+	TRIANGLES            = 0x0004
+	UNSIGNED_BYTE        = 0x1401
+	UNSIGNED_SHORT       = 0x1403
+	UNSIGNED_INT         = 0x1405
+	FLOAT                = 0x1406
+	NO_ERROR             = 0
+	VENDOR               = 0x1F00
+	RENDERER             = 0x1F01
+	VERSION              = 0x1F02
+	EXTENSIONS           = 0x1F03
+	NUM_EXTENSIONS       = 0x821D
+	SHADING_LANGUAGE     = 0x8B8C
+	MAX_TEXTURE_SIZE     = 0x0D33
+	VERTEX_SHADER        = 0x8B31
+	FRAGMENT_SHADER      = 0x8B30
+	COMPILE_STATUS       = 0x8B81
+	LINK_STATUS          = 0x8B82
+	INFO_LOG_LENGTH      = 0x8B84
+	DEPTH_TEST           = 0x0B71
+	SCISSOR_TEST         = 0x0C11
+	CULL_FACE            = 0x0B44
+	BLEND                = 0x0BE2
+	BACK                 = 0x0405
+	GREATER              = 0x0204
+	LESS                 = 0x0201
+	COLOR_BUFFER_BIT     = 0x4000
+	DEPTH_BUFFER_BIT     = 0x0100
+	TEXTURE_2D           = 0x0DE1
+	TEXTURE0             = 0x84C0
+	TEXTURE_MIN_FILTER   = 0x2801
+	TEXTURE_MAG_FILTER   = 0x2800
+	TEXTURE_WRAP_S       = 0x2802
+	TEXTURE_WRAP_T       = 0x2803
+	TEXTURE_MAX_LEVEL    = 0x813D
+	LINEAR               = 0x2601
+	NEAREST              = 0x2600
+	LINEAR_MIPMAP_LINEAR = 0x2703
+	REPEAT               = 0x2901
+	CLAMP_TO_EDGE        = 0x812F
+	UNPACK_ALIGNMENT     = 0x0CF5
+	PACK_ALIGNMENT       = 0x0D05
+	RGBA                 = 0x1908
+	RGBA8                = 0x8058
+	SRGB8_ALPHA8         = 0x8C43
+	FRAMEBUFFER          = 0x8D40
+	READ_FRAMEBUFFER     = 0x8CA8
+	DRAW_FRAMEBUFFER     = 0x8CA9
+	RENDERBUFFER         = 0x8D41
+	COLOR_ATTACHMENT0    = 0x8CE0
+	DEPTH_ATTACHMENT     = 0x8D00
+	FRAMEBUFFER_COMPLETE = 0x8CD5
+	DEPTH_COMPONENT32F   = 0x8CAC
+	DEPTH_COMPONENT24    = 0x81A6
+	DEPTH_BITS           = 0x0D56
+
+	// GL_EXT_clip_control.
+	LOWER_LEFT_EXT          = 0x8CA1
+	NEGATIVE_ONE_TO_ONE_EXT = 0x935E
+	ZERO_TO_ONE_EXT         = 0x935F
+
+	// GL_EXT_texture_compression_s3tc (+ _srgb).
+	COMPRESSED_RGBA_S3TC_DXT1_EXT       = 0x83F1
+	COMPRESSED_RGBA_S3TC_DXT3_EXT       = 0x83F2
+	COMPRESSED_RGBA_S3TC_DXT5_EXT       = 0x83F3
+	COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT = 0x8C4D
+	COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT = 0x8C4E
+	COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT = 0x8C4F
+)
