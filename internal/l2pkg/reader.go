@@ -158,6 +158,19 @@ func (r *Reader) String() string {
 	return escapeANSI(b)
 }
 
+// SkipString advances past an FString without decoding it.
+func (r *Reader) SkipString() {
+	length := int64(r.Index())
+	if length < 0 {
+		length *= -2
+	}
+	if r.err == nil && length > int64(len(r.data)) {
+		r.Fail(fmt.Errorf("comprimento de string inválido: %d", length))
+		return
+	}
+	r.take(int(length))
+}
+
 // escapeANSI spells a byte string with its printable ASCII bytes as
 // themselves and every other byte as \xNN, the same spelling UE2-Studio
 // gives a legacy-code-page name.

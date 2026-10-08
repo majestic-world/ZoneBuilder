@@ -8,10 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"math"
 	"slices"
 
+	"zonebuilder/internal/camera"
 	"zonebuilder/internal/render/gles"
+	"zonebuilder/internal/scene"
 )
 
 // Info describes the GL implementation, for the startup log and the panel.
@@ -55,7 +56,7 @@ type Renderer struct {
 	encodeSRGB bool
 	target     viewTarget
 	comp       *compositor
-	cube       *cube
+	scene      *sceneRenderer
 }
 
 // New checks the extensions the renderer depends on and creates its GL
@@ -80,26 +81,25 @@ func New(surfaceSRGB bool) (*Renderer, error) {
 	if r.comp, err = newCompositor(); err != nil {
 		return nil, err
 	}
-	if r.cube, err = newCube(); err != nil {
+	if r.scene, err = newSceneRenderer(); err != nil {
 		r.Release()
 		return nil, err
 	}
 	return r, nil
 }
 
-// Camera framing for the spike cube.
-const (
-	fovY      = 60 * math.Pi / 180
-	nearPlane = 0.1
-	farPlane  = 100
-)
+// SetScene uploads s to the GPU, replacing the previous scene; nil leaves
+// the viewport empty. s is only read during the call.
+func (r *Renderer) SetScene(s *scene.Scene) {
+	r.scene.upload(s)
+}
 
-// DrawViewport renders the scene into rect (window pixels, origin top-left)
-// of the window framebuffer, which is window pixels in size. The projection
-// uses rect's own aspect ratio, so resizing never stretches the scene. GL
-// state the Gio renderer relies on is left as it was found: framebuffer 0,
-// no depth test, no scissor, default clip control.
-func (r *Renderer) DrawViewport(rect image.Rectangle, window image.Point, angle float32) error {
+// DrawViewport renders the scene seen by cam into rect (window pixels,
+// origin top-left) of the window framebuffer, which is window pixels in
+// size. The projection uses rect's own aspect ratio, so resizing never
+// stretches the scene. GL state the Gio renderer relies on is left as it
+// was found: framebuffer 0, no depth test, no scissor, default clip control.
+func (r *Renderer) DrawViewport(rect image.Rectangle, window image.Point, cam *camera.Camera) error {
 	rect = rect.Intersect(image.Rectangle{Max: window})
 	if rect.Empty() {
 		return nil
@@ -119,15 +119,13 @@ func (r *Renderer) DrawViewport(rect image.Rectangle, window image.Point, angle 
 	gles.Enable(gles.DEPTH_TEST)
 	gles.DepthFunc(gles.GREATER)
 
+	// The camera lives in the rebased Y-up render basis; the scene's
+	// vertices are rebased in the shader and swapped by unrealToRender.
 	aspect := float32(size.X) / float32(size.Y)
-	fov := float32(fovY)
-	if aspect < 1 {
-		// Portrait viewport: widen the vertical field of view so the
-		// horizontal one stays fovY and the cube still fits across.
-		fov = 2 * float32(math.Atan(math.Tan(fovY/2)/float64(aspect)))
-	}
-	viewProj := mul(reversedPerspective(fov, aspect, nearPlane, farPlane), translate(0, 0, -4.5))
-	r.cube.draw(viewProj, angle)
+	right, up := cam.Basis()
+	view := lookAt(cam.Position, cam.Forward(), right, up)
+	proj := reversedPerspective(camera.FovY, aspect, camera.Near, cam.Far)
+	r.scene.draw(mul(proj, mul(view, unrealToRender)))
 
 	gles.Disable(gles.DEPTH_TEST)
 	gles.ClipControlEXT(gles.LOWER_LEFT_EXT, gles.NEGATIVE_ONE_TO_ONE_EXT)
@@ -140,8 +138,8 @@ func (r *Renderer) DrawViewport(rect image.Rectangle, window image.Point, angle 
 
 // Release frees the GL resources. The context must still be current.
 func (r *Renderer) Release() {
-	if r.cube != nil {
-		r.cube.release()
+	if r.scene != nil {
+		r.scene.release()
 	}
 	if r.comp != nil {
 		r.comp.release()

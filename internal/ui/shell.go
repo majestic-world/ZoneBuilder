@@ -15,36 +15,65 @@ import (
 // PanelWidth is the side panel's fixed width.
 const PanelWidth = unit.Dp(300)
 
-var panelBackground = color.NRGBA{R: 0x22, G: 0x24, B: 0x28, A: 0xFF}
+var (
+	panelBackground = color.NRGBA{R: 0x22, G: 0x24, B: 0x28, A: 0xFF}
+	panelText       = color.NRGBA{R: 0xE0, G: 0xE0, B: 0xE0, A: 0xFF}
+	fieldBackground = color.NRGBA{R: 0x33, G: 0x36, B: 0x3C, A: 0xFF}
+)
 
-// Shell arranges the window: the viewport fills the left, a fixed-width
-// panel sits on the right, and a button floats over the viewport's top-left
-// corner.
+// Shell arranges the window: the viewport fills the left and a fixed-width
+// panel on the right holds the map controls (client folder, tile) above
+// the info lines.
 type Shell struct {
 	Theme    *material.Theme
 	Viewport Viewport
-	// Pause is the floating button over the viewport.
-	Pause widget.Clickable
+	// Client is the client folder (the folder above Maps); Browse opens
+	// the folder picker for it.
+	Client widget.Editor
+	Browse widget.Clickable
+	// Tile is the map tile X_Y to open; Open (or Enter in Tile) opens it.
+	Tile widget.Editor
+	Open widget.Clickable
+}
+
+// NewShell returns a shell with single-line fields holding client and tile.
+func NewShell(th *material.Theme, client, tile string) *Shell {
+	s := &Shell{Theme: th}
+	s.Client.SingleLine = true
+	s.Client.SetText(client)
+	s.Tile.SingleLine = true
+	s.Tile.Submit = true
+	s.Tile.SetText(tile)
+	return s
+}
+
+// OpenRequested reports a click on Open or Enter in the tile field since
+// the last call.
+func (s *Shell) OpenRequested(gtx layout.Context) bool {
+	open := s.Open.Clicked(gtx)
+	for {
+		ev, ok := s.Tile.Update(gtx)
+		if !ok {
+			return open
+		}
+		if _, ok := ev.(widget.SubmitEvent); ok {
+			open = true
+		}
+	}
 }
 
 // Layout lays the window out and returns the viewport rectangle in window
 // pixels (origin top-left), which is where the renderer must draw. Nothing
 // is painted under the viewport, so the 3D content drawn before Gio's frame
-// shows through. lines fill the side panel; pauseLabel captions the button.
-func (s *Shell) Layout(gtx layout.Context, pauseLabel string, lines []string) image.Rectangle {
+// shows through. lines fill the side panel below the controls.
+func (s *Shell) Layout(gtx layout.Context, lines []string) image.Rectangle {
 	var vp image.Rectangle
 	layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			// The viewport is the Flex's first child, so its origin is the
-			// window's origin; it takes the whole slot, not the button's size.
+			// window's origin.
 			gtx.Constraints.Min = gtx.Constraints.Max
-			dims := layout.Stack{}.Layout(gtx,
-				layout.Expanded(s.Viewport.Layout),
-				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					return layout.UniformInset(unit.Dp(12)).Layout(gtx,
-						material.Button(s.Theme, &s.Pause, pauseLabel).Layout)
-				}),
-			)
+			dims := s.Viewport.Layout(gtx)
 			vp = image.Rectangle{Max: s.Viewport.Size()}
 			return dims
 		}),
@@ -61,15 +90,52 @@ func (s *Shell) panel(gtx layout.Context, lines []string) layout.Dimensions {
 	paint.FillShape(gtx.Ops, panelBackground, clip.Rect{Max: size}.Op())
 	gtx.Constraints = layout.Exact(size)
 	layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		children := make([]layout.FlexChild, 0, len(lines))
+		children := []layout.FlexChild{
+			layout.Rigid(s.label("Pasta do cliente")),
+			layout.Rigid(s.field(&s.Client, "pasta acima de Maps")),
+			layout.Rigid(s.button(&s.Browse, "Procurar…")),
+			layout.Rigid(s.label("Tile (X_Y ou X_Y_Classic)")),
+			layout.Rigid(s.field(&s.Tile, "22_22")),
+			layout.Rigid(s.button(&s.Open, "Abrir")),
+		}
 		for _, l := range lines {
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				lbl := material.Body2(s.Theme, l)
-				lbl.Color = color.NRGBA{R: 0xE0, G: 0xE0, B: 0xE0, A: 0xFF}
-				return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, lbl.Layout)
-			}))
+			children = append(children, layout.Rigid(s.label(l)))
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
 	return layout.Dimensions{Size: size}
+}
+
+func (s *Shell) label(text string) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		lbl := material.Body2(s.Theme, text)
+		lbl.Color = panelText
+		return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, lbl.Layout)
+	}
+}
+
+func (s *Shell) field(e *widget.Editor, hint string) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+			return layout.Stack{}.Layout(gtx,
+				layout.Expanded(func(gtx layout.Context) layout.Dimensions {
+					paint.FillShape(gtx.Ops, fieldBackground, clip.Rect{Max: gtx.Constraints.Min}.Op())
+					return layout.Dimensions{Size: gtx.Constraints.Min}
+				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					gtx.Constraints.Min.X = gtx.Constraints.Max.X
+					ed := material.Editor(s.Theme, e, hint)
+					ed.Color = panelText
+					return layout.UniformInset(unit.Dp(6)).Layout(gtx, ed.Layout)
+				}),
+			)
+		})
+	}
+}
+
+func (s *Shell) button(c *widget.Clickable, text string) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Bottom: unit.Dp(10)}.Layout(gtx, material.Button(s.Theme, c, text).Layout)
+	}
 }
