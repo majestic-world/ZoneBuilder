@@ -24,8 +24,9 @@ var (
 )
 
 // Shell arranges the window: the viewport fills the top left, a
-// fixed-width, scrolling panel on the right holds the map controls (client
-// folder, tile), the info lines and the zone controls, and a status bar
+// fixed-width, scrolling panel on the right holds the project controls,
+// the map controls (client folder, tile, recent maps), the info lines and
+// the zone controls, and a status bar
 // runs along the bottom.
 type Shell struct {
 	Theme    *material.Theme
@@ -37,6 +38,8 @@ type Shell struct {
 	// Tile is the map tile X_Y to open; Open (or Enter in Tile) opens it.
 	Tile widget.Editor
 	Open widget.Clickable
+	// Project holds the project controls and the recent maps.
+	Project ProjectPanel
 	// Zone holds the zone controls.
 	Zone ZonePanel
 	// Zones is the zone list.
@@ -132,14 +135,15 @@ func (s *Shell) panel(gtx layout.Context, lines []string) layout.Dimensions {
 	paint.FillShape(gtx.Ops, panelBackground, clip.Rect{Max: size}.Op())
 	gtx.Constraints = layout.Exact(size)
 	layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		children := []layout.FlexChild{
+		children := append(s.projectControls(),
 			layout.Rigid(s.label("Pasta do cliente")),
 			layout.Rigid(s.field(&s.Client, "pasta acima de Maps")),
 			layout.Rigid(s.button(&s.Browse, "Procurar…")),
 			layout.Rigid(s.label("Tile (X_Y ou X_Y_Classic)")),
 			layout.Rigid(s.field(&s.Tile, "22_22")),
 			layout.Rigid(s.button(&s.Open, "Abrir")),
-		}
+		)
+		children = append(children, s.recentMaps()...)
 		for _, l := range lines {
 			children = append(children, layout.Rigid(s.label(l)))
 		}
