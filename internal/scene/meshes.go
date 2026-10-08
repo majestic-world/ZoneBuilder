@@ -43,23 +43,17 @@ func (a *MeshActor) Triangles() int {
 type MeshActorSection struct {
 	// Section is the section's index in the mesh.
 	Section int
-	// Material is the material the section is drawn with: the actor's Skins
-	// override when set, else the mesh's Materials slot.
-	Material MaterialRef
+	// Material is the object path ("Package.Group.Name") of the material
+	// the section is drawn with, "" for none: the actor's Skins override
+	// when set, else the mesh's Materials slot. A path, not a package
+	// reference, so the scene holds no package in memory.
+	Material string
 	// Batch, First and Count locate its triangles in
 	// Scene.Batches[Batch].Indices, the batch of its material; Batch is -1
 	// and Count 0 for a hidden actor.
 	Batch, First, Count int
 	// Bounds is the world AABB of the section's vertices.
 	Bounds geom.Box
-}
-
-// MaterialRef is an unresolved material: an object reference and the
-// package whose index space it belongs to (the map for a Skins override,
-// the mesh's package for a mesh default). Ref 0 means no material.
-type MaterialRef struct {
-	Package *l2pkg.Package
-	Ref     int32
 }
 
 // addMeshes adds the static mesh actors of map m (tile t): every export of
@@ -168,17 +162,20 @@ func (s *Scene) placeMesh(ld *loader, ma *MeshActor, m, owner *l2pkg.Package, me
 		if len(tris) == 0 || outsideRegion(box, footprint) {
 			continue
 		}
-		ref := MaterialRef{Package: owner}
+		pkg, ref := owner, int32(0)
 		if si < len(mesh.Materials) {
-			ref.Ref = mesh.Materials[si]
+			ref = mesh.Materials[si]
 		}
 		if si < len(ma.Actor.Skins) && ma.Actor.Skins[si] != 0 {
-			ref = MaterialRef{Package: m, Ref: ma.Actor.Skins[si]}
+			pkg, ref = m, ma.Actor.Skins[si]
 		}
-		kept := MeshActorSection{Section: si, Material: ref, Batch: -1, Bounds: box}
+		kept := MeshActorSection{Section: si, Batch: -1, Bounds: box}
+		if ref != 0 {
+			kept.Material, _ = pkg.ObjectPath(ref)
+		}
 		ma.Bounds.Union(box)
 		if !ma.Hidden {
-			mat, err := ld.material(ref.Package, ref.Ref)
+			mat, err := ld.material(pkg, ref)
 			if err != nil {
 				return false, fmt.Errorf("material da seção %d: %w", si, err)
 			}
