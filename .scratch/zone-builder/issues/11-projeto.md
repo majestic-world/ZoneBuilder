@@ -6,9 +6,13 @@
 
 **Blocked by:** 05 (Primeira zona de ponta a ponta)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Salvar, fechar e reabrir o projeto devolve as mesmas zonas, os mesmos tiles abertos e a mesma pasta de saída
-- [ ] Uma zona incompleta (polígono com 2 vértices) é salva e reaberta sem perda
-- [ ] Ao abrir o app, a pasta do cliente e os mapas recentes já estão preenchidos
-- [ ] Teste do seam Documento: salvar e carregar devolve o documento idêntico, inclusive com zona incompleta
+- [x] Salvar, fechar e reabrir o projeto devolve as mesmas zonas, os mesmos tiles abertos e a mesma pasta de saída
+- [x] Uma zona incompleta (polígono com 2 vértices) é salva e reaberta sem perda
+- [x] Ao abrir o app, a pasta do cliente e os mapas recentes já estão preenchidos
+- [x] Teste do seam Documento: salvar e carregar devolve o documento idêntico, inclusive com zona incompleta
+
+## Comments
+
+Resolvido na branch de integração `zone-builder`. Branch `zb/11-projeto`. Projeto `.zbproj` (JSON) e configuração em `%AppData%/ZoneBuilder/config.json`. Teste de ida e volta inclui zona incompleta, cor e visibilidade.

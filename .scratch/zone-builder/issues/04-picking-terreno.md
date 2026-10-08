@@ -4,8 +4,12 @@
 
 **Blocked by:** 03 (Terreno sem textura no viewport)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A barra de status mostra `x y z` sob o cursor, arredondados para inteiro
-- [ ] Teste do seam Cena: em pontos de referência de Giran com coordenadas anotadas via `//pos` no jogo, `Pick` de um ray vertical devolve `x y z` a menos de 16 unidades
-- [ ] O clique fora do terreno não devolve acerto e não quebra nada
+- [x] A barra de status mostra `x y z` sob o cursor, arredondados para inteiro
+- [x] Teste do seam Cena: em pontos de referência de Giran com coordenadas anotadas via `//pos` no jogo, `Pick` de um ray vertical devolve `x y z` a menos de 16 unidades
+- [x] O clique fora do terreno não devolve acerto e não quebra nada
+
+## Comments
+
+Resolvido na branch de integração `zone-builder`. Branch `zb/04-picking-terreno`. O Z do servidor fica 32 acima da superfície do cliente (ADR `docs/adr/0003-z-do-servidor-32-acima-do-cliente.md`); `Hit.Pos` sai em coordenadas do servidor. Teste com 10 spawns do datapack em Giran 22_22, Δz ≤ 4,6. Manual: conferir com `//pos` no jogo.

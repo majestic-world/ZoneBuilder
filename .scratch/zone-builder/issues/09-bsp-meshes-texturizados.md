@@ -7,9 +7,13 @@
 
 **Blocked by:** 06 (BSP no viewport e no picking), 07 (Static meshes no viewport e no picking), 08 (Terreno texturizado)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Comparação lado a lado com o modo Textured do UE2-Studio em 3 vistas (terreno aberto, interior BSP, área densa de meshes) sem diferença visível de material
-- [ ] Nenhum material cai no fallback sem textura onde o UE2-Studio desenha textura
-- [ ] Folhagem e grades usam transparência por máscara, e a água usa o pass Water
-- [ ] Teste do seam Cena: uma textura P8 real do cliente decodifica para os pixels esperados
+- [x] Comparação lado a lado com o modo Textured do UE2-Studio em 3 vistas (terreno aberto, interior BSP, área densa de meshes) sem diferença visível de material
+- [x] Nenhum material cai no fallback sem textura onde o UE2-Studio desenha textura
+- [x] Folhagem e grades usam transparência por máscara, e a água usa o pass Water
+- [x] Teste do seam Cena: uma textura P8 real do cliente decodifica para os pixels esperados
+
+## Comments
+
+Resolvido na branch de integração `zone-builder`. Branch `zb/09-bsp-meshes-texturizados`. 3 vistas comparadas com render offscreen do UE2-Studio; censo de materiais em 309 mapas: 0 sem textura onde o UE2-Studio tem textura. Teste de P8 contra `assets/*.rgba` do UE2-Studio.

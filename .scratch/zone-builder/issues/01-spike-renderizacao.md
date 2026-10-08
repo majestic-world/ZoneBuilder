@@ -4,11 +4,15 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] O módulo Go existe e o executável compila sem toolchain C, com `libEGL.dll` e `libGLESv2.dll` do ANGLE ao lado do executável
-- [ ] O cubo texturizado gira no viewport, com um painel lateral e um botão Gio visíveis por cima
-- [ ] Redimensionar a janela mantém o cubo proporcional e o painel no lugar
-- [ ] Um clique no viewport chega ao código do viewport e um clique no botão chega ao Gio, sem um vazar para o outro
-- [ ] ADR registrando a profundidade: Z reverso se o ANGLE expuser `GL_EXT_clip_control`, senão a alternativa escolhida e o motivo
-- [ ] ADR registrando as texturas: DXT enviado nativo (`GL_EXT_texture_compression_s3tc`) ou decodificado para RGBA8 na CPU, e o motivo
+- [x] O módulo Go existe e o executável compila sem toolchain C, com `libEGL.dll` e `libGLESv2.dll` do ANGLE ao lado do executável
+- [x] O cubo texturizado gira no viewport, com um painel lateral e um botão Gio visíveis por cima
+- [x] Redimensionar a janela mantém o cubo proporcional e o painel no lugar
+- [x] Um clique no viewport chega ao código do viewport e um clique no botão chega ao Gio, sem um vazar para o outro
+- [x] ADR registrando a profundidade: Z reverso se o ANGLE expuser `GL_EXT_clip_control`, senão a alternativa escolhida e o motivo
+- [x] ADR registrando as texturas: DXT enviado nativo (`GL_EXT_texture_compression_s3tc`) ou decodificado para RGBA8 na CPU, e o motivo
+
+## Comments
+
+Resolvido na branch de integração `zone-builder`. Branch `zb/01-spike-renderizacao`. ADRs `docs/adr/0001-profundidade-z-reverso.md` e `docs/adr/0002-texturas-dxt-nativo.md`. Build: `scripts/build.ps1` (DLLs do ANGLE copiadas de `-AngleDir`/`ZB_ANGLE_DIR`). Roteamento de cliques verificado com SendInput. Manual: clique com mouse real e medição em outra GPU.

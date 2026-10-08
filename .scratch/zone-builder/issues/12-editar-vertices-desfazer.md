@@ -8,10 +8,14 @@
 
 **Blocked by:** 05 (Primeira zona de ponta a ponta)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Arrastar um vértice sobre um telhado ou piso o reposiciona no ponto atingido
-- [ ] Inserir, apagar e mover vértices e shapes se reflete no prisma e no XML compilado
-- [ ] Recalcular a faixa Z depois de mover o contorno usa o chão sob os novos vértices e a folga configurada
-- [ ] Desfazer volta cada passo e refazer reaplica
-- [ ] Teste do seam Documento: uma sequência de comandos seguida do mesmo número de `Undo` devolve o documento inicial, e `Redo` reaplica
+- [x] Arrastar um vértice sobre um telhado ou piso o reposiciona no ponto atingido
+- [x] Inserir, apagar e mover vértices e shapes se reflete no prisma e no XML compilado
+- [x] Recalcular a faixa Z depois de mover o contorno usa o chão sob os novos vértices e a folga configurada
+- [x] Desfazer volta cada passo e refazer reaplica
+- [x] Teste do seam Documento: uma sequência de comandos seguida do mesmo número de `Undo` devolve o documento inicial, e `Redo` reaplica
+
+## Comments
+
+Resolvido na branch de integração `zone-builder`. Branch `zb/12-editar-vertices-desfazer`. Undo/redo por snapshot em `Document.Apply`, cobrindo todos os comandos. Teste de N comandos + N Undo + Redo.

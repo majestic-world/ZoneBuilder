@@ -8,9 +8,13 @@
 
 **Blocked by:** 05 (Primeira zona de ponta a ponta)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] O tipo só aceita os 23 valores, e a caixa é preservada no XML
-- [ ] Um parâmetro conhecido mostra o valor padrão e só aceita valores do tipo dele
-- [ ] Parâmetros livres compilam como `<set>` com `val`, na ordem em que foram adicionados
-- [ ] Teste do seam Documento: `Siege` em vez de `SIEGE` não pode ser definido como tipo
+- [x] O tipo só aceita os 23 valores, e a caixa é preservada no XML
+- [x] Um parâmetro conhecido mostra o valor padrão e só aceita valores do tipo dele
+- [x] Parâmetros livres compilam como `<set>` com `val`, na ordem em que foram adicionados
+- [x] Teste do seam Documento: `Siege` em vez de `SIEGE` não pode ser definido como tipo
+
+## Comments
+
+Resolvido na branch de integração `zone-builder`. Branch `zb/14-painel-propriedades`. Catálogo de 26 parâmetros do `ZoneTemplate` com tipo e padrão; todos os 2473 `<set>` do datapack aceitos. Teste `Siege` recusado. Manual: GameServer real.

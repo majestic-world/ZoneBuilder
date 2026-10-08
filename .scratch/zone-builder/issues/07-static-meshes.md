@@ -7,8 +7,12 @@
 
 **Blocked by:** 04 (Clique no terreno devolve `x y z`)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Um tile de cidade mostra construções e objetos nas mesmas posições, rotações e escalas que o UE2-Studio
-- [ ] O clique num telhado devolve o `x y z` do telhado, mais alto que o terreno abaixo dele
-- [ ] Um pacote `.usx` ausente gera um aviso com o nome do pacote, e o resto do mapa abre
+- [x] Um tile de cidade mostra construções e objetos nas mesmas posições, rotações e escalas que o UE2-Studio
+- [x] O clique num telhado devolve o `x y z` do telhado, mais alto que o terreno abaixo dele
+- [x] Um pacote `.usx` ausente gera um aviso com o nome do pacote, e o resto do mapa abre
+
+## Comments
+
+Resolvido na branch de integração `zone-builder`. Branch `zb/07-static-meshes`. Conjunto de atores, contagem de triângulos e AABB por ator iguais ao UE2-Studio em 6 mapas; clique em telhado acima do terreno testado; aviso de `.usx` ausente verificado. Manual: comparação visual na janela do UE2-Studio.

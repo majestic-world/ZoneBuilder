@@ -9,9 +9,13 @@
 
 **Blocked by:** 04 (Clique no terreno devolve `x y z`)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Um tile com interior BSP mostra as superfícies nas mesmas posições que o UE2-Studio
-- [ ] Superfícies invisíveis, de portal e de backdrop não aparecem e não são atingidas pelo clique
-- [ ] O clique num piso BSP devolve o `x y z` do piso, e o acerto mais próximo vence quando terreno e BSP se sobrepõem
-- [ ] Os filtros de região maior que 2 tiles e fora do mapa removem os quads de backdrop, como no UE2-Studio
+- [x] Um tile com interior BSP mostra as superfícies nas mesmas posições que o UE2-Studio
+- [x] Superfícies invisíveis, de portal e de backdrop não aparecem e não são atingidas pelo clique
+- [x] O clique num piso BSP devolve o `x y z` do piso, e o acerto mais próximo vence quando terreno e BSP se sobrepõem
+- [x] Os filtros de região maior que 2 tiles e fora do mapa removem os quads de backdrop, como no UE2-Studio
+
+## Comments
+
+Resolvido na branch de integração `zone-builder`. Branch `zb/06-bsp`. Superfícies, triângulos e checksum de posições iguais ao UE2-Studio em 5 mapas; picking em pisos BSP de Giran a menos de 16 unidades. Manual: comparação visual na janela do UE2-Studio e `//pos` no jogo.

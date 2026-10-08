@@ -4,9 +4,13 @@
 
 **Blocked by:** 16 (Validação e painel de problemas)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Só as zonas selecionadas entram na compilação
-- [ ] Sai 1 arquivo por tipo presente na seleção, com o prefixo próprio, e nenhum arquivo existente com outro nome é tocado
-- [ ] Ao fim da compilação, o app lista o caminho de cada arquivo gravado
-- [ ] Um projeto com 1 zona de cada um dos 23 tipos compila, e o servidor Java sem alteração carrega tudo sem `invalid territory data`, `Empty territory` ou exceção
+- [x] Só as zonas selecionadas entram na compilação
+- [x] Sai 1 arquivo por tipo presente na seleção, com o prefixo próprio, e nenhum arquivo existente com outro nome é tocado
+- [x] Ao fim da compilação, o app lista o caminho de cada arquivo gravado
+- [x] Um projeto com 1 zona de cada um dos 23 tipos compila, e o servidor Java sem alteração carrega tudo sem `invalid territory data`, `Empty territory` ou exceção
+
+## Comments
+
+Resolvido na branch de integração `zone-builder`. Branch `zb/17-compilacao-completa`. Seleção por zona, 1 arquivo por tipo com prefixo `zonebuilder_`, arquivos sem o prefixo intocados, caminhos listados ao fim. Projeto com 1 zona de cada um dos 23 tipos: `LOADED 23`, exit 0, sem `invalid territory data`, `Empty territory` ou exceção no harness com a SkillTable real. Depois da revisão, recompilar também remove os `zonebuilder_*.xml` antigos. Manual: carregar no GameServer real.

@@ -4,11 +4,15 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `zbdump <pacote>` lista nomes, imports e exports com classe, pacote pai e tamanho serializado
-- [ ] Um pacote `Lineage2Ver121` renomeado abre pela recuperação da chave
-- [ ] Um container não suportado (120, 211/212, 411-414) gera o erro "versão de container não suportada" com o número da versão
-- [ ] `zbdump` com a pasta do cliente Majestic World varre todos os `.unr`, `.utx` e `.usx` sem nenhum erro de leitura
-- [ ] Em 1 mapa, 1 `.utx` e 1 `.usx` de amostra, as contagens de exports batem com o UE2-Studio
-- [ ] Testes do seam Cena contra o cliente real (varredura e Ver121 renomeado), apontados por variável de ambiente e pulados quando ela não existe
+- [x] `zbdump <pacote>` lista nomes, imports e exports com classe, pacote pai e tamanho serializado
+- [x] Um pacote `Lineage2Ver121` renomeado abre pela recuperação da chave
+- [x] Um container não suportado (120, 211/212, 411-414) gera o erro "versão de container não suportada" com o número da versão
+- [x] `zbdump` com a pasta do cliente Majestic World varre todos os `.unr`, `.utx` e `.usx` sem nenhum erro de leitura
+- [x] Em 1 mapa, 1 `.utx` e 1 `.usx` de amostra, as contagens de exports batem com o UE2-Studio
+- [x] Testes do seam Cena contra o cliente real (varredura e Ver121 renomeado), apontados por variável de ambiente e pulados quando ela não existe
+
+## Comments
+
+Resolvido na branch de integração `zone-builder`. Branch `zb/02-zbdump-pacotes`. Varredura do cliente Fafurion (alvo por decisão do usuário; o Majestic World ficou indisponível): 1371 pacotes, 0 falhas. Contagens de nomes/imports/exports iguais ao UE2-Studio em todos os 1371 pacotes. Testes em `internal/l2pkg/client_test.go` (pulados sem `ZB_CLIENT`).

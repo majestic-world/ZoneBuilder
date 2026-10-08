@@ -13,12 +13,16 @@ O Documento expõe `Problems()` com estas regras:
 
 **Blocked by:** 13 (Retângulo, círculo, exclusões e restart points), 14 (Painel de propriedades), 15 (Lista de zonas)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Cada regra aparece no painel, com zona, shape ou vértice indicado
-- [ ] Clicar num problema seleciona a zona, destaca o vértice ou shape e leva a câmera até ele
-- [ ] A lista de zonas mostra a contagem de problemas por zona
-- [ ] Teste do seam Documento: auto-interseção na aresta 0→1 e vértices consecutivos iguais geram problema
-- [ ] Teste do seam Documento: uma zona sem shape incluído gera problema
-- [ ] Teste do seam Documento: um nome duplicado no projeto gera problema
-- [ ] Teste do seam Documento: com uma zona selecionada inválida, a compilação falha sem gravar arquivo
+- [x] Cada regra aparece no painel, com zona, shape ou vértice indicado
+- [x] Clicar num problema seleciona a zona, destaca o vértice ou shape e leva a câmera até ele
+- [x] A lista de zonas mostra a contagem de problemas por zona
+- [x] Teste do seam Documento: auto-interseção na aresta 0→1 e vértices consecutivos iguais geram problema
+- [x] Teste do seam Documento: uma zona sem shape incluído gera problema
+- [x] Teste do seam Documento: um nome duplicado no projeto gera problema
+- [x] Teste do seam Documento: com uma zona selecionada inválida, a compilação falha sem gravar arquivo
+
+## Comments
+
+Resolvido na branch de integração `zone-builder`. Branch `zb/16-validacao-problemas`. `Document.Problems()` com todas as regras; painel de problemas, contagem na lista, destaque no viewport e bloqueio da compilação. Os 4 testes do seam passam.

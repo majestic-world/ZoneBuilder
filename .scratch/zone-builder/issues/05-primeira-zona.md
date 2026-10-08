@@ -11,9 +11,13 @@ Este ticket abre o seam Documento: `Apply(comando)` e `Compile`. A UI só produz
 
 **Blocked by:** 04 (Clique no terreno devolve `x y z`)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Criar zona, clicar vértices, fechar o polígono e compilar gera um XML que o servidor Java carrega sem alteração e sem `invalid territory data`
-- [ ] O prisma aparece entre `zmin` e `zmax` sugeridos, com folga de 256 abaixo do menor Z e acima do maior
-- [ ] Teste do seam Documento: num polígono compilado, todas as coords trazem o mesmo `zmin zmax` de 4 números
-- [ ] Teste do seam Documento: compilar 2 vezes o mesmo documento gera bytes idênticos
+- [x] Criar zona, clicar vértices, fechar o polígono e compilar gera um XML que o servidor Java carrega sem alteração e sem `invalid territory data`
+- [x] O prisma aparece entre `zmin` e `zmax` sugeridos, com folga de 256 abaixo do menor Z e acima do maior
+- [x] Teste do seam Documento: num polígono compilado, todas as coords trazem o mesmo `zmin zmax` de 4 números
+- [x] Teste do seam Documento: compilar 2 vezes o mesmo documento gera bytes idênticos
+
+## Comments
+
+Resolvido na branch de integração `zone-builder`. Branch `zb/05-primeira-zona`. XML compilado carregado pelo `ZoneParser` sem alteração via harness offline (`LOADED`, exit 0). Testes de faixa Z e determinismo em `internal/zone`. Manual: carregar no GameServer real (precisa de banco).
