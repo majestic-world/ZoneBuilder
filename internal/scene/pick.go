@@ -18,10 +18,11 @@ type Surface uint8
 const (
 	// SurfaceTerrain is a tile's height field.
 	SurfaceTerrain Surface = iota + 1
+	// SurfaceBSP is a surface of a map's Level.Model.
+	SurfaceBSP
+	// SurfaceMesh is a placed static mesh actor.
+	SurfaceMesh
 )
-
-// SurfaceBSP is a surface of a map's Level.Model.
-const SurfaceBSP Surface = 2
 
 // Hit is where a ray first meets the scene.
 type Hit struct {
@@ -34,9 +35,10 @@ type Hit struct {
 }
 
 // Pick returns the nearest point where r meets the scene's geometry
-// (terrain or BSP), or false when it meets nothing. Only drawn triangles
-// are hit: an invisible terrain quad is a hole, and BSP surfaces Load
-// skipped (invisible, portal, backdrop, region-filtered) do not exist.
+// (terrain, BSP or static mesh), or false when it meets nothing. Only drawn
+// triangles are hit: an invisible terrain quad is a hole, and BSP surfaces
+// and mesh sections Load skipped (invisible, portal, backdrop,
+// region-filtered, hidden actor) do not exist.
 func (s *Scene) Pick(r Ray) (Hit, bool) {
 	if r.Dir.Dot(r.Dir) == 0 {
 		return Hit{}, false

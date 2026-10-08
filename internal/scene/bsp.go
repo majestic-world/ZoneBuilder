@@ -90,16 +90,8 @@ func (s *Scene) addBSP(m *l2pkg.Package, t Tile, footprint *geom.Box) error {
 		for _, v := range g.verts {
 			box.Include(v)
 		}
-		size := box.Size()
-		if max(size.X, size.Y) > 2*regionSpan {
+		if outsideRegion(box, footprint) {
 			continue
-		}
-		if footprint != nil {
-			c := box.Center()
-			if c.X < footprint.Min.X-regionSpan || c.X > footprint.Max.X+regionSpan ||
-				c.Y < footprint.Min.Y-regionSpan || c.Y > footprint.Max.Y+regionSpan {
-				continue
-			}
 		}
 		base := uint32(len(b.Vertices))
 		first := len(b.Indices)
@@ -121,4 +113,22 @@ func (s *Scene) addBSP(m *l2pkg.Package, t Tile, footprint *geom.Box) error {
 		s.Batches = append(s.Batches, b)
 	}
 	return nil
+}
+
+// outsideRegion reports a surface (BSP surface or mesh section, by its world
+// box) that the region filters drop: wider than two tiles on X or Y (zone
+// backdrop sheets, UE2-Studio exceeds_region_tile), or centred more than a
+// tile outside the terrain's footprint (props parked far from the map,
+// is_off_map; only when the map has a terrain, footprint non-nil).
+func outsideRegion(box geom.Box, footprint *geom.Box) bool {
+	size := box.Size()
+	if max(size.X, size.Y) > 2*regionSpan {
+		return true
+	}
+	if footprint == nil {
+		return false
+	}
+	c := box.Center()
+	return c.X < footprint.Min.X-regionSpan || c.X > footprint.Max.X+regionSpan ||
+		c.Y < footprint.Min.Y-regionSpan || c.Y > footprint.Max.Y+regionSpan
 }

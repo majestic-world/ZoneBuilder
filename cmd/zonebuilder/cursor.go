@@ -96,6 +96,8 @@ func surfaceName(s scene.Surface) string {
 		return "terreno"
 	case scene.SurfaceBSP:
 		return "BSP"
+	case scene.SurfaceMesh:
+		return "static mesh"
 	}
 	return "superfície desconhecida"
 }
