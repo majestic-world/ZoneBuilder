@@ -14,8 +14,9 @@ import (
 )
 
 // viewportKeys are the keys the viewport listens to while it has focus: the
-// fly keys, and Enter, which closes the polygon being drawn.
-var viewportKeys = []key.Name{"W", "A", "S", "D", "Q", "E", key.NameShift, key.NameReturn, key.NameEnter}
+// fly keys, Enter, which closes the polygon being drawn, and Escape, which
+// puts the armed tool down.
+var viewportKeys = []key.Name{"W", "A", "S", "D", "Q", "E", key.NameShift, key.NameReturn, key.NameEnter, key.NameEscape}
 
 // Viewport is the area of the window the 3D scene is drawn into. It paints
 // nothing: the renderer fills the area before Gio draws, and any Gio content
