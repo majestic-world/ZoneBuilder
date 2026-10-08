@@ -30,7 +30,7 @@ var (
 	pGenVertexArrays, pGetError, pGetIntegerv, pGetProgramInfoLog, pGetProgramiv,
 	pGetShaderInfoLog, pGetShaderiv, pGetString, pGetStringi, pGetUniformLocation,
 	pLinkProgram, pRenderbufferStorage, pShaderSource,
-	pTexImage2D, pTexParameteri, pUniform1i, pUniformMatrix4fv, pUseProgram,
+	pTexImage2D, pTexParameteri, pUniform1i, pUniform3f, pUniformMatrix4fv, pUseProgram,
 	pVertexAttribPointer, pViewport uintptr
 
 	// pClipControlEXT is GL_EXT_clip_control's entry point; zero when absent.
@@ -109,6 +109,7 @@ func load() error {
 		{"glTexImage2D", &pTexImage2D},
 		{"glTexParameteri", &pTexParameteri},
 		{"glUniform1i", &pUniform1i},
+		{"glUniform3f", &pUniform3f},
 		{"glUniformMatrix4fv", &pUniformMatrix4fv},
 		{"glUseProgram", &pUseProgram},
 		{"glVertexAttribPointer", &pVertexAttribPointer},
@@ -325,6 +326,10 @@ func TexImage2D(target uint32, level int, internalFormat uint32, w, h int, forma
 
 func TexParameteri(target, pname uint32, v int32) {
 	syscall.SyscallN(pTexParameteri, uintptr(target), uintptr(pname), uintptr(v))
+}
+
+func Uniform3f(loc int32, x, y, z float32) {
+	syscall.SyscallN(pUniform3f, uintptr(loc), f2u(x), f2u(y), f2u(z))
 }
 
 func UniformMatrix4fv(loc int32, m *[16]float32) {

@@ -5,6 +5,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"image"
 	"log"
@@ -15,22 +16,27 @@ import (
 	"gioui.org/app"
 	"gioui.org/font/gofont"
 	"gioui.org/gpu"
-	"gioui.org/io/pointer"
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
 
+	"zonebuilder/internal/camera"
+	"zonebuilder/internal/geom"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/render/egl"
+	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
 )
 
 func main() {
+	client := flag.String("client", os.Getenv("ZB_CLIENT"), "pasta do cliente (acima de Maps) que o campo traz preenchida")
+	tile := flag.String("tile", "22_22", "tile que o campo traz preenchido")
+	flag.Parse()
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("Zone Builder"), app.Size(unit.Dp(1280), unit.Dp(800)), app.CustomRenderer(true))
-		if err := run(w); err != nil {
+		if err := run(w, *client, *tile); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
@@ -92,27 +98,37 @@ func (g *gfx) release() {
 	g.ctx.Release()
 }
 
-func run(w *app.Window) error {
+// loaded is the outcome of a background scene.Load.
+type loaded struct {
+	tile  scene.Tile
+	scene *scene.Scene
+	err   error
+	took  time.Duration
+}
+
+func run(w *app.Window, client, tile string) error {
 	// EGL binds the context to an OS thread: keep this goroutine on one.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
-	shell := &ui.Shell{Theme: th}
+	shell := ui.NewShell(th, client, tile)
 
 	var (
-		ops       op.Ops
-		g         *gfx
-		view      app.Win32ViewEvent
-		size      image.Point
-		vpRect    image.Rectangle
-		angle     float32
-		paused    bool
-		last      = time.Now()
-		vpClicks  int
-		lastClick image.Point
-		btnClicks int
+		ops      op.Ops
+		g        *gfx
+		view     app.Win32ViewEvent
+		size     image.Point
+		vpRect   image.Rectangle
+		fly      ui.FlyControls
+		cam      = camera.ForBounds(geom.EmptyBox())
+		current  *scene.Scene
+		uploaded = true // nothing to upload yet
+		loading  bool
+		status   string
+		loads    = make(chan loaded, 1)
+		folders  = make(chan string, 1)
 	)
 	defer func() { g.release() }()
 
@@ -131,6 +147,7 @@ func run(w *app.Window) error {
 				if g, err = newGfx(w, view); err != nil {
 					return err
 				}
+				uploaded = current == nil
 			}
 
 			for {
@@ -138,45 +155,70 @@ func run(w *app.Window) error {
 				if !ok {
 					break
 				}
-				switch ev.Kind {
-				case pointer.Press:
-					vpClicks++
-					lastClick = ev.Position.Round()
-					log.Printf("viewport: press %v at (%d, %d)", ev.Buttons, lastClick.X, lastClick.Y)
-				case pointer.Release:
-					log.Printf("viewport: release at (%.0f, %.0f)", ev.Position.X, ev.Position.Y)
-				case pointer.Scroll:
-					log.Printf("viewport: scroll %.0f", ev.Scroll.Y)
+				fly.Handle(ev, &cam)
+			}
+			if shell.Browse.Clicked(gtx) {
+				start := shell.Client.Text()
+				go func() {
+					if p, ok := ui.PickFolder("Pasta do cliente Lineage II (a que contém Maps)", start); ok {
+						folders <- p
+						w.Invalidate()
+					}
+				}()
+			}
+			select {
+			case p := <-folders:
+				shell.Client.SetText(p)
+			default:
+			}
+			if shell.OpenRequested(gtx) && !loading {
+				t, err := scene.ParseTile(shell.Tile.Text())
+				if err != nil {
+					status = err.Error()
+				} else {
+					loading, status = true, "Carregando "+t.Name()+"…"
+					root := shell.Client.Text()
+					go func() {
+						start := time.Now()
+						s, err := scene.Load(root, []scene.Tile{t})
+						loads <- loaded{tile: t, scene: s, err: err, took: time.Since(start)}
+						w.Invalidate()
+					}()
 				}
 			}
-			if shell.Pause.Clicked(gtx) {
-				btnClicks++
-				paused = !paused
-				log.Printf("ui: button clicked (paused=%t)", paused)
+			select {
+			case r := <-loads:
+				loading = false
+				if r.err != nil {
+					status = r.err.Error()
+					log.Printf("cena: %s: %v", r.tile.Name(), r.err)
+					break
+				}
+				current, uploaded = r.scene, false
+				cam = camera.ForBounds(renderBox(current, current.Framing))
+				status = r.tile.Name()
+				logScene(r)
+			default:
 			}
 
-			now := time.Now()
-			if !paused {
-				angle += float32(now.Sub(last).Seconds())
-			}
-			last = now
+			moving := fly.Step(&cam, gtx.Now)
 
-			label := "Pausar rotação"
-			if paused {
-				label = "Retomar rotação"
-			}
-			rect := shell.Layout(gtx, label, panelLines(g, vpRect.Size(), vpClicks, lastClick, btnClicks))
+			rect := shell.Layout(gtx, panelLines(g, status, current, &cam))
 			if e.Size != size || rect != vpRect {
-				log.Printf("frame: window %dx%d, viewport %v (aspect %.3f)", e.Size.X, e.Size.Y, rect, aspect(rect))
+				log.Printf("frame: window %dx%d, viewport %v", e.Size.X, e.Size.Y, rect)
 				size, vpRect = e.Size, rect
 			}
 			if g == nil {
 				e.Frame(gtx.Ops)
 				continue
 			}
+			if !uploaded {
+				g.renderer.SetScene(current)
+				uploaded = true
+			}
 
 			g.ctx.WaitClient() // lets ANGLE pick up a window resize
-			if err := g.renderer.DrawViewport(rect, e.Size, angle); err != nil {
+			if err := g.renderer.DrawViewport(rect, e.Size, &cam); err != nil {
 				return err
 			}
 			if err := g.gio.Frame(gtx.Ops, gpu.OpenGLRenderTarget{}, e.Size); err != nil {
@@ -185,7 +227,7 @@ func run(w *app.Window) error {
 			if err := g.ctx.SwapBuffers(); err != nil {
 				return err
 			}
-			if !paused {
+			if moving {
 				gtx.Execute(op.InvalidateCmd{})
 			}
 			e.Frame(gtx.Ops)
@@ -193,34 +235,72 @@ func run(w *app.Window) error {
 	}
 }
 
-func aspect(r image.Rectangle) float64 {
-	if r.Dy() == 0 {
-		return 0
+// renderBox converts a world box of s into the camera's rebased render
+// space.
+func renderBox(s *scene.Scene, b geom.Box) geom.Box {
+	if b.Empty() {
+		return b
 	}
-	return float64(r.Dx()) / float64(r.Dy())
+	return geom.Box{Min: scene.ToRender(b.Min.Sub(s.Origin)), Max: scene.ToRender(b.Max.Sub(s.Origin))}
 }
 
-func panelLines(g *gfx, vp image.Point, vpClicks int, lastClick image.Point, btnClicks int) []string {
-	lines := []string{"Zone Builder: spike M0"}
-	if g == nil {
-		return append(lines, "Sem contexto GL")
+// worldPosition is a rebased render-space point of s in world coordinates.
+func worldPosition(s *scene.Scene, p geom.Vec3) geom.Vec3 {
+	return scene.ToRender(p).Add(s.Origin)
+}
+
+func logScene(r loaded) {
+	s := r.scene
+	log.Printf("cena: %s carregado em %v: %s, origem de rebase %v",
+		r.tile.Name(), r.took.Round(time.Millisecond), count(len(s.Batches), "batch", "batches"), s.Origin)
+	for _, t := range s.Terrains {
+		ox, oy := t.Tile.Origin()
+		log.Printf("cena: terreno %s: %d×%d amostras, %s, faixa x [%.1f, %.1f] y [%.1f, %.1f] z [%.1f, %.1f]; início do tile (%.0f, %.0f); fallback MapX/MapY=%t",
+			t.Tile.Name(), t.Width, t.Height, count(len(s.Batches[t.Batch].Indices)/3, "triângulo", "triângulos"),
+			t.Bounds.Min.X, t.Bounds.Max.X, t.Bounds.Min.Y, t.Bounds.Max.Y, t.Bounds.Min.Z, t.Bounds.Max.Z,
+			ox, oy, t.FallbackScale)
 	}
-	i := g.renderer.Info
+	for _, w := range s.Warnings {
+		log.Printf("cena: aviso: %s", w)
+	}
+}
+
+func panelLines(g *gfx, status string, s *scene.Scene, cam *camera.Camera) []string {
+	var lines []string
+	if status != "" {
+		lines = append(lines, status)
+	}
+	if s != nil {
+		for _, t := range s.Terrains {
+			b := t.Bounds
+			lines = append(lines,
+				fmt.Sprintf("Terreno: %s", count(len(s.Batches[t.Batch].Indices)/3, "triângulo", "triângulos")),
+				fmt.Sprintf("x %.0f … %.0f", b.Min.X, b.Max.X),
+				fmt.Sprintf("y %.0f … %.0f", b.Min.Y, b.Max.Y),
+				fmt.Sprintf("z %.0f … %.0f", b.Min.Z, b.Max.Z),
+			)
+			if t.FallbackScale {
+				lines = append(lines, "TerrainScale quebrado: posição por MapX/MapY")
+			}
+		}
+		if len(s.Terrains) == 0 {
+			lines = append(lines, "O mapa não tem terreno")
+		}
+		lines = append(lines, s.Warnings...)
+		p := worldPosition(s, cam.Position)
+		lines = append(lines, fmt.Sprintf("Câmera: %.0f %.0f %.0f", p.X, p.Y, p.Z))
+	}
 	lines = append(lines,
-		i.Renderer,
-		i.Version,
-		"Profundidade: Z reverso (GL_EXT_clip_control + Depth32F)",
-		"Texturas: DXT1/3/5 nativas em sRGB",
-		fmt.Sprintf("Viewport: %d×%d px", vp.X, vp.Y),
-		fmt.Sprintf("Viewport: %s", count(vpClicks, "clique", "cliques")),
+		"WASD move, Q/E desce/sobe, Shift acelera,",
+		"arrastar olha, Shift+arrastar sobe, roda aproxima",
 	)
-	if vpClicks > 0 {
-		lines = append(lines, fmt.Sprintf("Último clique no viewport: (%d, %d)", lastClick.X, lastClick.Y))
+	if g != nil {
+		lines = append(lines, g.renderer.Info.Renderer)
 	}
-	return append(lines, fmt.Sprintf("Botão: %s", count(btnClicks, "clique", "cliques")))
+	return lines
 }
 
-// count inflects a noun to n ("1 clique", "2 cliques").
+// count inflects a noun to n ("1 triângulo", "2 triângulos").
 func count(n int, singular, plural string) string {
 	if n == 1 {
 		return "1 " + singular

@@ -1,14 +1,14 @@
 package render
 
-import "math"
+import (
+	"math"
+
+	"zonebuilder/internal/geom"
+)
 
 // mat4 is a column-major 4x4 matrix, the layout glUniformMatrix4fv expects
 // with transpose = false.
 type mat4 [16]float32
-
-func identity() mat4 {
-	return mat4{0: 1, 5: 1, 10: 1, 15: 1}
-}
 
 // mul returns a*b (b applied first).
 func mul(a, b mat4) mat4 {
@@ -39,22 +39,22 @@ func reversedPerspective(fovY, aspect, near, far float32) mat4 {
 	}
 }
 
-func translate(x, y, z float32) mat4 {
-	m := identity()
-	m[12], m[13], m[14] = x, y, z
-	return m
+// lookAt is a right-handed view matrix for an eye looking along forward
+// with the given right and up (an orthonormal basis).
+func lookAt(eye, forward, right, up geom.Vec3) mat4 {
+	return mat4{
+		right.X, up.X, -forward.X, 0,
+		right.Y, up.Y, -forward.Y, 0,
+		right.Z, up.Z, -forward.Z, 0,
+		-right.Dot(eye), -up.Dot(eye), forward.Dot(eye), 1,
+	}
 }
 
-func rotateX(a float32) mat4 {
-	s, c := float32(math.Sin(float64(a))), float32(math.Cos(float64(a)))
-	m := identity()
-	m[5], m[6], m[9], m[10] = c, s, -s, c
-	return m
-}
-
-func rotateY(a float32) mat4 {
-	s, c := float32(math.Sin(float64(a))), float32(math.Cos(float64(a)))
-	m := identity()
-	m[0], m[2], m[8], m[10] = c, -s, s, c
-	return m
+// unrealToRender swaps Y and Z: Unreal's Z-up basis to the Y-up render
+// basis (scene.ToRender as a matrix).
+var unrealToRender = mat4{
+	0:  1,
+	6:  1,
+	9:  1,
+	15: 1,
 }

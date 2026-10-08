@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // maxTableCount rejects the absurd element counts a malformed package
@@ -83,6 +84,11 @@ type Package struct {
 	Imports   []Import
 	Exports   []Export
 	Data      []byte
+
+	// exportsByName indexes non-Package exports by lower-case object name
+	// for ExportNamed, built on first use.
+	exportsByName     map[string][]int
+	exportsByNameOnce sync.Once
 }
 
 // Open reads, decrypts and parses the package file at path. Errors carry the
