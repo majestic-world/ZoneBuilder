@@ -174,6 +174,7 @@ func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, path s
 		shell.Tile.SetText(tiles[0].Name())
 	}
 	zones.replace(p.Document)
+	shell.Zones.Reset()
 	s.path, s.saved = path, zones.version
 	s.cfg.Project = path
 	s.outputUsed(p.Output)
