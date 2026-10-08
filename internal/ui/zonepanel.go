@@ -4,9 +4,7 @@ import (
 	"slices"
 
 	"gioui.org/layout"
-	"gioui.org/unit"
 	"gioui.org/widget"
-	"gioui.org/widget/material"
 
 	"zonebuilder/internal/zone"
 )
@@ -30,8 +28,8 @@ type ZonePanel struct {
 	Output       widget.Editor
 	BrowseOutput widget.Clickable
 	Compile      widget.Clickable
-	// Info lines are shown under the controls (tool hints, the zones,
-	// where the XML went).
+	// Info lines are shown under the controls: the armed tool's hint and
+	// what the last compilation wrote and removed.
 	Info []string
 }
 
@@ -64,21 +62,7 @@ func (s *Shell) zonePanel() []layout.FlexChild {
 		layout.Rigid(s.label("Nova zona: nome")),
 		layout.Rigid(s.field(&p.Name, "[nome_da_zona]")),
 		layout.Rigid(s.label("Tipo")),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(material.Button(s.Theme, &p.PrevType, "<").Layout),
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							lbl := material.Body1(s.Theme, string(p.Type()))
-							lbl.Color = panelText
-							return lbl.Layout(gtx)
-						})
-					}),
-					layout.Rigid(material.Button(s.Theme, &p.NextType, ">").Layout),
-				)
-			})
-		}),
+		layout.Rigid(s.stepper(&p.PrevType, &p.NextType, nil, string(p.Type()), true)),
 		layout.Rigid(s.button(&p.Create, "Criar zona e desenhar")),
 	}
 	children = append(children, s.toolPanel()...)

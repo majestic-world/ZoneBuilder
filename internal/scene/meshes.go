@@ -6,20 +6,18 @@ import (
 	"sort"
 
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/l2pkg"
 	"zonebuilder/internal/unreal"
 )
 
 // MeshActor is one placed static mesh actor of a map.
 type MeshActor struct {
-	Tile Tile
 	// Export is the actor's 0-based export index in the map package.
 	Export int
 	Name   string
 	Class  string
-	// Mesh is the StaticMesh's object path ("Package.Group.Name").
-	Mesh  string
-	Actor unreal.Actor
+	Actor  unreal.Actor
 	// Hidden is set for a bHidden or bDeleteMe actor: listed, but neither
 	// drawn nor pickable.
 	Hidden bool
@@ -99,9 +97,8 @@ func (s *Scene) addMeshes(ld *loader, m *l2pkg.Package, t Tile, footprint *geom.
 				}
 				return fmt.Errorf("%s %s: %w", class, m.Exports[i].ObjectName, err)
 			}
-			path, _ := m.ObjectPath(a.StaticMesh)
 			ma := MeshActor{
-				Tile: t, Export: i, Name: m.Exports[i].ObjectName, Class: class, Mesh: path,
+				Export: i, Name: m.Exports[i].ObjectName, Class: class,
 				Actor: *a, Hidden: a.Hidden || a.DeleteMe, Bounds: geom.EmptyBox(),
 			}
 			kept, err := s.placeMesh(ld, &ma, m, owner, mesh, footprint)
@@ -121,7 +118,7 @@ func (s *Scene) addMeshes(ld *loader, m *l2pkg.Package, t Tile, footprint *geom.
 	for _, r := range reasons {
 		skipped := "1 ator de static mesh ignorado"
 		if n := missing[r]; n != 1 {
-			skipped = fmt.Sprintf("%d atores de static mesh ignorados", n)
+			skipped = inflect.Count(n, "ator de static mesh ignorado", "atores de static mesh ignorados")
 		}
 		s.Warnings = append(s.Warnings, fmt.Sprintf("%s: %s: %s", t.Name(), r, skipped))
 	}

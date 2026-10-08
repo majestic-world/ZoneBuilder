@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
@@ -111,12 +112,9 @@ func (e *zoneEditor) rectangleClick(s *scene.World, v zone.Point) string {
 	if a.X == v.X || a.Y == v.Y {
 		return "O retângulo precisa de largura e altura: clique noutro canto"
 	}
-	c := zone.RectangleCorners(a, v)
-	c[1].Z = groundZ(s, c[1].X, c[1].Y, c[1].Z)
-	c[3].Z = groundZ(s, c[3].X, c[3].Y, c[3].Z)
-	zmin, zmax := zone.SuggestZRange(c[:], e.margin)
+	_, zmin, zmax := e.placed(s, v)
 	z, _ := e.doc.Zone(e.zone)
-	if !e.apply(zone.AddShape{Zone: e.zone, Kind: zone.Rectangle, Banned: e.banned, Points: []zone.Point{a, v}, ZMin: zmin, ZMax: zmax}) {
+	if e.apply(zone.AddShape{Zone: e.zone, Kind: zone.Rectangle, Banned: e.banned, Points: []zone.Point{a, v}, ZMin: zmin, ZMax: zmax}) != nil {
 		return "Não foi possível adicionar o retângulo"
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
@@ -139,17 +137,13 @@ func (e *zoneEditor) circleClick(s *scene.World, v zone.Point) string {
 		return fmt.Sprintf("Centro em %d %d %d; clique na borda para dar o raio", v.X, v.Y, v.Z)
 	}
 	c := e.anchor
-	r := int(math.Round(math.Hypot(float64(v.X-c.X), float64(v.Y-c.Y))))
+	r := radius(c, v)
 	if r < minCircleRadius {
 		return fmt.Sprintf("Raio de %d: o mínimo é %d; clique mais longe do centro", r, minCircleRadius)
 	}
-	pts := zone.CirclePoints(c, r, zone.CircleSides)
-	for i := range pts {
-		pts[i].Z = groundZ(s, pts[i].X, pts[i].Y, c.Z)
-	}
-	zmin, zmax := zone.SuggestZRange(append(slices.Clone(pts), c), e.margin)
+	pts, zmin, zmax := e.placed(s, v)
 	z, _ := e.doc.Zone(e.zone)
-	if !e.apply(zone.AddShape{Zone: e.zone, Banned: e.banned, Points: pts, ZMin: zmin, ZMax: zmax}) {
+	if e.apply(zone.AddShape{Zone: e.zone, Banned: e.banned, Points: pts, ZMin: zmin, ZMax: zmax}) != nil {
 		return "Não foi possível adicionar o círculo"
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
@@ -158,15 +152,15 @@ func (e *zoneEditor) circleClick(s *scene.World, v zone.Point) string {
 	if e.banned {
 		what = "Exclusão circular"
 	}
-	log.Printf("zona: %s: %s centro %d %d raio %d → polígono de %d vértices, z %d..%d", z.Name, what, c.X, c.Y, r, len(pts), zmin, zmax)
-	return fmt.Sprintf("%s em %s: raio %d, polígono de %s, z %d … %d", what, z.Name, r, count(len(pts), "vértice", "vértices"), zmin, zmax)
+	log.Printf("zona: %s: %s centro %d %d raio %d → polígono de %s, z %d..%d", z.Name, what, c.X, c.Y, r, inflect.Count(len(pts), "vértice", "vértices"), zmin, zmax)
+	return fmt.Sprintf("%s em %s: raio %d, polígono de %s, z %d … %d", what, z.Name, r, inflect.Count(len(pts), "vértice", "vértices"), zmin, zmax)
 }
 
 // restartClick adds v to the selected zone's restart points (player
 // killers' with the PK tool).
 func (e *zoneEditor) restartClick(v zone.Point) string {
 	pk := e.tool == ui.ToolPKRestart
-	if !e.apply(zone.AddRestartPoint{Zone: e.zone, PK: pk, Point: v}) {
+	if e.apply(zone.AddRestartPoint{Zone: e.zone, PK: pk, Point: v}) != nil {
 		return "Não foi possível marcar o ponto"
 	}
 	z, _ := e.doc.Zone(e.zone)
@@ -178,18 +172,49 @@ func (e *zoneEditor) restartClick(v zone.Point) string {
 	return fmt.Sprintf("%s %d de %s em %d %d %d", name, n, z.Name, v.X, v.Y, v.Z)
 }
 
+// radius is the circle radius from center c to v, in server units.
+func radius(c, v zone.Point) int {
+	return int(math.Round(math.Hypot(float64(v.X-c.X), float64(v.Y-c.Y))))
+}
+
+// placed is the shape the armed rectangle or circle tool adds from the
+// anchor to v: its outline (a rectangle's 4 corners, a circle's polygon),
+// the generated vertices dropped onto the ground of s, and the Z range
+// suggested from them with the configured margin. Clicks and the preview
+// both go through it, so the preview is what gets added.
+func (e *zoneEditor) placed(s *scene.World, v zone.Point) (pts []zone.Point, zmin, zmax int) {
+	a := e.anchor
+	if e.tool == ui.ToolCircle {
+		pts = zone.CirclePoints(a, max(radius(a, v), 1), zone.CircleSides)
+		for i := range pts {
+			pts[i].Z = groundZ(s, pts[i].X, pts[i].Y, a.Z)
+		}
+		zmin, zmax = zone.SuggestZRange(append(slices.Clone(pts), a), e.margin)
+		return pts, zmin, zmax
+	}
+	c := zone.RectangleCorners(a, v)
+	c[1].Z = groundZ(s, c[1].X, c[1].Y, c[1].Z)
+	c[3].Z = groundZ(s, c[3].X, c[3].Y, c[3].Z)
+	zmin, zmax = zone.SuggestZRange(c[:], e.margin)
+	return c[:], zmin, zmax
+}
+
 // hoverAt tracks the surface point under the cursor (h, when ok) while a
-// rectangle or circle is anchored, for the preview.
-func (e *zoneEditor) hoverAt(h scene.Hit, ok bool) {
-	ok = ok && e.armed && e.anchored
+// rectangle or circle is anchored, and places the preview shape on s.
+func (e *zoneEditor) hoverAt(s *scene.World, h scene.Hit, ok bool) {
+	ok = ok && s != nil && e.armed && e.anchored
 	p := zone.Point{}
 	if ok {
-		p = zone.Point{X: round(h.Pos.X), Y: round(h.Pos.Y), Z: round(h.Pos.Z)}
+		p = serverPoint(h)
 	}
-	if ok != e.hovering || p != e.hover {
-		e.hover, e.hovering = p, ok
-		e.version++
+	if ok == e.hovering && p == e.hover {
+		return
 	}
+	e.hover, e.hovering = p, ok
+	if ok {
+		e.ghost, e.ghostMin, e.ghostMax = e.placed(s, p)
+	}
+	e.version++
 }
 
 // preview is the rectangle or circle being placed: from the anchor to the
@@ -204,17 +229,7 @@ func (e *zoneEditor) preview() (render.ZoneShape, bool) {
 	if !e.hovering {
 		return render.ZoneShape{Points: []geom.Vec3{serverVec(a)}, Color: color, Marked: 0}, true
 	}
-	h := e.hover
-	var pts []zone.Point
-	if e.tool == ui.ToolCircle {
-		r := int(math.Round(math.Hypot(float64(h.X-a.X), float64(h.Y-a.Y))))
-		pts = zone.CirclePoints(a, max(r, 1), zone.CircleSides)
-	} else {
-		c := zone.RectangleCorners(a, h)
-		pts = c[:]
-	}
-	zmin, zmax := zone.SuggestZRange([]zone.Point{a, h}, zone.DefaultZMargin)
-	rs := overlayShape(pts, zmin, zmax, color)
+	rs := overlayShape(e.ghost, e.ghostMin, e.ghostMax, color)
 	if e.tool == ui.ToolRectangle {
 		rs.Marked = 0
 	}
@@ -243,16 +258,36 @@ func serverVec(p zone.Point) geom.Vec3 {
 }
 
 // groundZ is the server Z of the surface under x y near height ref (see
-// groundAbove), or ref when nothing is there.
+// groundAbove and groundReach), or ref when nothing is there.
 func groundZ(s *scene.World, x, y, ref int) int {
-	o := scene.FromServer(geom.Vec3{X: float32(x), Y: float32(y), Z: float32(ref + groundAbove)})
-	h, ok := s.Pick(scene.Ray{Origin: o, Dir: geom.Vec3{Z: -1}})
-	if !ok {
-		return ref
+	if z, ok := ground(s, zone.Point{X: x, Y: y, Z: ref}, groundAbove, groundReach, false); ok {
+		return z
 	}
-	z := round(h.Pos.Z)
-	if z < ref-groundReach || z > ref+groundReach {
-		return ref
+	return ref
+}
+
+// ground is the server Z of the surface at p, found by a vertical pick from
+// above over p.Z: the first surface straight down or, with up set and
+// nothing below (p buried under higher ground), the nearest surface
+// straight up, hit from beneath since picking is two-sided. With reach > 0,
+// a surface further than reach from p.Z counts as none, so a roof or a cave
+// floor far from the drawing level is not picked.
+func ground(s *scene.World, p zone.Point, above, reach int, up bool) (int, bool) {
+	o := scene.FromServer(serverVec(zone.Point{X: p.X, Y: p.Y, Z: p.Z + above}))
+	dirs := []float32{-1}
+	if up {
+		dirs = append(dirs, 1)
 	}
-	return z
+	for _, dir := range dirs {
+		h, ok := s.Pick(scene.Ray{Origin: o, Dir: geom.Vec3{Z: dir}})
+		if !ok {
+			continue
+		}
+		z := round(h.Pos.Z)
+		if reach > 0 && (z < p.Z-reach || z > p.Z+reach) {
+			return 0, false
+		}
+		return z, true
+	}
+	return 0, false
 }

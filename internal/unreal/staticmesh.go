@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/l2pkg"
 )
 
@@ -119,7 +120,7 @@ func ReadStaticMesh(p *l2pkg.Package, i int) (*StaticMesh, error) {
 	}
 	for k, s := range m.Sections {
 		if s.FirstIndex+3*s.Triangles > len(m.Indices) {
-			return nil, fmt.Errorf("StaticMesh %s: seção %d passa do fim dos %d índices", name, k, len(m.Indices))
+			return nil, fmt.Errorf("StaticMesh %s: seção %d passa do fim de %s", name, k, inflect.Count(len(m.Indices), "índice", "índices"))
 		}
 	}
 	return m, nil

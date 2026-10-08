@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/render"
 )
 
@@ -42,10 +43,11 @@ func (f *frameLog) frame(now time.Time, stats render.DrawStats, tiles []string) 
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	n := f.frames
-	log.Printf("fps: %.1f quadros/s em %v: quadro médio %.2f ms, pior %.2f ms; por quadro %d draws, %d triângulos, %d de %d setores fora da vista; tiles [%s]; heap Go %d MB",
+	log.Printf("fps: %.1f quadros/s em %v: quadro médio %.2f ms, pior %.2f ms; por quadro %s, %s, %d de %s fora da vista; tiles [%s]; heap Go %d MB",
 		float64(n)/span.Seconds(), span.Round(time.Millisecond),
 		float64(span.Microseconds())/float64(n)/1000, float64(f.worst.Microseconds())/1000,
-		f.sum.Draws/n, f.sum.Triangles/n, f.sum.Culled/n, f.sum.Sectors/n,
+		inflect.Count(f.sum.Draws/n, "draw", "draws"), inflect.Count(f.sum.Triangles/n, "triângulo", "triângulos"),
+		f.sum.Culled/n, inflect.Count(f.sum.Sectors/n, "setor", "setores"),
 		strings.Join(tiles, " "), mem.HeapInuse>>20)
 	*f = frameLog{start: now, last: now}
 }

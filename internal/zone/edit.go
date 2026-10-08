@@ -1,6 +1,10 @@
 package zone
 
-import "fmt"
+import (
+	"fmt"
+
+	"zonebuilder/internal/inflect"
+)
 
 // MoveVertex puts a shape's vertex Index at Point.
 type MoveVertex struct {
@@ -16,7 +20,7 @@ func (c MoveVertex) apply(d *Document) error {
 		return err
 	}
 	if c.Index < 0 || c.Index >= len(s.Points) {
-		return fmt.Errorf("zone: shape %d has no vertex %d", c.Shape, c.Index)
+		return fmt.Errorf("zona: a forma %d não tem o vértice %d", c.Shape, c.Index)
 	}
 	s.Points[c.Index] = c.Point
 	return nil
@@ -39,10 +43,10 @@ func (c InsertVertex) apply(d *Document) error {
 		return err
 	}
 	if s.Kind == Rectangle {
-		return fmt.Errorf("zone: shape %d is a rectangle; its 2 corners are fixed", c.Shape)
+		return fmt.Errorf("zona: a forma %d é um retângulo; seus 2 cantos são fixos", c.Shape)
 	}
 	if c.Index < 0 || c.Index > len(s.Points) {
-		return fmt.Errorf("zone: cannot insert vertex %d into a shape of %d", c.Index, len(s.Points))
+		return fmt.Errorf("zona: não é possível inserir o vértice %d numa forma de %s", c.Index, inflect.Count(len(s.Points), "vértice", "vértices"))
 	}
 	pts := make([]Point, 0, len(s.Points)+1)
 	pts = append(append(append(pts, s.Points[:c.Index]...), c.Point), s.Points[c.Index:]...)
@@ -64,10 +68,10 @@ func (c RemoveVertex) apply(d *Document) error {
 		return err
 	}
 	if s.Kind == Rectangle {
-		return fmt.Errorf("zone: shape %d is a rectangle; its 2 corners are fixed", c.Shape)
+		return fmt.Errorf("zona: a forma %d é um retângulo; seus 2 cantos são fixos", c.Shape)
 	}
 	if c.Index < 0 || c.Index >= len(s.Points) {
-		return fmt.Errorf("zone: shape %d has no vertex %d", c.Shape, c.Index)
+		return fmt.Errorf("zona: a forma %d não tem o vértice %d", c.Shape, c.Index)
 	}
 	pts := make([]Point, 0, len(s.Points)-1)
 	s.Points = append(append(pts, s.Points[:c.Index]...), s.Points[c.Index+1:]...)

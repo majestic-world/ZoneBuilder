@@ -13,12 +13,8 @@ import (
 // every node on it, Indices[First:First+Count] of Batches[Batch], the batch
 // of its material.
 type BSPSurface struct {
-	Tile Tile
 	// Index is the surface's index in the Model's Surfs.
-	Index int
-	// Material is the surface's material, an object reference in the map
-	// package's index space (0 = none).
-	Material  int32
+	Index     int
 	PolyFlags uint32
 	Batch     int
 	First     int
@@ -121,7 +117,7 @@ func (s *Scene) addBSP(ld *loader, m *l2pkg.Package, t Tile, footprint *geom.Box
 		}
 		b.Bounds.Union(box)
 		s.BSPSurfaces = append(s.BSPSurfaces, BSPSurface{
-			Tile: t, Index: k, Material: surf.Material, PolyFlags: surf.PolyFlags,
+			Index: k, PolyFlags: surf.PolyFlags,
 			Batch: batch, First: first, Count: len(g.idx), Bounds: box,
 		})
 		s.addPickable(SurfaceBSP, batch, first, len(g.idx), box)

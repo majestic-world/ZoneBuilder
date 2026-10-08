@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+
+	"zonebuilder/internal/inflect"
 )
 
 // Rule is a validation rule a zone can break.
@@ -85,10 +87,7 @@ type BlockedError struct {
 }
 
 func (e *BlockedError) Error() string {
-	if len(e.Problems) == 1 {
-		return "zone: compile blocked: 1 problem in the selected zones"
-	}
-	return fmt.Sprintf("zone: compile blocked: %d problems in the selected zones", len(e.Problems))
+	return "zona: compilação bloqueada: " + inflect.Count(len(e.Problems), "problema", "problemas") + " nas zonas selecionadas"
 }
 
 // Problems is every rule the zones break, zone by zone in creation order:
@@ -133,7 +132,7 @@ func (d *Document) validate() []Problem {
 			zoneProblem(UnknownType, "tipo %q não existe no servidor", z.Type)
 		}
 		if n := names[z.Name]; n > 1 {
-			zoneProblem(DuplicateName, "nome %s usado por %d zonas", z.Name, n)
+			zoneProblem(DuplicateName, "nome %s usado por %s", z.Name, inflect.Count(n, "zona", "zonas"))
 		}
 		included := false
 		for _, s := range z.Shapes {
@@ -188,11 +187,11 @@ func shapeProblems(id ZoneID, i int, s Shape) []Problem {
 	switch s.Kind {
 	case Rectangle:
 		if len(pts) != 2 {
-			add(CornerCount, -1, "retângulo com %s; são precisos 2", count(len(pts), "canto", "cantos"))
+			add(CornerCount, -1, "retângulo com %s; são precisos 2", inflect.Count(len(pts), "canto", "cantos"))
 		}
 	case Polygon:
 		if len(pts) < 3 {
-			add(TooFewVertices, -1, "polígono com %s; são precisos 3 ou mais", count(len(pts), "vértice", "vértices"))
+			add(TooFewVertices, -1, "polígono com %s; são precisos 3 ou mais", inflect.Count(len(pts), "vértice", "vértices"))
 			break
 		}
 		for k := range pts {
@@ -289,12 +288,4 @@ func (z *Zone) param(name string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-// count is n with the noun inflected for it: "1 vértice", "2 vértices".
-func count(n int, singular, plural string) string {
-	if n == 1 {
-		return "1 " + singular
-	}
-	return fmt.Sprintf("%d %s", n, plural)
 }

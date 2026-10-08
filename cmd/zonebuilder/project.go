@@ -9,6 +9,7 @@ import (
 	"gioui.org/app"
 	"gioui.org/layout"
 
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/project"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
@@ -151,7 +152,7 @@ func (s *session) save(w *app.Window, shell *ui.Shell, zones *zoneEditor, tiles 
 	s.outputUsed(p.Output)
 	s.saveConfig()
 	w.Option(app.Title(windowTitle(path)))
-	log.Printf("projeto: salvo em %s: %s, tiles %q", path, count(len(p.Document.Zones()), "zona", "zonas"), p.Tiles)
+	log.Printf("projeto: salvo em %s: %s, tiles %q", path, inflect.Count(len(p.Document.Zones()), "zona", "zonas"), p.Tiles)
 	return "Projeto salvo em " + path
 }
 
@@ -180,7 +181,7 @@ func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, path s
 	s.outputUsed(p.Output)
 	s.saveConfig()
 	w.Option(app.Title(windowTitle(path)))
-	log.Printf("projeto: aberto %s: %s, tiles %q", path, count(len(p.Document.Zones()), "zona", "zonas"), p.Tiles)
+	log.Printf("projeto: aberto %s: %s, tiles %q", path, inflect.Count(len(p.Document.Zones()), "zona", "zonas"), p.Tiles)
 	return "Projeto aberto: " + path, tiles
 }
 

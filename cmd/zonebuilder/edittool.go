@@ -15,7 +15,7 @@ import (
 	"gioui.org/layout"
 
 	"zonebuilder/internal/camera"
-	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
 	"zonebuilder/internal/zone"
@@ -279,7 +279,7 @@ func (e *zoneEditor) shownZRange(id zone.ZoneID, shape int, s zone.Shape) (int, 
 }
 
 func (e *zoneEditor) moveVertex(v int, p zone.Point) string {
-	if !e.apply(zone.MoveVertex{Zone: e.zone, Shape: e.shape, Index: v, Point: p}) {
+	if e.apply(zone.MoveVertex{Zone: e.zone, Shape: e.shape, Index: v, Point: p}) != nil {
 		return "Não foi possível mover o vértice"
 	}
 	log.Printf("zona: vértice %d movido para %d %d %d", v+1, p.X, p.Y, p.Z)
@@ -287,7 +287,7 @@ func (e *zoneEditor) moveVertex(v int, p zone.Point) string {
 }
 
 func (e *zoneEditor) moveShape(dx, dy, dz int) string {
-	if !e.apply(zone.MoveShape{Zone: e.zone, Shape: e.shape, DX: dx, DY: dy, DZ: dz}) {
+	if e.apply(zone.MoveShape{Zone: e.zone, Shape: e.shape, DX: dx, DY: dy, DZ: dz}) != nil {
 		return "Não foi possível mover o shape"
 	}
 	log.Printf("zona: shape %d movido por %d %d %d", e.shape+1, dx, dy, dz)
@@ -305,7 +305,7 @@ func (e *zoneEditor) insertAfter(i int) string {
 		return "Selecione um shape com ao menos 2 vértices"
 	}
 	p := midpoint(sh.Points, i)
-	if !e.apply(zone.InsertVertex{Zone: e.zone, Shape: e.shape, Index: i + 1, Point: p}) {
+	if e.apply(zone.InsertVertex{Zone: e.zone, Shape: e.shape, Index: i + 1, Point: p}) != nil {
 		return "Não foi possível inserir o vértice"
 	}
 	e.selectVertex(e.zone, e.shape, i+1)
@@ -321,13 +321,13 @@ func (e *zoneEditor) removeVertex() string {
 	if _, sh, _ := e.currentShape(); sh.Kind == zone.Rectangle {
 		return "O retângulo tem 2 cantos fixos: mova-os em vez de apagar"
 	}
-	if !e.apply(zone.RemoveVertex{Zone: e.zone, Shape: e.shape, Index: v}) {
+	if e.apply(zone.RemoveVertex{Zone: e.zone, Shape: e.shape, Index: v}) != nil {
 		return "Não foi possível apagar o vértice"
 	}
 	_, sh, _ := e.currentShape()
 	e.selectVertex(e.zone, e.shape, min(v, len(sh.Points)-1))
 	log.Printf("zona: vértice %d apagado", v+1)
-	return fmt.Sprintf("Vértice %d apagado; restam %s", v+1, count(len(sh.Points), "vértice", "vértices"))
+	return fmt.Sprintf("Vértice %d apagado; restam %s", v+1, inflect.Count(len(sh.Points), "vértice", "vértices"))
 }
 
 // groundZRange sets the current shape's Z range from the ground under its
@@ -362,30 +362,23 @@ func (e *zoneEditor) groundZRange(s *scene.World) string {
 		return "Nenhum vértice tem chão sob ele"
 	}
 	zmin, zmax := zone.SuggestZRange(ground, e.margin)
-	if !e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: zmin, ZMax: zmax}) {
+	if e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: zmin, ZMax: zmax}) != nil {
 		return "Não foi possível definir a faixa Z"
 	}
-	log.Printf("zona: faixa Z pelo chão %d..%d (folga %d, %d sem chão)", zmin, zmax, e.margin, missed)
+	log.Printf("zona: faixa Z pelo chão %d..%d (folga %d, %s)", zmin, zmax, e.margin, inflect.Count(missed, "vértice sem chão", "vértices sem chão"))
 	msg := fmt.Sprintf("Faixa Z pelo chão: %d … %d (folga %d)", zmin, zmax, e.margin)
 	if missed > 0 {
-		msg += fmt.Sprintf("; %s sem chão", count(missed, "vértice", "vértices"))
+		msg += fmt.Sprintf("; %s sem chão", inflect.Count(missed, "vértice", "vértices"))
 	}
 	return msg
 }
 
-// groundUnder is the server Z of the ground at p: the first surface
+// groundUnder is the server Z of the ground at vertex p: the first surface
 // straight down from groundProbe above it or, when nothing lies below (the
 // vertex ended up under the surface, after a move onto higher ground), the
-// nearest surface straight up, the ground it is buried under. Picking is
-// two-sided, so that surface is hit from beneath.
+// ground it is buried under.
 func groundUnder(s *scene.World, p zone.Point) (int, bool) {
-	o := scene.FromServer(geom.Vec3{X: float32(p.X), Y: float32(p.Y), Z: float32(p.Z + groundProbe)})
-	for _, dir := range []float32{-1, 1} {
-		if h, ok := s.Pick(scene.Ray{Origin: o, Dir: geom.Vec3{Z: dir}}); ok {
-			return round(h.Pos.Z), true
-		}
-	}
-	return 0, false
+	return ground(s, p, groundProbe, 0, true)
 }
 
 // panel handles the edit panel's requests and fills its fields and titles
@@ -436,9 +429,9 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World) 
 	v, vok := e.selected()
 	p.Shape, p.Vertex = "", ""
 	if ok {
-		kind := count(len(sh.Points), "vértice", "vértices")
-		if sh.Kind == zone.Rectangle {
-			kind = "retângulo"
+		kind := shapeKind(sh)
+		if sh.Kind != zone.Rectangle {
+			kind += ", " + inflect.Count(len(sh.Points), "vértice", "vértices")
 		}
 		p.Shape = fmt.Sprintf("Shape %d de %s: %s, z %d … %d", e.shape+1, z.Name, kind, sh.ZMin, sh.ZMax)
 	}
@@ -473,7 +466,7 @@ func (e *zoneEditor) setZRange(text string) string {
 	if _, _, ok := e.currentShape(); !ok {
 		return "Selecione um shape"
 	}
-	if !e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: r[0], ZMax: r[1]}) {
+	if e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: r[0], ZMax: r[1]}) != nil {
 		return "Não foi possível definir a faixa Z"
 	}
 	log.Printf("zona: faixa Z %d..%d", r[0], r[1])
@@ -531,6 +524,19 @@ func screenDist(s *scene.World, cam *camera.Camera, p zone.Point, at f32.Point, 
 		return 0, false
 	}
 	return dist(at, f32.Pt(x, y)), true
+}
+
+// shapeKind names shape s's kind in the panels: "polígono" or "retângulo",
+// "exclusão, " first for an exclusion.
+func shapeKind(s zone.Shape) string {
+	kind := "polígono"
+	if s.Kind == zone.Rectangle {
+		kind = "retângulo"
+	}
+	if s.Banned {
+		kind = "exclusão, " + kind
+	}
+	return kind
 }
 
 // serverPoint is a picked position as a vertex.

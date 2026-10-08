@@ -11,9 +11,9 @@ import (
 // that each tile can be loaded and dropped on its own while the camera
 // moves, all sharing one rebase origin. It is what the app picks against.
 type World struct {
-	// Origin is the rebase origin of the whole world, used instead of each
-	// scene's own Origin: the renderer subtracts it from every vertex and
-	// the camera's render space has it at zero.
+	// Origin is the rebase origin of the whole world: the renderer
+	// subtracts it from every vertex and the camera's render space has it
+	// at zero.
 	Origin geom.Vec3
 	scenes []*Scene
 }

@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 )
 
@@ -68,7 +69,7 @@ func TestTerrainLayersMatchUE2Studio(t *testing.T) {
 		s := loadTile(t, c.tile)
 		ter := s.Terrains[0]
 		if c.only < 0 && len(ter.Layers) != len(c.layers) {
-			t.Errorf("%s: %d camadas desenhadas, quero %d", c.tile, len(ter.Layers), len(c.layers))
+			t.Errorf("%s: %s drawn, want %d", c.tile, inflect.Count(len(ter.Layers), "layer", "layers"), len(c.layers))
 			continue
 		}
 		for k, want := range c.layers {
@@ -77,7 +78,7 @@ func TestTerrainLayersMatchUE2Studio(t *testing.T) {
 				n = c.only
 			}
 			if n >= len(ter.Layers) {
-				t.Errorf("%s: camada %d não desenhada", c.tile, n)
+				t.Errorf("%s: layer %d not drawn", c.tile, n)
 				continue
 			}
 			b := s.Batches[ter.Layers[n]]
@@ -86,11 +87,11 @@ func TestTerrainLayersMatchUE2Studio(t *testing.T) {
 				wantMode = scene.Opaque
 			}
 			if b.Texture == nil || b.Texture.Path != want.texture || b.Mode != wantMode {
-				path := "<sem textura>"
+				path := "<no texture>"
 				if b.Texture != nil {
 					path = b.Texture.Path
 				}
-				t.Errorf("%s camada %d: %s modo %d, quero %s modo %d", c.tile, n, path, b.Mode, want.texture, wantMode)
+				t.Errorf("%s layer %d: %s mode %d, want %s mode %d", c.tile, n, path, b.Mode, want.texture, wantMode)
 				continue
 			}
 			at := func(x, y int) scene.Vertex { return b.Vertices[x+y*ter.Width] }
@@ -99,11 +100,11 @@ func TestTerrainLayersMatchUE2Studio(t *testing.T) {
 				want uv
 			}{{1, 0, want.uv10}, {0, 1, want.uv01}, {5, 7, want.uv57}} {
 				if got := at(p.x, p.y).UV; !near(got, p.want, 1e-5) {
-					t.Errorf("%s camada %d: UV de (%d,%d) = %v, quero %v", c.tile, n, p.x, p.y, got, p.want)
+					t.Errorf("%s layer %d: UV of (%d,%d) = %v, want %v", c.tile, n, p.x, p.y, got, p.want)
 				}
 			}
 			if got, want := at(5, 7).MaskUV, (uv{5.0 / 255, 7.0 / 255}); !near(got, want, 1e-7) {
-				t.Errorf("%s camada %d: MaskUV de (5,7) = %v, quero %v", c.tile, n, got, want)
+				t.Errorf("%s layer %d: MaskUV of (5,7) = %v, want %v", c.tile, n, got, want)
 			}
 			var su, sv float64
 			for _, v := range b.Vertices {
@@ -111,7 +112,7 @@ func TestTerrainLayersMatchUE2Studio(t *testing.T) {
 				sv += float64(v.UV[1])
 			}
 			if !nearSum(su, want.sumU) || !nearSum(sv, want.sumV) {
-				t.Errorf("%s camada %d: soma dos UV (%v, %v), quero (%v, %v)", c.tile, n, su, sv, want.sumU, want.sumV)
+				t.Errorf("%s layer %d: UV sum (%v, %v), want (%v, %v)", c.tile, n, su, sv, want.sumU, want.sumV)
 			}
 		}
 	}
@@ -125,17 +126,18 @@ func TestLayerWithoutAlphaMapIsDrawnWhole(t *testing.T) {
 	s := loadTile(t, "20_24")
 	ter := s.Terrains[0]
 	if len(ter.Layers) != 2 {
-		t.Fatalf("%d camadas desenhadas, quero 2", len(ter.Layers))
+		t.Fatalf("%s drawn, want 2", inflect.Count(len(ter.Layers), "layer", "layers"))
 	}
 	b := s.Batches[ter.Layers[1]]
 	if b.Texture == nil || b.Texture.Path != "T_Hellbound.HC4" {
-		t.Fatalf("camada 1 com textura %v, quero T_Hellbound.HC4", b.Texture)
+		t.Fatalf("layer 1 with texture %v, want T_Hellbound.HC4", b.Texture)
 	}
 	if b.Mode != scene.TerrainLayer || b.Mask != nil {
-		t.Errorf("camada 1: modo %d com máscara %v, quero TerrainLayer sem máscara (cobertura total)", b.Mode, b.Mask)
+		t.Errorf("layer 1: mode %d with mask %v, want TerrainLayer without mask (full coverage)", b.Mode, b.Mask)
 	}
 	if base := s.Batches[ter.Layers[0]].Indices; len(b.Indices) != len(base) || len(base) != 390150 {
-		t.Errorf("camada 1 com %d índices, a base com %d; quero os 390150 do terreno inteiro", len(b.Indices), len(base))
+		t.Errorf("layer 1 has %s, the base %s; want the whole terrain's 390150",
+			inflect.Count(len(b.Indices), "index", "indices"), inflect.Count(len(base), "index", "indices"))
 	}
 }
 

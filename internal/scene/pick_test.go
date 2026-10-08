@@ -43,16 +43,16 @@ func TestPickLandsOnGiranServerGround(t *testing.T) {
 	} {
 		h, ok := s.Pick(scene.Ray{Origin: geom.Vec3{X: p.x, Y: p.y, Z: p.z + 500}, Dir: geom.Vec3{Z: -1}})
 		if !ok {
-			t.Errorf("%s (%v %v %v): sem acerto", p.name, p.x, p.y, p.z)
+			t.Errorf("%s (%v %v %v): no hit", p.name, p.x, p.y, p.z)
 			continue
 		}
 		if h.Surface != scene.SurfaceTerrain {
-			t.Errorf("%s: superfície %v, quero terreno", p.name, h.Surface)
+			t.Errorf("%s: surface %v, want terrain", p.name, h.Surface)
 		}
 		d := math.Sqrt(float64(sq(h.Pos.X-p.x) + sq(h.Pos.Y-p.y) + sq(h.Pos.Z-p.z)))
-		t.Logf("%s: servidor %v %v %v, pick %.1f %.1f %.1f, Δz %+.1f", p.name, p.x, p.y, p.z, h.Pos.X, h.Pos.Y, h.Pos.Z, h.Pos.Z-p.z)
+		t.Logf("%s: server %v %v %v, pick %.1f %.1f %.1f, Δz %+.1f", p.name, p.x, p.y, p.z, h.Pos.X, h.Pos.Y, h.Pos.Z, h.Pos.Z-p.z)
 		if d >= 16 {
-			t.Errorf("%s: pick %v está a %.1f unidades do servidor %v %v %v, quero menos de 16", p.name, h.Pos, d, p.x, p.y, p.z)
+			t.Errorf("%s: pick %v is %.1f units from the server %v %v %v, want less than 16", p.name, h.Pos, d, p.x, p.y, p.z)
 		}
 	}
 }
@@ -62,13 +62,13 @@ func TestPickLandsOnGiranServerGround(t *testing.T) {
 func TestPickOffTerrainMisses(t *testing.T) {
 	s := loadTile(t, "22_22")
 	for name, r := range map[string]scene.Ray{
-		"fora do tile":    down(50000, 147000),
-		"para o céu":      {Origin: geom.Vec3{X: 83400, Y: 147943, Z: 0}, Dir: geom.Vec3{Z: 1}},
-		"horizontal alto": {Origin: geom.Vec3{X: 60000, Y: 147943, Z: 5000}, Dir: geom.Vec3{X: 1}},
-		"direção nula":    {Origin: geom.Vec3{X: 83400, Y: 147943, Z: 0}},
+		"off the tile":    down(50000, 147000),
+		"at the sky":      {Origin: geom.Vec3{X: 83400, Y: 147943, Z: 0}, Dir: geom.Vec3{Z: 1}},
+		"high horizontal": {Origin: geom.Vec3{X: 60000, Y: 147943, Z: 5000}, Dir: geom.Vec3{X: 1}},
+		"zero direction":  {Origin: geom.Vec3{X: 83400, Y: 147943, Z: 0}},
 	} {
 		if h, ok := s.Pick(r); ok {
-			t.Errorf("%s: acerto inesperado em %v", name, h.Pos)
+			t.Errorf("%s: unexpected hit at %v", name, h.Pos)
 		}
 	}
 }

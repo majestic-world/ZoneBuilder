@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/l2pkg"
 	"zonebuilder/internal/texture"
 )
@@ -22,7 +23,7 @@ type pixel [4]uint8 // R, G, B, A
 func TestRealTexturesDecodeLikeUE2Studio(t *testing.T) {
 	root := os.Getenv("ZB_CLIENT")
 	if root == "" {
-		t.Skip("ZB_CLIENT não definido: testes contra o cliente real pulados")
+		t.Skip("ZB_CLIENT not set: tests against the real client skipped")
 	}
 	c := l2pkg.NewClient(root)
 	for _, tc := range []struct {
@@ -37,7 +38,7 @@ func TestRealTexturesDecodeLikeUE2Studio(t *testing.T) {
 		{
 			// Texels 1-3 sit in a c0 <= c1 block with colour index 3:
 			// transparent black, while texel 0 stays opaque.
-			what: "DXT1 com alfa de 1 bit", pkg: "Oren_DEV_T", name: "DE_V_fence",
+			what: "DXT1 with 1-bit alpha", pkg: "Oren_DEV_T", name: "DE_V_fence",
 			format: 3, width: 256, height: 256, fnv: 0xfc17e536d5aa435f,
 			x: 96, y: 0, row: [4]pixel{{49, 42, 36, 255}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
 		},
@@ -53,7 +54,7 @@ func TestRealTexturesDecodeLikeUE2Studio(t *testing.T) {
 		},
 		{
 			// Stored B, G, R, A: a missed swap turns this grass purple.
-			what: "RGBA8 gravado como BGRA", pkg: "T_New_Speaking", name: "respgrass02",
+			what: "RGBA8 stored as BGRA", pkg: "T_New_Speaking", name: "respgrass02",
 			format: 5, width: 256, height: 256, fnv: 0xbfed4ab2b21850f9,
 			x: 0, y: 0, row: [4]pixel{{121, 125, 76, 255}, {87, 96, 52, 255}, {19, 33, 3, 255}, {53, 61, 27, 255}},
 		},
@@ -65,32 +66,32 @@ func TestRealTexturesDecodeLikeUE2Studio(t *testing.T) {
 			}
 			i := p.ExportNamed(tc.name, "Texture")
 			if i < 0 {
-				t.Fatalf("%s não tem a Texture %s", tc.pkg, tc.name)
+				t.Fatalf("%s has no Texture %s", tc.pkg, tc.name)
 			}
 			tex, err := texture.Read(p, i)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if tex.Format != tc.format {
-				t.Fatalf("%s.%s: formato %d, quero %d", tc.pkg, tc.name, tex.Format, tc.format)
+				t.Fatalf("%s.%s: format %d, want %d", tc.pkg, tc.name, tex.Format, tc.format)
 			}
 			img, err := tex.RGBA()
 			if err != nil {
 				t.Fatal(err)
 			}
 			if img.Width != tc.width || img.Height != tc.height || len(img.Pix) != 4*tc.width*tc.height {
-				t.Fatalf("%dx%d com %d bytes, quero %dx%d", img.Width, img.Height, len(img.Pix), tc.width, tc.height)
+				t.Fatalf("%dx%d with %s, want %dx%d", img.Width, img.Height, inflect.Count(len(img.Pix), "byte", "bytes"), tc.width, tc.height)
 			}
 			for k, want := range tc.row {
 				o := 4 * (tc.y*img.Width + tc.x + k)
 				if got := pixel(img.Pix[o : o+4]); got != want {
-					t.Errorf("pixel (%d,%d) = %v, quero %v", tc.x+k, tc.y, got, want)
+					t.Errorf("pixel (%d,%d) = %v, want %v", tc.x+k, tc.y, got, want)
 				}
 			}
 			h := fnv.New64a()
 			h.Write(img.Pix)
 			if got := h.Sum64(); got != tc.fnv {
-				t.Errorf("FNV-1a 64 do mip 0 = %#016x, quero %#016x", got, tc.fnv)
+				t.Errorf("FNV-1a 64 of mip 0 = %#016x, want %#016x", got, tc.fnv)
 			}
 		})
 	}
@@ -104,7 +105,7 @@ func TestRealTexturesDecodeLikeUE2Studio(t *testing.T) {
 func TestP8DecodesThroughItsPalette(t *testing.T) {
 	root := os.Getenv("ZB_CLIENT")
 	if root == "" {
-		t.Skip("ZB_CLIENT não definido: testes contra o cliente real pulados")
+		t.Skip("ZB_CLIENT not set: tests against the real client skipped")
 	}
 	p, err := l2pkg.NewClient(root).Package("Engine")
 	if err != nil {
@@ -118,17 +119,17 @@ func TestP8DecodesThroughItsPalette(t *testing.T) {
 			}
 			i := p.ExportNamed(name, "Texture")
 			if i < 0 {
-				t.Fatalf("Engine não tem a Texture %s", name)
+				t.Fatalf("Engine has no Texture %s", name)
 			}
 			tex, err := texture.Read(p, i)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if tex.Format != texture.FormatP8 {
-				t.Fatalf("formato %d, quero P8", tex.Format)
+				t.Fatalf("format %d, want P8", tex.Format)
 			}
 			if tex.PaletteRef <= 0 {
-				t.Fatalf("Palette %d não é um export de Engine", tex.PaletteRef)
+				t.Fatalf("Palette %d is not an export of Engine", tex.PaletteRef)
 			}
 			if tex.Palette, err = texture.ReadPalette(p, int(tex.PaletteRef-1)); err != nil {
 				t.Fatal(err)
@@ -138,19 +139,19 @@ func TestP8DecodesThroughItsPalette(t *testing.T) {
 				t.Fatal(err)
 			}
 			if img.Width != 32 || img.Height != 32 {
-				t.Fatalf("%d×%d, quero 32×32", img.Width, img.Height)
+				t.Fatalf("%d×%d, want 32×32", img.Width, img.Height)
 			}
 			bad := 0
 			for k := 0; k < len(want); k += 4 {
 				if got := pixel(img.Pix[k : k+4]); got != pixel(want[k:k+4]) {
 					if bad < 4 {
-						t.Errorf("texel %d = %v, quero %v", k/4, got, pixel(want[k:k+4]))
+						t.Errorf("texel %d = %v, want %v", k/4, got, pixel(want[k:k+4]))
 					}
 					bad++
 				}
 			}
 			if bad > 0 {
-				t.Errorf("%d de %d texels diferentes", bad, len(want)/4)
+				t.Errorf("%d of %s differ", bad, inflect.Count(len(want)/4, "texel", "texels"))
 			}
 		})
 	}

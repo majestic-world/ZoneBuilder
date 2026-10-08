@@ -3,7 +3,6 @@ package ui
 import (
 	"image"
 	"image/color"
-	"strconv"
 	"strings"
 
 	"gioui.org/layout"
@@ -13,6 +12,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/zone"
 )
 
@@ -285,7 +285,7 @@ func (s *Shell) zoneList() []layout.FlexChild {
 		layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
 		layout.Rigid(s.label(zoneListTitle(len(l.Rows), len(shown)))),
 		layout.Rigid(s.field(&l.Search, "buscar por nome")),
-		layout.Rigid(s.arrows(&l.PrevFilter, &l.NextFilter, filter)),
+		layout.Rigid(s.stepper(&l.PrevFilter, &l.NextFilter, nil, filter, true)),
 	}
 	if l.TypeFilter >= 0 {
 		if ids, hide := l.typeToggle(); len(ids) > 0 {
@@ -346,38 +346,13 @@ func (l *ZoneList) has(id zone.ZoneID) bool {
 // the search and filter when not all do.
 func zoneListTitle(total, shown int) string {
 	title := "Zonas: nenhuma"
-	switch {
-	case total == 1:
-		title = "Zonas: 1 zona"
-	case total > 1:
-		title = "Zonas: " + strconv.Itoa(total) + " zonas"
+	if total > 0 {
+		title = "Zonas: " + inflect.Count(total, "zona", "zonas")
 	}
 	if shown == total {
 		return title
 	}
-	if shown == 1 {
-		return title + " (1 exibida)"
-	}
-	return title + " (" + strconv.Itoa(shown) + " exibidas)"
-}
-
-// arrows is a "< text >" stepper.
-func (s *Shell) arrows(prev, next *widget.Clickable, text string) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(material.Button(s.Theme, prev, "<").Layout),
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						lbl := material.Body1(s.Theme, text)
-						lbl.Color = panelText
-						return lbl.Layout(gtx)
-					})
-				}),
-				layout.Rigid(material.Button(s.Theme, next, ">").Layout),
-			)
-		})
-	}
+	return title + " (" + inflect.Count(shown, "exibida", "exibidas") + ")"
 }
 
 // zoneRow is one list row: the colour swatch, name, and type with the

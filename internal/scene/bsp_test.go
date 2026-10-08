@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/l2pkg"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/unreal"
@@ -51,11 +52,12 @@ func TestBSPMatchesUE2Studio(t *testing.T) {
 			verts += int(hi-lo) + 1
 		}
 		if len(s.BSPSurfaces) != want.surfaces || tris != want.tris || verts != want.verts || ids != want.ids {
-			t.Errorf("%s: %d superfícies, %d triângulos, %d vértices, ids %d; UE2-Studio: %d, %d, %d, %d",
-				want.tile, len(s.BSPSurfaces), tris, verts, ids, want.surfaces, want.tris, want.verts, want.ids)
+			t.Errorf("%s: %s, %s, %s, ids %d; UE2-Studio: %d, %d, %d, %d",
+				want.tile, inflect.Count(len(s.BSPSurfaces), "surface", "surfaces"), inflect.Count(tris, "triangle", "triangles"),
+				inflect.Count(verts, "vertex", "vertices"), ids, want.surfaces, want.tris, want.verts, want.ids)
 		}
 		if math.Abs(sum-want.sum) > 1 {
-			t.Errorf("%s: soma das posições %.1f, UE2-Studio %.1f", want.tile, sum, want.sum)
+			t.Errorf("%s: position sum %.1f, UE2-Studio %.1f", want.tile, sum, want.sum)
 		}
 	}
 }
@@ -68,21 +70,21 @@ func TestBSPSkipsHiddenSurfaces(t *testing.T) {
 	foot := s.Terrains[0].Bounds
 	for _, sf := range s.BSPSurfaces {
 		if sf.PolyFlags&unreal.PFNotVisible != 0 {
-			t.Errorf("superfície %d desenhada com flags %#x", sf.Index, sf.PolyFlags)
+			t.Errorf("surface %d drawn with flags %#x", sf.Index, sf.PolyFlags)
 		}
 		size, c := sf.Bounds.Size(), sf.Bounds.Center()
 		if max(size.X, size.Y) > 2*scene.TileSpan {
-			t.Errorf("superfície %d com %v de largura não foi filtrada", sf.Index, max(size.X, size.Y))
+			t.Errorf("surface %d %v wide was not filtered", sf.Index, max(size.X, size.Y))
 		}
 		if c.X < foot.Min.X-scene.TileSpan || c.X > foot.Max.X+2*scene.TileSpan ||
 			c.Y < foot.Min.Y-scene.TileSpan || c.Y > foot.Max.Y+2*scene.TileSpan {
-			t.Errorf("superfície %d fora do mapa em %v", sf.Index, c)
+			t.Errorf("surface %d off the map at %v", sf.Index, c)
 		}
 	}
 	// The backdrop quad lies under the whole tile, below the terrain: a
 	// ray up from beneath it meets the terrain, not the quad.
 	if h, ok := s.Pick(scene.Ray{Origin: geom.Vec3{X: 70000, Y: 140000, Z: -20000}, Dir: geom.Vec3{Z: 1}}); !ok || h.Surface != scene.SurfaceTerrain || h.Pos.Z < -5000 {
-		t.Errorf("raio sob o backdrop: %+v %v, quero o terreno", h, ok)
+		t.Errorf("ray under the backdrop: %+v %v, want the terrain", h, ok)
 	}
 
 	// Every hidden polygon of the Model: a ray at its centroid from one
@@ -139,14 +141,14 @@ func TestBSPSkipsHiddenSurfaces(t *testing.T) {
 		n := vec3(model.Vectors[surf.Normal])
 		h, ok := s.Pick(scene.Ray{Origin: c.Add(n), Dir: n.Scale(-1)})
 		if ok && math.Abs(float64(h.Distance-1)) < 0.01 && !onDrawnSurface(c) {
-			t.Errorf("superfície oculta (flags %#x) atingida em %v", surf.PolyFlags, h.Pos)
+			t.Errorf("hidden surface (flags %#x) hit at %v", surf.PolyFlags, h.Pos)
 		}
 		hidden++
 	}
 	if hidden == 0 {
-		t.Fatal("22_22 sem polígonos ocultos: o teste não verifica nada")
+		t.Fatal("22_22 has no hidden polygons: the test checks nothing")
 	}
-	t.Logf("%d polígonos ocultos verificados", hidden)
+	t.Logf("%s checked", inflect.Count(hidden, "hidden polygon", "hidden polygons"))
 }
 
 // A ray straight down from 64 above a Giran point that stands on a BSP
@@ -164,7 +166,7 @@ func TestPickLandsOnGiranBSPFloors(t *testing.T) {
 		name    string
 		x, y, z float32
 	}{
-		{"teleporte da cidade", 83400, 147943, -3404},
+		{"town teleport", 83400, 147943, -3404},
 		{"warehouse_chief_gesto :320", 83263, 146667, -3464},
 		{"jurek :330", 85823, 153248, -3494},
 		{"sir_kristof_rodemai :341", 84521, 146372, -3404},
@@ -175,7 +177,7 @@ func TestPickLandsOnGiranBSPFloors(t *testing.T) {
 	} {
 		h, ok := s.Pick(scene.Ray{Origin: scene.FromServer(geom.Vec3{X: p.x, Y: p.y, Z: p.z + 64}), Dir: geom.Vec3{Z: -1}})
 		if !ok {
-			t.Errorf("%s: sem acerto", p.name)
+			t.Errorf("%s: no hit", p.name)
 			continue
 		}
 		want := scene.SurfaceBSP
@@ -183,12 +185,12 @@ func TestPickLandsOnGiranBSPFloors(t *testing.T) {
 			want = scene.SurfaceMesh
 		}
 		if h.Surface != want {
-			t.Errorf("%s: superfície %v, quero %v", p.name, h.Surface, want)
+			t.Errorf("%s: surface %v, want %v", p.name, h.Surface, want)
 		}
 		d := math.Sqrt(float64(sq(h.Pos.X-p.x) + sq(h.Pos.Y-p.y) + sq(h.Pos.Z-p.z)))
-		t.Logf("%s: servidor %v %v %v, pick %.1f %.1f %.1f, Δz %+.1f", p.name, p.x, p.y, p.z, h.Pos.X, h.Pos.Y, h.Pos.Z, h.Pos.Z-p.z)
+		t.Logf("%s: server %v %v %v, pick %.1f %.1f %.1f, Δz %+.1f", p.name, p.x, p.y, p.z, h.Pos.X, h.Pos.Y, h.Pos.Z, h.Pos.Z-p.z)
 		if d >= 16 {
-			t.Errorf("%s: pick %v a %.1f unidades do servidor, quero menos de 16", p.name, h.Pos, d)
+			t.Errorf("%s: pick %v %.1f units from the server, want less than 16", p.name, h.Pos, d)
 		}
 	}
 }
@@ -202,11 +204,11 @@ func TestPickNearestOfTerrainAndBSP(t *testing.T) {
 	const x, y, z = 80518, 147922, -3506
 	h, ok := s.Pick(scene.Ray{Origin: scene.FromServer(geom.Vec3{X: x, Y: y, Z: z + 64}), Dir: geom.Vec3{Z: -1}})
 	if !ok || h.Surface != scene.SurfaceBSP || math.Abs(float64(h.Pos.Z-z)) >= 16 {
-		t.Errorf("de cima: %+v %v, quero o piso BSP perto de z %v", h, ok, z)
+		t.Errorf("from above: %+v %v, want the BSP floor near z %v", h, ok, z)
 	}
 	h, ok = s.Pick(scene.Ray{Origin: scene.FromServer(geom.Vec3{X: x, Y: y, Z: z - 150}), Dir: geom.Vec3{Z: 1}})
 	if !ok || h.Surface != scene.SurfaceTerrain || h.Pos.Z > z-32 {
-		t.Errorf("de baixo: %+v %v, quero o terreno abaixo do piso", h, ok)
+		t.Errorf("from below: %+v %v, want the terrain below the floor", h, ok)
 	}
 }
 

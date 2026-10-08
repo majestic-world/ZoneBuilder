@@ -6,6 +6,7 @@ import (
 
 	"zonebuilder/internal/camera"
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
 	"zonebuilder/internal/zone"
@@ -136,5 +137,5 @@ func (e *zoneEditor) blockedStatus(b *zone.BlockedError) string {
 		log.Printf("zona: compilação bloqueada: %s: %s", z.Name, p.Message)
 	}
 	return fmt.Sprintf("Compilação bloqueada, nada foi gravado: %s nas zonas selecionadas (veja Problemas)",
-		count(len(b.Problems), "problema", "problemas"))
+		inflect.Count(len(b.Problems), "problema", "problemas"))
 }

@@ -23,9 +23,6 @@ type Prepared struct {
 	textures []preparedTexture
 }
 
-// Scene is the scene p was prepared from.
-func (p *Prepared) Scene() *scene.Scene { return p.scene }
-
 // indexSet is the index list of one or more batches (a terrain's layers
 // share theirs) with its triangles grouped by sector: every sector's
 // triangles are one contiguous range, in the scene's order within it.

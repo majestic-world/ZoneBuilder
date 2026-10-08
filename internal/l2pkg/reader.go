@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"zonebuilder/internal/inflect"
 )
 
 // Reader is a little-endian cursor over package plaintext.
@@ -44,7 +46,7 @@ func (r *Reader) take(n int) []byte {
 		return nil
 	}
 	if n < 0 || r.Pos < 0 || r.Pos > len(r.data) || n > len(r.data)-r.Pos {
-		r.err = fmt.Errorf("fim inesperado do pacote no offset %d (leitura de %d bytes)", r.Pos, n)
+		r.err = fmt.Errorf("fim inesperado do pacote no offset %d (leitura de %s)", r.Pos, inflect.Count(n, "byte", "bytes"))
 		return nil
 	}
 	b := r.data[r.Pos : r.Pos+n]
@@ -71,8 +73,6 @@ func (r *Reader) U16() uint16 {
 	}
 	return 0
 }
-
-func (r *Reader) I16() int16 { return int16(r.U16()) }
 
 func (r *Reader) U32() uint32 {
 	if b := r.take(4); b != nil {

@@ -2,7 +2,6 @@ package zone_test
 
 import (
 	"reflect"
-	"slices"
 	"testing"
 
 	"zonebuilder/internal/zone"
@@ -100,8 +99,8 @@ func TestVertexEditsOutOfRangeFailUnchanged(t *testing.T) {
 	if got := compiled(t, d); !reflect.DeepEqual(got, before) {
 		t.Errorf("failed edits changed the document:\n%q\nwant\n%q", got, before)
 	}
-	if !d.CanUndo() {
-		t.Error("CanUndo false after the zone was built")
+	if !d.Undo() {
+		t.Error("Undo found nothing to undo after the zone was built")
 	}
 }
 
@@ -165,7 +164,7 @@ func TestUndoReturnsEachStepAndRedoReapplies(t *testing.T) {
 	polygonZone(t, d, base, "[base]", zone.Water, -100, 100,
 		zone.Point{X: 0, Y: 0, Z: 1}, zone.Point{X: 500, Y: 0, Z: 2}, zone.Point{X: 500, Y: 500, Z: 3})
 	// Undo history from the zone above stays below this point.
-	initial := clonedZones(d)
+	initial := zone.CloneZones(d.Zones())
 
 	id := d.NewZoneID()
 	cmds := []zone.Command{
@@ -202,7 +201,7 @@ func TestUndoReturnsEachStepAndRedoReapplies(t *testing.T) {
 	states := [][]zone.Zone{initial}
 	for _, c := range cmds {
 		apply(t, d, c)
-		states = append(states, clonedZones(d))
+		states = append(states, zone.CloneZones(d.Zones()))
 	}
 	for i := len(cmds); i > 0; i-- {
 		if !d.Undo() {
@@ -231,8 +230,8 @@ func TestUndoReturnsEachStepAndRedoReapplies(t *testing.T) {
 	d.Undo()
 	d.Undo()
 	apply(t, d, zone.MoveVertex{Zone: id, Shape: 0, Index: 0, Point: zone.Point{X: 7, Y: 7, Z: 7}})
-	if d.CanRedo() {
-		t.Error("CanRedo after a new command following Undo")
+	if d.Redo() {
+		t.Error("Redo reapplied a step after a new command following Undo")
 	}
 	d.Undo()
 	if got := d.Zones(); !reflect.DeepEqual(got, states[len(cmds)-2]) {
@@ -244,37 +243,13 @@ func TestUndoReturnsEachStepAndRedoReapplies(t *testing.T) {
 // command that fails, which leaves no step to undo.
 func TestUndoWithNothingToUndo(t *testing.T) {
 	d := zone.NewDocument()
-	if d.Undo() || d.Redo() || d.CanUndo() || d.CanRedo() {
+	if d.Undo() || d.Redo() {
 		t.Fatal("a new document has something to undo or redo")
 	}
 	if err := d.Apply(zone.AddShape{Zone: 1}); err == nil {
 		t.Fatal("AddShape on a missing zone succeeded")
 	}
-	if d.CanUndo() {
+	if d.Undo() {
 		t.Error("a failed command left a step to undo")
 	}
-}
-
-// clonedZones is a deep copy of d's zones, so later commands cannot reach
-// it through shared slices.
-func clonedZones(d *zone.Document) []zone.Zone {
-	zs := d.Zones()
-	out := make([]zone.Zone, len(zs))
-	for i, z := range zs {
-		out[i] = z
-		if z.Shapes == nil {
-			continue
-		}
-		out[i].Shapes = make([]zone.Shape, len(z.Shapes))
-		for k, s := range z.Shapes {
-			out[i].Shapes[k] = s
-			out[i].Shapes[k].Points = append([]zone.Point(nil), s.Points...)
-		}
-	}
-	for i, z := range zs {
-		out[i].RestartPoints = slices.Clone(z.RestartPoints)
-		out[i].PKRestartPoints = slices.Clone(z.PKRestartPoints)
-		out[i].Params = slices.Clone(z.Params)
-	}
-	return out
 }

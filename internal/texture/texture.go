@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/l2pkg"
 )
 
@@ -117,7 +118,7 @@ func (t *Texture) Heights() ([]uint16, error) {
 	n := t.USize * t.VSize
 	data := t.Mips[0].Data
 	if len(data) < 2*n {
-		return nil, fmt.Errorf("mip do TerrainMap truncado: %d bytes para %d×%d amostras", len(data), t.USize, t.VSize)
+		return nil, fmt.Errorf("mip do TerrainMap truncado: %s para %d×%d amostras", inflect.Count(len(data), "byte", "bytes"), t.USize, t.VSize)
 	}
 	out := make([]uint16, n)
 	for i := range out {
@@ -142,7 +143,7 @@ func ReadPalette(p *l2pkg.Package, i int) ([]Color, error) {
 		return nil, fmt.Errorf("Palette: %w", err)
 	}
 	if n < 0 || n > 256 {
-		return nil, fmt.Errorf("Palette com %d cores", n)
+		return nil, fmt.Errorf("Palette com %s", inflect.Count(int(n), "cor", "cores"))
 	}
 	colors := make([]Color, n)
 	for k := range colors {

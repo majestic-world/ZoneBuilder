@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 )
 
 // FilePrefix starts every file name Compile produces, so the output never
@@ -143,15 +144,36 @@ func attr(s string) string {
 	return b.String()
 }
 
-// Write writes files into dir and returns their paths.
-func Write(dir string, files []File) ([]string, error) {
-	paths := make([]string, 0, len(files))
+// Write makes the FilePrefix files in dir exactly files: it writes each of
+// them, then removes every other FilePrefix*.xml there (the files of an
+// earlier compile whose type is no longer in the output, which would make
+// the server load a zone twice). Files without the prefix are never
+// touched. It returns the paths written and removed.
+func Write(dir string, files []File) (written, removed []string, err error) {
+	keep := make(map[string]bool, len(files))
 	for _, f := range files {
 		p := filepath.Join(dir, f.Name)
 		if err := os.WriteFile(p, f.Data, 0o644); err != nil {
-			return paths, err
+			return written, nil, err
 		}
-		paths = append(paths, p)
+		written = append(written, p)
+		keep[strings.ToLower(f.Name)] = true
 	}
-	return paths, nil
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return written, nil, err
+	}
+	for _, e := range entries {
+		name := e.Name()
+		lower := strings.ToLower(name)
+		if e.IsDir() || keep[lower] || !strings.HasPrefix(lower, FilePrefix) || !strings.HasSuffix(lower, ".xml") {
+			continue
+		}
+		p := filepath.Join(dir, name)
+		if err := os.Remove(p); err != nil {
+			return written, removed, err
+		}
+		removed = append(removed, p)
+	}
+	return written, removed, nil
 }

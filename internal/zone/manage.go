@@ -30,7 +30,7 @@ type DeleteZone struct {
 func (c DeleteZone) apply(d *Document) error {
 	i := d.index(c.Zone)
 	if i < 0 {
-		return fmt.Errorf("zone: no zone with ID %d", c.Zone)
+		return fmt.Errorf("zona: não há zona com ID %d", c.Zone)
 	}
 	d.zones = append(d.zones[:i:i], d.zones[i+1:]...)
 	return nil
@@ -51,12 +51,12 @@ func (c DuplicateZone) apply(d *Document) error {
 		return err
 	}
 	if c.ID <= 0 || c.ID > d.lastID {
-		return fmt.Errorf("zone: ID %d was not reserved with NewZoneID", c.ID)
+		return fmt.Errorf("zona: o ID %d não foi reservado com NewZoneID", c.ID)
 	}
 	if d.index(c.ID) >= 0 {
-		return fmt.Errorf("zone: ID %d is already in use", c.ID)
+		return fmt.Errorf("zona: o ID %d já está em uso", c.ID)
 	}
-	z := clone(*src)
+	z := src.clone()
 	z.ID = c.ID
 	z.Name = d.copyName(src.Name)
 	d.zones = append(d.zones, z)
