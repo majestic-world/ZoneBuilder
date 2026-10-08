@@ -98,8 +98,18 @@ func (l *ZoneList) init() {
 	l.NewName.Submit = true
 	l.GoTo.SingleLine = true
 	l.GoTo.Submit = true
+	l.Reset()
+}
+
+// Reset clears the search, the type filter and the per-zone state, for a
+// document whose zone IDs mean other zones (an opened project). The go-to
+// field keeps its text.
+func (l *ZoneList) Reset() {
+	l.Search.SetText("")
 	l.TypeFilter = -1
 	l.rows = map[zone.ZoneID]*rowWidgets{}
+	l.named = 0
+	l.NewName.SetText("")
 }
 
 // Update returns the requests since the last call, in the order: row

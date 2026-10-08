@@ -24,9 +24,9 @@ func apply(t *testing.T, d *zone.Document, cmds ...zone.Command) {
 // the same open tiles and the same output folder, including a zone whose
 // polygon was left at 2 vertices (no Z range yet) and one with no shape at
 // all. Catches model state the file drops (an incomplete shape skipped, an
-// exclusion, restart point or parameter not written, parameters reordered)
-// and ID bookkeeping lost on reopen: a zone created after reopening must
-// not get the ID of a saved one.
+// exclusion, restart point, parameter, hidden flag or custom colour not
+// written, parameters reordered) and ID bookkeeping lost on reopen: a zone
+// created after reopening must not get the ID of a saved one.
 func TestSavedProjectReopensWithTheSameDocument(t *testing.T) {
 	d := zone.NewDocument()
 	square := d.NewZoneID()
@@ -43,6 +43,7 @@ func TestSavedProjectReopensWithTheSameDocument(t *testing.T) {
 		zone.AddRestartPoint{Zone: square, PK: true, Point: zone.Point{X: 82000, Y: 147000, Z: -3420}},
 		zone.SetParam{Zone: square, Name: "enabled", Value: "false"},
 		zone.SetParam{Zone: square, Name: "playerMinLevel", Value: "40"},
+		zone.SetColor{Zone: square, Color: zone.Color{0x12, 0xab, 0xff}},
 	)
 	incomplete := d.NewZoneID()
 	apply(t, d,
@@ -50,6 +51,7 @@ func TestSavedProjectReopensWithTheSameDocument(t *testing.T) {
 		zone.AddShape{Zone: incomplete},
 		zone.AddVertex{Zone: incomplete, Shape: 0, Point: zone.Point{X: 81000, Y: 149000, Z: -3500}},
 		zone.AddVertex{Zone: incomplete, Shape: 0, Point: zone.Point{X: 81500, Y: 149200, Z: -3480}},
+		zone.SetHidden{Zones: []zone.ZoneID{incomplete}, Hidden: true},
 	)
 	empty := d.NewZoneID()
 	apply(t, d, zone.CreateZone{ID: empty, Name: "[zb_no_shape]", Type: zone.Water})
