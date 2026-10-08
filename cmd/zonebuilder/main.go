@@ -224,6 +224,11 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 			if shell.Zone.Compile.Clicked(gtx) {
 				status = zones.compile(shell.Zone.Output.Text())
 			}
+			for _, req := range shell.Zones.Update(gtx) {
+				if msg := zones.listRequest(req, current, &cam); msg != "" {
+					status = msg
+				}
+			}
 			if shell.OpenRequested(gtx) && !loading {
 				t, err := scene.ParseTile(shell.Tile.Text())
 				if err != nil {
@@ -263,6 +268,7 @@ func run(w *app.Window, client, tile, out string, start *cameraPose) error {
 			moving := fly.Step(&cam, gtx.Now)
 			shell.Status = probe.status(current, &cam, shell.Viewport.Size())
 			shell.Zone.Info = zones.info()
+			shell.Zones.Rows, shell.Zones.Selected = zones.rows(), zones.selected()
 
 			rect := shell.Layout(gtx, panelLines(g, status, current, &cam))
 			if e.Size != size || rect != vpRect {

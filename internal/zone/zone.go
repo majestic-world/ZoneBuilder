@@ -73,6 +73,11 @@ type Zone struct {
 	Name   string
 	Type   Type
 	Shapes []Shape
+	// Hidden keeps the zone out of the viewport; it still compiles.
+	Hidden bool
+	// Color is the zone's viewport colour; the zero Color means its
+	// type's (DisplayColor).
+	Color Color
 }
 
 // DefaultZMargin is how far the suggested Z range reaches below the lowest

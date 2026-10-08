@@ -20,10 +20,6 @@ import (
 // to close the polygon.
 const closeSlop = 10
 
-// zoneColor is the overlay colour of every zone (linear RGB) until zones get
-// a colour per type.
-var zoneColor = [3]float32{1, 0.35, 0.05}
-
 // zoneEditor turns the zone controls and viewport input into zone.Document
 // commands. The polygon tool is active while drawing is set: each click on
 // a surface adds a vertex at the picked point, and Enter or a click on the
@@ -145,38 +141,37 @@ func (e *zoneEditor) compile(dir string) string {
 	return "XML gravado: " + strings.Join(paths, ", ")
 }
 
-// info is the zone panel's lines: the zones and the tool hint.
+// info is the zone panel's lines while a polygon is being drawn: its zone,
+// vertex count and the tool hint. The zones themselves are in the list.
 func (e *zoneEditor) info() []string {
-	zones := e.doc.Zones()
-	lines := []string{count(len(zones), "zona", "zonas")}
-	for _, z := range zones {
-		line := fmt.Sprintf("%s (%s)", z.Name, z.Type)
-		for _, s := range z.Shapes {
-			line += fmt.Sprintf(": %s, z %d … %d", count(len(s.Points), "vértice", "vértices"), s.ZMin, s.ZMax)
-		}
-		if e.drawing && z.ID == e.zone {
-			line = fmt.Sprintf("%s (%s): desenhando, %s", z.Name, z.Type, count(len(e.points()), "vértice", "vértices"))
-		}
-		lines = append(lines, line)
+	if !e.drawing {
+		return nil
 	}
-	if e.drawing {
-		lines = append(lines, "Clique adiciona vértice; Enter ou clique no 1º vértice fecha")
+	z, _ := e.doc.Zone(e.zone)
+	return []string{
+		fmt.Sprintf("%s (%s): desenhando, %s", z.Name, z.Type, count(len(e.points()), "vértice", "vértices")),
+		"Clique adiciona vértice; Enter ou clique no 1º vértice fecha",
 	}
-	return lines
 }
 
-// overlay is every shape for the renderer's zone overlay.
+// overlay is every shape of the shown zones for the renderer's zone
+// overlay, in each zone's colour. The shape being drawn shows even when its
+// zone is hidden.
 func (e *zoneEditor) overlay() []render.ZoneShape {
 	var shapes []render.ZoneShape
 	for _, z := range e.doc.Zones() {
+		color := linearColor(z.DisplayColor())
 		for i, s := range z.Shapes {
 			open := e.drawing && z.ID == e.zone && i == e.shape
+			if z.Hidden && !open {
+				continue
+			}
 			rs := render.ZoneShape{
 				Points: make([]geom.Vec3, len(s.Points)),
 				ZMin:   float32(s.ZMin),
 				ZMax:   float32(s.ZMax),
 				Closed: !open,
-				Color:  zoneColor,
+				Color:  color,
 				Marked: -1,
 			}
 			if open {

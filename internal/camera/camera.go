@@ -74,6 +74,35 @@ func ForBounds(b geom.Box) Camera {
 	}
 }
 
+// Framing constants from UE2-Studio's camera.rs frame: the subject's
+// bounding sphere fills 60% of the vertical field of view, the camera
+// stands at least 150 units clear of it, and it approaches along a steep
+// diagonal from above, where a map is open sky.
+const (
+	framingFill      = 0.6
+	framingClearance = 150
+)
+
+var framingApproach = geom.Vec3{X: 0.42, Y: 1, Z: 0.42}.Normalize()
+
+// Frame moves the camera to look at a render-space box from far enough
+// to see it whole, as UE2-Studio's Camera::frame does for "go to actor".
+// Speed and Far stay: they belong to the whole scene ForBounds framed.
+func (c *Camera) Frame(b geom.Box) {
+	var centre geom.Vec3
+	var radius float32
+	if !b.Empty() {
+		centre, radius = b.Center(), b.Size().Length()*0.5
+	}
+	halfAngle := float32(FovY * 0.5 * framingFill)
+	distance := max(radius/sin(halfAngle), radius*2+framingClearance)
+	off := framingApproach.Scale(distance)
+	horizontal := float32(math.Hypot(float64(off.X), float64(off.Z)))
+	c.Position = centre.Add(off)
+	c.Yaw = atan2(-off.Z, -off.X)
+	c.Pitch = atan2(-off.Y, horizontal)
+}
+
 // Look turns the camera by a mouse delta in pixels.
 func (c *Camera) Look(dx, dy float32) {
 	c.Yaw -= dx * LookSensitivity
