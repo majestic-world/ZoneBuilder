@@ -86,7 +86,7 @@ func (c RemoveRestartPoint) apply(d *Document) error {
 	}
 	pts := z.restartPoints(c.PK)
 	if c.Index < 0 || c.Index >= len(*pts) {
-		return fmt.Errorf("zone: %s has no restart point %d", z.Name, c.Index)
+		return fmt.Errorf("zona: %s não tem o ponto de reinício %d", z.Name, c.Index)
 	}
 	*pts = append((*pts)[:c.Index:c.Index], (*pts)[c.Index+1:]...)
 	return nil

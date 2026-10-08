@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"sync"
+
+	"zonebuilder/internal/inflect"
 )
 
 // Drawable reports why the texture cannot be drawn, or nil: its format must
@@ -25,7 +27,7 @@ func (t *Texture) Drawable() error {
 		return fmt.Errorf("mip 0 de %d×%d", m.Width, m.Height)
 	}
 	if need := MipBytes(t.Format, m.Width, m.Height); len(m.Data) < need {
-		return fmt.Errorf("mip 0 truncado: %d bytes de %d", len(m.Data), need)
+		return fmt.Errorf("mip 0 truncado: %s de %d", inflect.Count(len(m.Data), "byte", "bytes"), need)
 	}
 	return nil
 }

@@ -3,6 +3,8 @@ package l2pkg
 import (
 	"fmt"
 	"strings"
+
+	"zonebuilder/internal/inflect"
 )
 
 // RFHasStack is the export flag (RF_HasStack) of an object serialized with
@@ -253,7 +255,7 @@ func readArray(p *Package, r *Reader, name string, size int) (Value, error) {
 	}
 	remaining := size - (r.Pos - start)
 	if remaining < 0 {
-		return Value{}, fmt.Errorf("array declara %d bytes, menos que a própria quantidade", size)
+		return Value{}, fmt.Errorf("array declara %s, menos que a própria quantidade", inflect.Count(size, "byte", "bytes"))
 	}
 	if !strings.EqualFold(name, "Materials") {
 		return Value{Kind: KindBytes, Bytes: r.Bytes(remaining)}, nil

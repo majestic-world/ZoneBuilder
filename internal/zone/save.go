@@ -34,15 +34,15 @@ func (d *Document) UnmarshalJSON(data []byte) error {
 	for _, z := range s.Zones {
 		switch {
 		case z.ID <= 0:
-			return fmt.Errorf("zone: %s has invalid ID %d", z.Name, z.ID)
+			return fmt.Errorf("zona: %s tem o ID inválido %d", z.Name, z.ID)
 		case seen[z.ID]:
-			return fmt.Errorf("zone: ID %d is used by more than one zone", z.ID)
+			return fmt.Errorf("zona: o ID %d é usado por mais de uma zona", z.ID)
 		case !z.Type.Valid():
-			return fmt.Errorf("zone: %s: %q is not a server zone type", z.Name, z.Type)
+			return fmt.Errorf("zona: %s: %q não é um tipo de zona do servidor", z.Name, z.Type)
 		}
 		for i, sh := range z.Shapes {
 			if !sh.Kind.Valid() {
-				return fmt.Errorf("zone: %s: shape %d has unknown kind %d", z.Name, i, sh.Kind)
+				return fmt.Errorf("zona: %s: a forma %d tem o tipo desconhecido %d", z.Name, i, sh.Kind)
 			}
 		}
 		seen[z.ID] = true

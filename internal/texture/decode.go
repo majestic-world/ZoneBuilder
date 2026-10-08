@@ -3,6 +3,8 @@ package texture
 import (
 	"encoding/binary"
 	"fmt"
+
+	"zonebuilder/internal/inflect"
 )
 
 // Image is tightly packed 8-bit RGBA pixels, row-major from the top-left
@@ -87,7 +89,7 @@ func decodeP8(img *Image, src []byte, palette []Color, masked bool) error {
 		return fmt.Errorf("P8 sem Palette")
 	}
 	if len(src) < n {
-		return fmt.Errorf("P8 truncado: %d bytes para %d×%d", len(src), img.Width, img.Height)
+		return fmt.Errorf("P8 truncado: %s para %d×%d", inflect.Count(len(src), "byte", "bytes"), img.Width, img.Height)
 	}
 	for i, idx := range src[:n] {
 		var c Color
@@ -107,7 +109,7 @@ func decodeP8(img *Image, src []byte, palette []Color, masked bool) error {
 func decodeBGRA(img *Image, src []byte) error {
 	n := len(img.Pix)
 	if len(src) < n {
-		return fmt.Errorf("RGBA8 truncado: %d bytes para %d×%d", len(src), img.Width, img.Height)
+		return fmt.Errorf("RGBA8 truncado: %s para %d×%d", inflect.Count(len(src), "byte", "bytes"), img.Width, img.Height)
 	}
 	for i := 0; i < n; i += 4 {
 		img.Pix[i+0] = src[i+2]
@@ -128,7 +130,7 @@ func decodeDXT(img *Image, src []byte, kind int) error {
 	}
 	bw, bh := (w+3)/4, (h+3)/4
 	if len(src) < bw*bh*blockBytes {
-		return fmt.Errorf("DXT%d truncado: %d bytes para %d×%d", kind, len(src), w, h)
+		return fmt.Errorf("DXT%d truncado: %s para %d×%d", kind, inflect.Count(len(src), "byte", "bytes"), w, h)
 	}
 	var alpha [16]uint8
 	off := 0

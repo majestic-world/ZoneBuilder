@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"zonebuilder/internal/inflect"
 )
 
 // assetDirectories is where a package is looked up by name under the client
@@ -126,7 +128,7 @@ func (c *Client) Resolve(p *Package, ref int32) (*Package, int, error) {
 	root := im
 	for depth := 0; root.PackageIndex != 0; depth++ {
 		if depth == maxChainDepth {
-			return nil, 0, fmt.Errorf("%s: cadeia de imports não termina após %d níveis", p.Name, maxChainDepth)
+			return nil, 0, fmt.Errorf("%s: cadeia de imports não termina após %s", p.Name, inflect.Count(maxChainDepth, "nível", "níveis"))
 		}
 		if root, err = p.importAt(root.PackageIndex); err != nil {
 			return nil, 0, err

@@ -11,6 +11,7 @@ import (
 
 	"zonebuilder/internal/camera"
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
@@ -46,6 +47,10 @@ type zoneEditor struct {
 	// the cursor, when hovering, for the preview from the anchor.
 	anchor, hover      zone.Point
 	anchored, hovering bool
+	// ghost is the shape placed from the anchor to hover, with its Z range
+	// ghostMin..ghostMax, while hovering (see placed).
+	ghost              []zone.Point
+	ghostMin, ghostMax int
 	// version counts changes to what the overlay shows.
 	version int
 	// problems are the problems the problem panel shows (problemRows),
@@ -55,8 +60,9 @@ type zoneEditor struct {
 	// left out are the zones unchecked for compilation; every other zone,
 	// new ones too, is in the compile selection.
 	leftOut map[zone.ZoneID]bool
-	// written are the files the last compilation wrote.
-	written []string
+	// written and removed are the files the last compilation wrote and
+	// the stale ones it removed from the output folder.
+	written, removed []string
 	editState
 }
 
@@ -64,14 +70,15 @@ func newZoneEditor() *zoneEditor {
 	return &zoneEditor{doc: zone.NewDocument(), editState: newEditState()}
 }
 
-// apply runs c and logs a failure; it reports success.
-func (e *zoneEditor) apply(c zone.Command) bool {
+// apply runs c on the document, logging a failure, and returns its error.
+// Every UI request that edits a zone goes through it.
+func (e *zoneEditor) apply(c zone.Command) error {
 	if err := e.doc.Apply(c); err != nil {
 		log.Printf("zona: %v", err)
-		return false
+		return err
 	}
 	e.version++
-	return true
+	return nil
 }
 
 // create starts a zone named name of type t, selects it and arms tool for
@@ -85,7 +92,7 @@ func (e *zoneEditor) create(name string, t zone.Type, tool ui.Tool) string {
 		return "Digite o nome da zona"
 	}
 	id := e.doc.NewZoneID()
-	if !e.apply(zone.CreateZone{ID: id, Name: name, Type: t}) {
+	if e.apply(zone.CreateZone{ID: id, Name: name, Type: t}) != nil {
 		return "Não foi possível criar a zona"
 	}
 	e.zone = id
@@ -117,7 +124,7 @@ func (e *zoneEditor) click(s *scene.World, cam *camera.Camera, p f32.Point, view
 	if !ok {
 		return "O clique não atingiu nenhuma superfície"
 	}
-	v := zone.Point{X: round(h.Pos.X), Y: round(h.Pos.Y), Z: round(h.Pos.Z)}
+	v := serverPoint(h)
 	switch e.tool {
 	case ui.ToolRectangle:
 		return e.rectangleClick(s, v)
@@ -134,16 +141,16 @@ func (e *zoneEditor) click(s *scene.World, cam *camera.Camera, p f32.Point, view
 func (e *zoneEditor) polygonClick(v zone.Point) string {
 	if !e.drawing {
 		z, _ := e.doc.Zone(e.zone)
-		if !e.apply(zone.AddShape{Zone: e.zone, Banned: e.banned, Points: []zone.Point{v}}) {
+		if e.apply(zone.AddShape{Zone: e.zone, Banned: e.banned, Points: []zone.Point{v}}) != nil {
 			return "Não foi possível começar o polígono"
 		}
 		e.drawing, e.shape = true, len(z.Shapes)
-	} else if !e.apply(zone.AddVertex{Zone: e.zone, Shape: e.shape, Point: v}) {
+	} else if e.apply(zone.AddVertex{Zone: e.zone, Shape: e.shape, Point: v}) != nil {
 		return "Não foi possível adicionar o vértice"
 	}
 	n := len(e.points())
 	log.Printf("zona: vértice %d em %d %d %d", n, v.X, v.Y, v.Z)
-	return fmt.Sprintf("%s: %d %d %d", count(n, "vértice", "vértices"), v.X, v.Y, v.Z)
+	return fmt.Sprintf("%s: %d %d %d", inflect.Count(n, "vértice", "vértices"), v.X, v.Y, v.Z)
 }
 
 // close ends the polygon being drawn with the Z range suggested from its
@@ -154,10 +161,10 @@ func (e *zoneEditor) close() string {
 	}
 	pts := e.points()
 	if len(pts) < 3 {
-		return fmt.Sprintf("O polígono tem %s; são precisos 3 para fechar", count(len(pts), "vértice", "vértices"))
+		return fmt.Sprintf("O polígono tem %s; são precisos 3 para fechar", inflect.Count(len(pts), "vértice", "vértices"))
 	}
 	zmin, zmax := zone.SuggestZRange(pts, e.margin)
-	if !e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: zmin, ZMax: zmax}) {
+	if e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: zmin, ZMax: zmax}) != nil {
 		return "Não foi possível fechar o polígono"
 	}
 	e.drawing, e.armed = false, false
@@ -166,8 +173,8 @@ func (e *zoneEditor) close() string {
 	if e.banned {
 		what = "Exclusão fechada"
 	}
-	log.Printf("zona: %s: %s com %s, z %d..%d", z.Name, strings.ToLower(what), count(len(pts), "vértice", "vértices"), zmin, zmax)
-	return fmt.Sprintf("%s em %s: %s, z %d … %d", what, z.Name, count(len(pts), "vértice", "vértices"), zmin, zmax)
+	log.Printf("zona: %s: %s com %s, z %d..%d", z.Name, strings.ToLower(what), inflect.Count(len(pts), "vértice", "vértices"), zmin, zmax)
+	return fmt.Sprintf("%s em %s: %s, z %d … %d", what, z.Name, inflect.Count(len(pts), "vértice", "vértices"), zmin, zmax)
 }
 
 // selection is the zones checked for compilation, in creation order.
@@ -195,11 +202,13 @@ func (e *zoneEditor) selectForCompile(ids []zone.ZoneID, in bool) string {
 		}
 	}
 	n := len(e.selection())
-	return fmt.Sprintf("%s de %d para compilar", count(n, "zona selecionada", "zonas selecionadas"), len(e.doc.Zones()))
+	return fmt.Sprintf("%s de %d para compilar", inflect.Count(n, "zona selecionada", "zonas selecionadas"), len(e.doc.Zones()))
 }
 
-// compile writes the selected zones' XML into dir and keeps the written
-// paths for the panel. It returns the status line.
+// compile writes the selected zones' XML into dir, removing the
+// Zone Builder files there that are no longer part of the output, and keeps
+// the written and removed paths for the panel. Nothing is written or
+// removed while the compilation is blocked. It returns the status line.
 func (e *zoneEditor) compile(dir string) string {
 	dir = strings.TrimSpace(dir)
 	sel := e.selection()
@@ -218,42 +227,35 @@ func (e *zoneEditor) compile(dir string) string {
 		return e.blockedStatus(b)
 	}
 	if err != nil {
-		return err.Error()
-	}
-	paths, err := zonexml.Write(dir, files)
-	e.written = paths
-	for _, p := range paths {
-		log.Printf("zona: XML gravado em %s", p)
-	}
-	if err != nil {
 		log.Printf("zona: compilação: %v", err)
 		return err.Error()
 	}
-	log.Printf("zona: compiladas %s em %s", count(len(sel), "zona", "zonas"), count(len(paths), "arquivo", "arquivos"))
-	return fmt.Sprintf("Compiladas %s: %s (caminhos no painel, abaixo de Compilar)", count(len(sel), "zona", "zonas"), count(len(paths), "arquivo gravado", "arquivos gravados"))
+	written, removed, err := zonexml.Write(dir, files)
+	e.written, e.removed = written, removed
+	for _, p := range written {
+		log.Printf("zona: XML gravado em %s", p)
+	}
+	for _, p := range removed {
+		log.Printf("zona: XML antigo removido: %s", p)
+	}
+	if err != nil {
+		log.Printf("zona: compilação: %v", err)
+		return "Não foi possível gravar o XML: " + err.Error()
+	}
+	log.Printf("zona: compiladas %s em %s, %s", inflect.Count(len(sel), "zona", "zonas"),
+		inflect.Count(len(written), "arquivo", "arquivos"), inflect.Count(len(removed), "removido", "removidos"))
+	msg := fmt.Sprintf("Compiladas %s: %s", inflect.Count(len(sel), "zona", "zonas"), inflect.Count(len(written), "arquivo gravado", "arquivos gravados"))
+	if len(removed) > 0 {
+		msg += ", " + inflect.Count(len(removed), "antigo removido", "antigos removidos")
+	}
+	return msg + " (caminhos no painel, abaixo de Compilar)"
 }
 
-// info is the zone panel's lines: the zones, their shapes and restart
-// points, and the armed tool's hint.
+// info is the zone panel's lines below its controls: the armed tool's hint
+// and what the last compilation wrote and removed. The zones themselves
+// are in the zone list.
 func (e *zoneEditor) info() []string {
-	zones := e.doc.Zones()
-	lines := []string{count(len(zones), "zona", "zonas")}
-	for _, z := range zones {
-		line := fmt.Sprintf("%s (%s)", z.Name, z.Type)
-		if z.ID == e.zone {
-			line = "» " + line + ", selecionada"
-		}
-		lines = append(lines, line)
-		for i, s := range z.Shapes {
-			lines = append(lines, "   "+e.describeShape(z.ID, i, s))
-		}
-		if n := len(z.RestartPoints); n > 0 {
-			lines = append(lines, "   "+count(n, "restart_point", "restart_points"))
-		}
-		if n := len(z.PKRestartPoints); n > 0 {
-			lines = append(lines, "   "+count(n, "PKrestart_point", "PKrestart_points"))
-		}
-	}
+	var lines []string
 	if hint := e.hint(); hint != "" {
 		lines = append(lines, hint)
 	}
@@ -263,25 +265,13 @@ func (e *zoneEditor) info() []string {
 			lines = append(lines, "   "+p)
 		}
 	}
+	if len(e.removed) > 0 {
+		lines = append(lines, "e removeu os antigos:")
+		for _, p := range e.removed {
+			lines = append(lines, "   "+p)
+		}
+	}
 	return lines
-}
-
-// describeShape is one info line for shape i of zone id.
-func (e *zoneEditor) describeShape(id zone.ZoneID, i int, s zone.Shape) string {
-	kind := "polígono"
-	if s.Kind == zone.Rectangle {
-		kind = "retângulo"
-	}
-	if s.Banned {
-		kind = "exclusão, " + kind
-	}
-	if e.drawing && id == e.zone && i == e.shape {
-		return fmt.Sprintf("%s: desenhando, %s", kind, count(len(s.Points), "vértice", "vértices"))
-	}
-	if s.Kind == zone.Rectangle {
-		return fmt.Sprintf("%s, z %d … %d", kind, s.ZMin, s.ZMax)
-	}
-	return fmt.Sprintf("%s: %s, z %d … %d", kind, count(len(s.Points), "vértice", "vértices"), s.ZMin, s.ZMax)
 }
 
 // overlay is every shape and restart point for the renderer's zone

@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/texture"
 )
@@ -28,12 +29,12 @@ func meshSection(t *testing.T, s *scene.Scene, export, k int) scene.MeshActorSec
 	for _, a := range s.Actors {
 		if a.Export == export {
 			if k >= len(a.Sections) {
-				t.Fatalf("ator %d tem %d seções, quero a %d", export, len(a.Sections), k)
+				t.Fatalf("actor %d has %s, want number %d", export, inflect.Count(len(a.Sections), "section", "sections"), k)
 			}
 			return a.Sections[k]
 		}
 	}
-	t.Fatalf("ator %d não está na cena", export)
+	t.Fatalf("actor %d is not in the scene", export)
 	return scene.MeshActorSection{}
 }
 
@@ -44,7 +45,7 @@ func bspSurface(t *testing.T, s *scene.Scene, index int) scene.BSPSurface {
 			return sf
 		}
 	}
-	t.Fatalf("superfície BSP %d não está na cena", index)
+	t.Fatalf("BSP surface %d is not in the scene", index)
 	return scene.BSPSurface{}
 }
 
@@ -67,15 +68,15 @@ func TestMaterialsResolveLikeUE2Studio(t *testing.T) {
 		mesh struct{ export, section int }
 		want drawn
 	}{
-		{"22_22", "água BSP", 1086, struct{ export, section int }{}, drawn{"FX_E_T.WaterSurfaceSet.ocean011", scene.Water}},
-		{"22_22", "parede BSP", 500, struct{ export, section int }{}, drawn{"Giran_Village_T.Giran_wall07", scene.Opaque}},
-		{"22_22", "água em mesh", -1, struct{ export, section int }{1020, 0}, drawn{"interior_B_t.interior_B_Water01", scene.Water}},
-		{"22_22", "folhas", -1, struct{ export, section int }{1041, 0}, drawn{"Superion_T.superion_tree_01_leaf", scene.Masked}},
-		{"22_22", "chama", -1, struct{ export, section int }{1569, 0}, drawn{"FX_E_T.Flameset.de_fire_0000", scene.Brighten}},
-		{"22_22", "translúcido", -1, struct{ export, section int }{543, 0}, drawn{"interior_A_t.interior_A_deco27", scene.Translucent}},
-		{"22_22", "bandeira por Skins", -1, struct{ export, section int }{2615, 0}, drawn{"Giran_Village_T.Giran_flag", scene.Masked}},
-		{"22_22", "placa por Skins", -1, struct{ export, section int }{868, 2}, drawn{"Field_Deco_Artifact2_T.refined_obj.refined_22_22_t003", scene.Opaque}},
-		{"22_20", "cerca", -1, struct{ export, section int }{1042, 1}, drawn{"Hunter_Village_T.Ht_vi_fence_001", scene.Masked}},
+		{"22_22", "BSP water", 1086, struct{ export, section int }{}, drawn{"FX_E_T.WaterSurfaceSet.ocean011", scene.Water}},
+		{"22_22", "BSP wall", 500, struct{ export, section int }{}, drawn{"Giran_Village_T.Giran_wall07", scene.Opaque}},
+		{"22_22", "mesh water", -1, struct{ export, section int }{1020, 0}, drawn{"interior_B_t.interior_B_Water01", scene.Water}},
+		{"22_22", "leaves", -1, struct{ export, section int }{1041, 0}, drawn{"Superion_T.superion_tree_01_leaf", scene.Masked}},
+		{"22_22", "flame", -1, struct{ export, section int }{1569, 0}, drawn{"FX_E_T.Flameset.de_fire_0000", scene.Brighten}},
+		{"22_22", "translucent", -1, struct{ export, section int }{543, 0}, drawn{"interior_A_t.interior_A_deco27", scene.Translucent}},
+		{"22_22", "flag via Skins", -1, struct{ export, section int }{2615, 0}, drawn{"Giran_Village_T.Giran_flag", scene.Masked}},
+		{"22_22", "sign via Skins", -1, struct{ export, section int }{868, 2}, drawn{"Field_Deco_Artifact2_T.refined_obj.refined_22_22_t003", scene.Opaque}},
+		{"22_20", "fence", -1, struct{ export, section int }{1042, 1}, drawn{"Hunter_Village_T.Ht_vi_fence_001", scene.Masked}},
 	} {
 		s := scenes[c.tile]
 		if s == nil {
@@ -89,7 +90,7 @@ func TestMaterialsResolveLikeUE2Studio(t *testing.T) {
 			got = batchDrawn(s, meshSection(t, s, c.mesh.export, c.mesh.section).Batch)
 		}
 		if got != c.want {
-			t.Errorf("%s %s: %s modo %d, quero %s modo %d", c.tile, c.what, got.texture, got.mode, c.want.texture, c.want.mode)
+			t.Errorf("%s %s: %s mode %d, want %s mode %d", c.tile, c.what, got.texture, got.mode, c.want.texture, c.want.mode)
 		}
 	}
 }
@@ -126,7 +127,7 @@ func TestUVsMatchUE2Studio(t *testing.T) {
 		first := b.Vertices[lo].UV
 		if math.Abs(float64(first[0]-c.first[0])) > 1e-4 || math.Abs(float64(first[1]-c.first[1])) > 1e-4 ||
 			math.Abs(su-c.sumU) > 1e-3 || math.Abs(sv-c.sumV) > 1e-3 {
-			t.Errorf("superfície %d: primeiro UV %v, soma (%v, %v); quero %v, (%v, %v)", c.surf, first, su, sv, c.first, c.sumU, c.sumV)
+			t.Errorf("surface %d: first UV %v, sum (%v, %v); want %v, (%v, %v)", c.surf, first, su, sv, c.first, c.sumU, c.sumV)
 		}
 	}
 	for _, c := range []struct {
@@ -145,7 +146,7 @@ func TestUVsMatchUE2Studio(t *testing.T) {
 			sv += float64(b.Vertices[k].UV[1])
 		}
 		if math.Abs(su-c.sumU) > 1e-4 || math.Abs(sv-c.sumV) > 1e-4 {
-			t.Errorf("ator %d seção %d: soma dos UV (%v, %v), quero (%v, %v)", c.export, c.section, su, sv, c.sumU, c.sumV)
+			t.Errorf("actor %d section %d: UV sum (%v, %v), want (%v, %v)", c.export, c.section, su, sv, c.sumU, c.sumV)
 		}
 	}
 }
@@ -159,17 +160,17 @@ func TestP8AlphaMapLayerIsDrawn(t *testing.T) {
 	s := loadTile(t, "12_22")
 	ter := s.Terrains[0]
 	if len(ter.Layers) != 3 {
-		t.Fatalf("%d camadas desenhadas, quero 3 (as 2 do UE2-Studio e a de alpha map P8)", len(ter.Layers))
+		t.Fatalf("%s drawn, want 3 (UE2-Studio's 2 and the P8 alpha map one)", inflect.Count(len(ter.Layers), "layer", "layers"))
 	}
 	m := s.Batches[ter.Layers[1]].Mask
 	if m == nil || m.Path != "T_12_22.Height.12_22_ST_00" || m.Format != texture.FormatP8 {
-		t.Fatalf("camada 1 com máscara %v, quero o P8 T_12_22.Height.12_22_ST_00", m)
+		t.Fatalf("layer 1 with mask %v, want the P8 T_12_22.Height.12_22_ST_00", m)
 	}
 	img, err := m.RGBA()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if img.Width != 512 || img.Height != 512 {
-		t.Errorf("máscara de %d×%d, quero 512×512", img.Width, img.Height)
+		t.Errorf("mask of %d×%d, want 512×512", img.Width, img.Height)
 	}
 }

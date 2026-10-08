@@ -15,6 +15,7 @@ import (
 	"slices"
 	"time"
 
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/l2pkg"
 )
 
@@ -50,21 +51,21 @@ func dump(w io.Writer, p *l2pkg.Package) {
 	h := &p.Header
 	fmt.Fprintf(w, "pacote %s\n", p.Name)
 	fmt.Fprintf(w, "container %s\n", p.Container)
-	fmt.Fprintf(w, "versão %d/%d (ArVer/licensee), flags 0x%08x, %d %s\n",
-		h.FileVersion, h.LicenseeVersion, h.Flags, len(h.Generations), plural(len(h.Generations), "geração", "gerações"))
+	fmt.Fprintf(w, "versão %d/%d (ArVer/licensee), flags 0x%08x, %s\n",
+		h.FileVersion, h.LicenseeVersion, h.Flags, inflect.Count(len(h.Generations), "geração", "gerações"))
 
-	fmt.Fprintf(w, "\n%d %s\n", len(p.Names), plural(len(p.Names), "nome", "nomes"))
+	fmt.Fprintf(w, "\n%s\n", inflect.Count(len(p.Names), "nome", "nomes"))
 	for i, name := range p.Names {
 		fmt.Fprintf(w, "%6d  %s\n", i, name)
 	}
 
-	fmt.Fprintf(w, "\n%d %s\n", len(p.Imports), plural(len(p.Imports), "import", "imports"))
+	fmt.Fprintf(w, "\n%s\n", inflect.Count(len(p.Imports), "import", "imports"))
 	fmt.Fprintf(w, "%6s  %-24s  %-40s  %s\n", "índice", "classe", "pacote pai", "nome")
 	for i, im := range p.Imports {
 		fmt.Fprintf(w, "%6d  %-24s  %-40s  %s\n", -(i + 1), im.ClassPackage+"."+im.ClassName, parent(p, im.PackageIndex, ""), im.ObjectName)
 	}
 
-	fmt.Fprintf(w, "\n%d %s\n", len(p.Exports), plural(len(p.Exports), "export", "exports"))
+	fmt.Fprintf(w, "\n%s\n", inflect.Count(len(p.Exports), "export", "exports"))
 	fmt.Fprintf(w, "%6s  %-24s  %-40s  %10s  %10s  %s\n", "índice", "classe", "pacote pai", "tamanho", "offset", "nome")
 	for i, ex := range p.Exports {
 		fmt.Fprintf(w, "%6d  %-24s  %-40s  %10d  %10d  %s\n", i+1, ex.ClassName, parent(p, ex.PackageIndex, p.Name), ex.SerialSize, ex.SerialOffset, ex.ObjectName)
@@ -113,9 +114,9 @@ func sweep(w io.Writer, root string) int {
 	histogram(w, containers)
 	fmt.Fprintf(w, "\npares ArVer/licensee por pasta:\n")
 	histogram(w, pairs)
-	fmt.Fprintf(w, "\n%d %s, %d %s, %s\n",
-		total, plural(total, "pacote", "pacotes"),
-		failures, plural(failures, "falha", "falhas"),
+	fmt.Fprintf(w, "\n%s, %s, %s\n",
+		inflect.Count(total, "pacote", "pacotes"),
+		inflect.Count(failures, "falha", "falhas"),
 		time.Since(start).Round(time.Millisecond))
 	return failures
 }
@@ -135,11 +136,4 @@ func histogram(w io.Writer, counts map[string]int) {
 	for _, key := range slices.Sorted(maps.Keys(counts)) {
 		fmt.Fprintf(w, "  %s  %d\n", key, counts[key])
 	}
-}
-
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return many
 }

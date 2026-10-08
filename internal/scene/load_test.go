@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 )
 
@@ -17,7 +18,7 @@ func clientRoot(t *testing.T) string {
 	t.Helper()
 	root := os.Getenv("ZB_CLIENT")
 	if root == "" {
-		t.Skip("ZB_CLIENT não definido: testes contra o cliente real pulados")
+		t.Skip("ZB_CLIENT not set: tests against the real client skipped")
 	}
 	return root
 }
@@ -33,7 +34,7 @@ func loadTile(t *testing.T, name string) *scene.Scene {
 		t.Fatalf("Load(%s): %v", name, err)
 	}
 	if len(s.Terrains) != 1 {
-		t.Fatalf("Load(%s): %d terrenos, quero 1 (avisos: %q)", name, len(s.Terrains), s.Warnings)
+		t.Fatalf("Load(%s): %s, want 1 (warnings: %q)", name, inflect.Count(len(s.Terrains), "terrain", "terrains"), s.Warnings)
 	}
 	return s
 }
@@ -53,10 +54,10 @@ func TestGiranTerrainCoversItsTile(t *testing.T) {
 		got := s.Terrains[0].Bounds
 		for axis := range 3 {
 			if d := math.Abs(float64(got.Min.Axis(axis) - want.Min.Axis(axis))); d > 0.5 {
-				t.Errorf("%s: mínimo do eixo %d = %v, quero %v", name, axis, got.Min.Axis(axis), want.Min.Axis(axis))
+				t.Errorf("%s: minimum of axis %d = %v, want %v", name, axis, got.Min.Axis(axis), want.Min.Axis(axis))
 			}
 			if d := math.Abs(float64(got.Max.Axis(axis) - want.Max.Axis(axis))); d > 0.5 {
-				t.Errorf("%s: máximo do eixo %d = %v, quero %v", name, axis, got.Max.Axis(axis), want.Max.Axis(axis))
+				t.Errorf("%s: maximum of axis %d = %v, want %v", name, axis, got.Max.Axis(axis), want.Max.Axis(axis))
 			}
 		}
 	}
@@ -85,7 +86,7 @@ func TestTerrainDrawsTheQuadsUE2StudioDraws(t *testing.T) {
 			sum += uint64(i+1) * (uint64(v) + 1)
 		}
 		if len(idx) != c.indices || sum != c.sum {
-			t.Errorf("%s: %d índices com soma %d, quero %d com soma %d", c.name, len(idx), sum, c.indices, c.sum)
+			t.Errorf("%s: %s with sum %d, want %d with sum %d", c.name, inflect.Count(len(idx), "index", "indices"), sum, c.indices, c.sum)
 		}
 	}
 }
@@ -122,9 +123,9 @@ func TestEveryTileMapLoads(t *testing.T) {
 		for _, ter := range s.Terrains {
 			if ter.FallbackScale {
 				fallback++
-				t.Logf("%s: TerrainScale quebrado, terreno posto por MapX/MapY em %v", name, ter.Bounds)
+				t.Logf("%s: broken TerrainScale, terrain placed by MapX/MapY at %v", name, ter.Bounds)
 			}
 		}
 	}
-	t.Logf("%d mapas carregados, %d com fallback de escala", loaded, fallback)
+	t.Logf("%s loaded, %d with scale fallback", inflect.Count(loaded, "map", "maps"), fallback)
 }

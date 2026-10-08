@@ -104,7 +104,6 @@ const (
 	PFTranslucent  = 0x0000_0004
 	PFModulated    = 0x0000_0040
 	PFFakeBackdrop = 0x0000_0080
-	PFTwoSided     = 0x0000_0100
 	PFPortal       = 0x0400_0000
 	PFAntiPortal   = 0x2000_0000
 	// PFNotVisible are editor helpers rather than visible geometry. Collision

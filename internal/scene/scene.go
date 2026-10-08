@@ -7,8 +7,8 @@
 // ServerZOffset above the client's surfaces (docs/adr/0003); a Hit is in
 // server coordinates, and server-space data (zones, a typed x y z) goes
 // through FromServer before it meets the geometry. The renderer subtracts
-// Origin before uploading, to keep float precision near the camera, and
-// swaps Y/Z into its Y-up render basis (ToRender).
+// World.Origin before drawing, to keep float precision near the camera,
+// and swaps Y/Z into its Y-up render basis (ToRender).
 package scene
 
 import (
@@ -194,9 +194,6 @@ type Scene struct {
 	// Framing is Bounds with vertex outliers trimmed, what the opening
 	// camera frames.
 	Framing geom.Box
-	// Origin is the rebase origin, Bounds' centre: the renderer uploads
-	// Pos - Origin.
-	Origin geom.Vec3
 	// Warnings are the parts of the tiles that could not be loaded but did
 	// not stop the rest (a missing terrain or static mesh package).
 	Warnings []string
@@ -248,9 +245,6 @@ func Load(clientRoot string, tiles []Tile) (*Scene, error) {
 	s.Bounds = geom.EmptyBox()
 	for i := range s.Batches {
 		s.Bounds.Union(s.Batches[i].Bounds)
-	}
-	if !s.Bounds.Empty() {
-		s.Origin = s.Bounds.Center()
 	}
 	s.Framing = framingBounds(s.Batches, s.Bounds)
 	return s, nil

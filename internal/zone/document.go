@@ -71,13 +71,13 @@ type CreateZone struct {
 
 func (c CreateZone) apply(d *Document) error {
 	if c.ID <= 0 || c.ID > d.lastID {
-		return fmt.Errorf("zone: ID %d was not reserved with NewZoneID", c.ID)
+		return fmt.Errorf("zona: o ID %d não foi reservado com NewZoneID", c.ID)
 	}
 	if d.index(c.ID) >= 0 {
-		return fmt.Errorf("zone: ID %d is already in use", c.ID)
+		return fmt.Errorf("zona: o ID %d já está em uso", c.ID)
 	}
 	if !c.Type.Valid() {
-		return fmt.Errorf("zone: %q is not a server zone type", c.Type)
+		return fmt.Errorf("zona: %q não é um tipo de zona do servidor", c.Type)
 	}
 	d.zones = append(d.zones, Zone{ID: c.ID, Name: c.Name, Type: c.Type})
 	return nil
@@ -102,7 +102,7 @@ func (c AddShape) apply(d *Document) error {
 		return err
 	}
 	if !c.Kind.Valid() {
-		return fmt.Errorf("zone: shape kind %d is unknown", c.Kind)
+		return fmt.Errorf("zona: tipo de forma %d desconhecido", c.Kind)
 	}
 	z.Shapes = append(z.Shapes, Shape{
 		Kind: c.Kind, Banned: c.Banned, Points: slices.Clone(c.Points), ZMin: c.ZMin, ZMax: c.ZMax,
@@ -124,7 +124,7 @@ func (c AddVertex) apply(d *Document) error {
 		return err
 	}
 	if s.Kind == Rectangle {
-		return fmt.Errorf("zone: shape %d is a rectangle; its 2 corners are fixed", c.Shape)
+		return fmt.Errorf("zona: a forma %d é um retângulo; seus 2 cantos são fixos", c.Shape)
 	}
 	s.Points = append(s.Points, c.Point)
 	return nil
@@ -149,7 +149,7 @@ func (c SetZRange) apply(d *Document) error {
 func (d *Document) zone(id ZoneID) (*Zone, error) {
 	i := d.index(id)
 	if i < 0 {
-		return nil, fmt.Errorf("zone: no zone with ID %d", id)
+		return nil, fmt.Errorf("zona: não há zona com ID %d", id)
 	}
 	return &d.zones[i], nil
 }
@@ -160,7 +160,7 @@ func (d *Document) shape(id ZoneID, shape int) (*Shape, error) {
 		return nil, err
 	}
 	if shape < 0 || shape >= len(z.Shapes) {
-		return nil, fmt.Errorf("zone: %s has no shape %d", z.Name, shape)
+		return nil, fmt.Errorf("zona: %s não tem a forma %d", z.Name, shape)
 	}
 	return &z.Shapes[shape], nil
 }

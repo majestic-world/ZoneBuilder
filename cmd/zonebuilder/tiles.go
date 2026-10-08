@@ -13,6 +13,7 @@ import (
 	"gioui.org/app"
 
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
 )
@@ -355,7 +356,7 @@ func (ts *tiles) progress(r *render.Renderer) (string, float32) {
 	if shown == total {
 		return "", 0
 	}
-	return fmt.Sprintf("Carregando tiles: %d de %d prontos", shown, total), done / float32(total)
+	return fmt.Sprintf("Carregando: %d de %s", shown, inflect.Count(total, "tile pronto", "tiles prontos")), done / float32(total)
 }
 
 // openTiles are the tiles a project records: the focus first, then the

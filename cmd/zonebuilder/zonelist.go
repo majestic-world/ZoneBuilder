@@ -12,6 +12,7 @@ import (
 
 	"zonebuilder/internal/camera"
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
 	"zonebuilder/internal/zone"
@@ -63,12 +64,10 @@ func (e *zoneEditor) rows() []ui.ZoneRow {
 	return rows
 }
 
-// selectedZone is the zone the list shows as selected (0: none).
-func (e *zoneEditor) selectedZone() zone.ZoneID {
-	if _, ok := e.doc.Zone(e.zone); !ok {
-		return 0
-	}
-	return e.zone
+// selectedZone is the selected zone, the one the zone list highlights and
+// the properties panel edits; false when none is.
+func (e *zoneEditor) selectedZone() (zone.Zone, bool) {
+	return e.doc.Zone(e.zone)
 }
 
 // listRequest carries out one zone list request; s and cam are the open
@@ -78,7 +77,7 @@ func (e *zoneEditor) listRequest(req any, s *scene.World, cam *camera.Camera) st
 	case ui.SelectZone:
 		return e.selectZone(r.Zone, s, cam)
 	case ui.HideZones:
-		if !e.apply(zone.SetHidden{Zones: r.Zones, Hidden: r.Hidden}) {
+		if e.apply(zone.SetHidden{Zones: r.Zones, Hidden: r.Hidden}) != nil {
 			return "Não foi possível mudar a visibilidade"
 		}
 		verb := "exibida"
@@ -89,7 +88,7 @@ func (e *zoneEditor) listRequest(req any, s *scene.World, cam *camera.Camera) st
 			z, _ := e.doc.Zone(r.Zones[0])
 			return fmt.Sprintf("Zona %s %s", z.Name, verb)
 		}
-		return fmt.Sprintf("%d zonas %ss", len(r.Zones), verb)
+		return inflect.Count(len(r.Zones), "zona "+verb, "zonas "+verb+"s")
 	case ui.RenameZone:
 		return e.rename(r.Zone, r.Name)
 	case ui.DeleteZone:
@@ -149,7 +148,7 @@ func (e *zoneEditor) rename(id zone.ZoneID, name string) string {
 		return ""
 	}
 	old := z.Name
-	if !e.apply(zone.Rename{Zone: id, Name: name}) {
+	if e.apply(zone.Rename{Zone: id, Name: name}) != nil {
 		return "Não foi possível renomear a zona"
 	}
 	log.Printf("zona: %s renomeada para %s", old, name)
@@ -161,7 +160,7 @@ func (e *zoneEditor) deleteZone(id zone.ZoneID) string {
 	if !ok {
 		return "Selecione uma zona na lista"
 	}
-	if !e.apply(zone.DeleteZone{Zone: id}) {
+	if e.apply(zone.DeleteZone{Zone: id}) != nil {
 		return "Não foi possível apagar a zona"
 	}
 	if e.zone == id {
@@ -180,7 +179,7 @@ func (e *zoneEditor) duplicate(id zone.ZoneID) string {
 		return "Feche o polígono antes de duplicar"
 	}
 	dup := e.doc.NewZoneID()
-	if !e.apply(zone.DuplicateZone{Zone: id, ID: dup}) {
+	if e.apply(zone.DuplicateZone{Zone: id, ID: dup}) != nil {
 		return "Não foi possível duplicar a zona"
 	}
 	e.zone, e.shape = dup, 0
@@ -202,7 +201,7 @@ func (e *zoneEditor) cycleColor(id zone.ZoneID) string {
 	} else if i >= 0 && i+1 < len(zoneColors) {
 		next = zoneColors[i+1]
 	}
-	if !e.apply(zone.SetColor{Zone: id, Color: next}) {
+	if e.apply(zone.SetColor{Zone: id, Color: next}) != nil {
 		return "Não foi possível mudar a cor"
 	}
 	if next == (zone.Color{}) {

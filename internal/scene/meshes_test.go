@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 )
 
@@ -51,26 +52,26 @@ func TestMeshActorsMatchUE2Studio(t *testing.T) {
 			tris += a.Triangles()
 		}
 		if len(s.Actors) != c.actors || tris != c.tris {
-			t.Errorf("%s: %d atores com %d triângulos, quero %d com %d", c.tile, len(s.Actors), tris, c.actors, c.tris)
+			t.Errorf("%s: %s with %s, want %d with %d", c.tile, inflect.Count(len(s.Actors), "actor", "actors"), inflect.Count(tris, "triangle", "triangles"), c.actors, c.tris)
 		}
 		for _, w := range s.Warnings {
 			if strings.Contains(w, "static mesh") {
-				t.Errorf("%s: aviso inesperado: %s", c.tile, w)
+				t.Errorf("%s: unexpected warning: %s", c.tile, w)
 			}
 		}
 		for _, sm := range c.samples {
 			a := byExport[sm.export]
 			if a == nil {
-				t.Errorf("%s: export %d não está entre os atores", c.tile, sm.export)
+				t.Errorf("%s: export %d is not among the actors", c.tile, sm.export)
 				continue
 			}
 			if a.Class != sm.class {
-				t.Errorf("%s: export %d é %s, quero %s", c.tile, sm.export, a.Class, sm.class)
+				t.Errorf("%s: export %d is %s, want %s", c.tile, sm.export, a.Class, sm.class)
 			}
 			for axis := range 3 {
 				if math.Abs(float64(a.Bounds.Min.Axis(axis)-sm.min.Axis(axis))) > 0.05 ||
 					math.Abs(float64(a.Bounds.Max.Axis(axis)-sm.max.Axis(axis))) > 0.05 {
-					t.Errorf("%s: %s (export %d): caixa %v, quero %v–%v", c.tile, a.Name, sm.export, a.Bounds, sm.min, sm.max)
+					t.Errorf("%s: %s (export %d): box %v, want %v–%v", c.tile, a.Name, sm.export, a.Bounds, sm.min, sm.max)
 					break
 				}
 			}
@@ -89,17 +90,17 @@ func TestPickHitsGiranRoof(t *testing.T) {
 	x, y := float32(77833), float32(149110)
 	h, ok := s.Pick(down(x, y))
 	if !ok {
-		t.Fatal("sem acerto no telhado")
+		t.Fatal("no hit on the roof")
 	}
 	ter := &s.Terrains[0]
 	ground := ter.Vertex(int((x-ter.Position.X)/ter.Scale.X+0.5), int((y-ter.Position.Y)/ter.Scale.Y+0.5)).Z
-	t.Logf("telhado: pick %.1f %.1f %.1f (%v), terreno abaixo %.1f", h.Pos.X, h.Pos.Y, h.Pos.Z, h.Surface, ground)
+	t.Logf("roof: pick %.1f %.1f %.1f (%v), terrain below %.1f", h.Pos.X, h.Pos.Y, h.Pos.Z, h.Surface, ground)
 	if h.Surface != scene.SurfaceMesh {
-		t.Errorf("superfície %v, quero static mesh", h.Surface)
+		t.Errorf("surface %v, want static mesh", h.Surface)
 	}
 	roof := h.Pos.Z - scene.ServerZOffset
 	if roof < ground+300 || roof > -2648.30+0.5 {
-		t.Errorf("telhado em z %.1f (cliente): quero entre %.1f (300 acima do terreno) e o topo da casa -2648.3", roof, ground+300)
+		t.Errorf("roof at z %.1f (client): want between %.1f (300 above the terrain) and the top of the house -2648.3", roof, ground+300)
 	}
 }
 
@@ -117,10 +118,10 @@ func TestMissingMeshPackageWarnsAndLoadsTheRest(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 	if len(s.Terrains) != 1 {
-		t.Errorf("%d terrenos, quero 1", len(s.Terrains))
+		t.Errorf("%s, want 1", inflect.Count(len(s.Terrains), "terrain", "terrains"))
 	}
 	if len(s.Actors) != 0 {
-		t.Errorf("%d atores sem nenhum pacote de mesh, quero 0", len(s.Actors))
+		t.Errorf("%s without any mesh package, want 0", inflect.Count(len(s.Actors), "actor", "actors"))
 	}
 	var named bool
 	for _, w := range s.Warnings {
@@ -128,7 +129,7 @@ func TestMissingMeshPackageWarnsAndLoadsTheRest(t *testing.T) {
 		named = named || strings.Contains(w, "Giran_Village_S")
 	}
 	if !named {
-		t.Errorf("nenhum aviso cita o pacote Giran_Village_S: %q", s.Warnings)
+		t.Errorf("no warning names the package Giran_Village_S: %q", s.Warnings)
 	}
 }
 

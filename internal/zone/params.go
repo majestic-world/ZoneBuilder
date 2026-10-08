@@ -15,7 +15,7 @@ type SetType struct {
 
 func (c SetType) apply(d *Document) error {
 	if !c.Type.Valid() {
-		return fmt.Errorf("zone: %q is not a server zone type", c.Type)
+		return fmt.Errorf("zona: %q não é um tipo de zona do servidor", c.Type)
 	}
 	z, err := d.zone(c.Zone)
 	if err != nil {
@@ -38,11 +38,11 @@ type SetParam struct {
 func (c SetParam) apply(d *Document) error {
 	switch {
 	case c.Name == "":
-		return fmt.Errorf("zone: a parameter needs a name")
+		return fmt.Errorf("zona: o parâmetro precisa de um nome")
 	case strings.TrimSpace(c.Name) != c.Name:
-		return fmt.Errorf("zone: parameter name %q starts or ends with a space", c.Name)
+		return fmt.Errorf("zona: o nome de parâmetro %q começa ou termina com espaço", c.Name)
 	case slices.Contains(reservedParams, c.Name):
-		return fmt.Errorf("zone: %q is reserved by the server's ZoneParser", c.Name)
+		return fmt.Errorf("zona: %q é reservado pelo ZoneParser do servidor", c.Name)
 	}
 	if spec, ok := KnownParam(c.Name); ok {
 		if err := spec.Check(c.Value); err != nil {
@@ -74,7 +74,7 @@ func (c RemoveParam) apply(d *Document) error {
 	}
 	i := slices.IndexFunc(z.Params, func(p Param) bool { return p.Name == c.Name })
 	if i < 0 {
-		return fmt.Errorf("zone: %s has no parameter %q", z.Name, c.Name)
+		return fmt.Errorf("zona: %s não tem o parâmetro %q", z.Name, c.Name)
 	}
 	z.Params = slices.Delete(z.Params, i, i+1)
 	return nil

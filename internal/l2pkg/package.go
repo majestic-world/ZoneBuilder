@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"zonebuilder/internal/inflect"
 )
 
 // maxTableCount rejects the absurd element counts a malformed package
@@ -154,7 +156,7 @@ func Parse(name string, data []byte) (*Package, error) {
 			return nil, fmt.Errorf("tabela de %s: quantidade inválida: %d", t.label, t.count)
 		}
 		if t.offset < 0 || int64(t.offset) > int64(len(data)) {
-			return nil, fmt.Errorf("tabela de %s: offset %d fora do pacote (%d bytes)", t.label, t.offset, len(data))
+			return nil, fmt.Errorf("tabela de %s: offset %d fora do pacote (%s)", t.label, t.offset, inflect.Count(len(data), "byte", "bytes"))
 		}
 	}
 
@@ -221,7 +223,7 @@ func firstError(errs ...error) error {
 
 func (p *Package) name(index int32) (string, error) {
 	if index < 0 || int(index) >= len(p.Names) {
-		return "", fmt.Errorf("índice de nome %d fora de uma tabela de %d nomes", index, len(p.Names))
+		return "", fmt.Errorf("índice de nome %d fora de uma tabela de %s", index, inflect.Count(len(p.Names), "nome", "nomes"))
 	}
 	return p.Names[index], nil
 }
@@ -269,7 +271,7 @@ func (p *Package) ObjectPath(ref int32) (string, error) {
 	var segments []string
 	for depth := 0; ref != 0; depth++ {
 		if depth == maxChainDepth {
-			return "", fmt.Errorf("cadeia de donos não termina após %d níveis", maxChainDepth)
+			return "", fmt.Errorf("cadeia de donos não termina após %s", inflect.Count(maxChainDepth, "nível", "níveis"))
 		}
 		name, err := p.ObjectName(ref)
 		if err != nil {

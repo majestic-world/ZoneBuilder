@@ -116,7 +116,7 @@ var (
 // Check reports whether v is a value of s's kind the server parses.
 func (s ParamSpec) Check(v string) error {
 	bad := func(want string) error {
-		return fmt.Errorf("zone: %s takes %s, not %q", s.Name, want, v)
+		return fmt.Errorf("zona: %s aceita %s, não %q", s.Name, want, v)
 	}
 	switch s.Kind {
 	case BoolParam, ChoiceParam:

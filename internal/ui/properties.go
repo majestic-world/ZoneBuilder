@@ -15,14 +15,34 @@ import (
 	"zonebuilder/internal/zone"
 )
 
-// ZoneEditor is what the properties panel edits through: the selected zone
-// and the Document's Apply. The panel never changes a zone itself.
-type ZoneEditor interface {
-	// SelectedZone is the zone the panel shows; false when none is.
-	SelectedZone() (zone.Zone, bool)
-	// Edit applies c to the document.
-	Edit(c zone.Command) error
+// EditZone is a properties panel request: apply Command to the zone the
+// panel shows. The window loop applies it and hands the outcome back to
+// PropertiesPanel.Applied; the panel never changes a zone itself.
+type EditZone struct {
+	Command zone.Command
+	// status is the status line on success; target is what the outcome
+	// lands on.
+	status string
+	target editTarget
 }
+
+// editTarget is the control an EditZone came from.
+type editTarget struct {
+	kind targetKind
+	// known is the index into PropertiesPanel.known; name the free
+	// parameter's name; value the text the edit tried.
+	known       int
+	name, value string
+}
+
+type targetKind int
+
+const (
+	typeTarget targetKind = iota
+	knownTarget
+	freeTarget
+	addTarget
+)
 
 var (
 	dimText   = color.NRGBA{R: 0x9A, G: 0x9E, B: 0xA6, A: 0xFF}
@@ -97,25 +117,65 @@ func (p *PropertiesPanel) init() {
 	p.newValue.SingleLine, p.newValue.Submit = true, true
 }
 
-// Update applies the panel's input to the selected zone through ed and
-// loads the zone into the fields. Call it once per frame before Layout. It
-// returns a status line for an applied edit, or "".
-func (p *PropertiesPanel) Update(gtx layout.Context, ed ZoneEditor) string {
-	z, ok := ed.SelectedZone()
+// Update loads z, the selected zone (ok false: none), into the fields and
+// returns the edits the panel's input asks for. Call it once per frame
+// before Layout, and hand each request's outcome to Applied.
+func (p *PropertiesPanel) Update(gtx layout.Context, z zone.Zone, ok bool) []EditZone {
 	if !ok {
 		p.shown = false
+		return nil
+	}
+	p.load(z, !p.shown || z.ID != p.zone)
+	return p.input(gtx)
+}
+
+// Applied takes the outcome err of applying r: it sets the error of the
+// control r came from, clears the new parameter fields once one is added,
+// and returns the status line ("" to keep the current one).
+func (p *PropertiesPanel) Applied(r EditZone, err error) string {
+	t := r.target
+	switch t.kind {
+	case typeTarget:
+		if err != nil {
+			return err.Error()
+		}
+	case knownTarget:
+		f := &p.known[t.known]
+		f.err = ""
+		if err != nil {
+			f.err, f.rejected = "Recusado: "+kindText(f.spec), t.value
+		}
+	case freeTarget:
+		for _, f := range p.free {
+			if f.name == t.name {
+				f.err = ""
+				if err != nil {
+					f.err = err.Error()
+				}
+			}
+		}
+	case addTarget:
+		switch {
+		case err == nil:
+			p.addErr = ""
+			p.newName.SetText("")
+			p.newValue.SetText("")
+		case isKnown(t.name):
+			s, _ := zone.KnownParam(t.name)
+			p.addErr = "Recusado: " + kindText(s)
+		default:
+			p.addErr = "Recusado: nome reservado pelo ZoneParser do servidor"
+		}
+	}
+	if err != nil {
 		return ""
 	}
-	if !p.shown || z.ID != p.zone {
-		p.load(z, true)
-	}
-	status := p.input(gtx, ed)
-	if z, ok = ed.SelectedZone(); ok {
-		p.load(z, false)
-	} else {
-		p.shown = false
-	}
-	return status
+	return r.status
+}
+
+func isKnown(name string) bool {
+	_, ok := zone.KnownParam(name)
+	return ok
 }
 
 // load brings the fields up to date with z. A field whose zone value did
@@ -183,15 +243,14 @@ func listItems(v string) []string {
 	})
 }
 
-// input turns the clicks and edits since the last frame into commands.
-func (p *PropertiesPanel) input(gtx layout.Context, ed ZoneEditor) string {
-	var status string
+// input turns the clicks and edits since the last frame into requests.
+func (p *PropertiesPanel) input(gtx layout.Context) []EditZone {
+	var reqs []EditZone
 	setType := func(t zone.Type) {
-		if err := ed.Edit(zone.SetType{Zone: p.zone, Type: t}); err != nil {
-			status = err.Error()
-			return
-		}
-		status = fmt.Sprintf("%s: tipo %s", p.name, t)
+		reqs = append(reqs, EditZone{
+			Command: zone.SetType{Zone: p.zone, Type: t},
+			status:  fmt.Sprintf("%s: tipo %s", p.name, t),
+		})
 	}
 	n := len(zone.Types)
 	cur := slices.Index(zone.Types, p.typ)
@@ -211,27 +270,26 @@ func (p *PropertiesPanel) input(gtx layout.Context, ed ZoneEditor) string {
 		}
 	}
 
-	// set applies name=value, or removes the parameter when value is nil;
-	// it returns the field error ("" on success).
-	set := func(name string, value *string) string {
-		var c zone.Command = zone.RemoveParam{Zone: p.zone, Name: name}
+	// set asks for name=value from target t, or for the parameter's
+	// removal when value is nil.
+	set := func(t editTarget, name string, value *string) {
+		r := EditZone{
+			Command: zone.RemoveParam{Zone: p.zone, Name: name},
+			status:  fmt.Sprintf("%s: %s removido", p.name, name),
+			target:  t,
+		}
 		if value != nil {
-			c = zone.SetParam{Zone: p.zone, Name: name, Value: *value}
+			r.Command = zone.SetParam{Zone: p.zone, Name: name, Value: *value}
+			r.status = fmt.Sprintf("%s: %s = %s", p.name, name, *value)
+			r.target.value = *value
 		}
-		if err := ed.Edit(c); err != nil {
-			return err.Error()
-		}
-		if value == nil {
-			status = fmt.Sprintf("%s: %s removido", p.name, name)
-		} else {
-			status = fmt.Sprintf("%s: %s = %s", p.name, name, *value)
-		}
-		return ""
+		reqs = append(reqs, r)
 	}
 
 	for i := range p.known {
 		f := &p.known[i]
 		s := f.spec
+		t := editTarget{kind: knownTarget, known: i}
 		switch {
 		case s.Kind == zone.BoolParam || s.Kind == zone.ChoiceParam:
 			// The options are the default (unset) and then each choice.
@@ -252,9 +310,9 @@ func (p *PropertiesPanel) input(gtx layout.Context, ed ZoneEditor) string {
 			n := len(s.Choices) + 1
 			at = ((at+step)%n + n) % n
 			if at == 0 {
-				f.err = set(s.Name, nil)
+				set(t, s.Name, nil)
 			} else {
-				f.err = set(s.Name, &s.Choices[at-1])
+				set(t, s.Name, &s.Choices[at-1])
 			}
 		case s.Kind == zone.ActionsParam:
 			changed := false
@@ -280,12 +338,12 @@ func (p *PropertiesPanel) input(gtx layout.Context, ed ZoneEditor) string {
 			}
 			if len(names) == 0 {
 				if f.set {
-					f.err = set(s.Name, nil)
+					set(t, s.Name, nil)
 				}
 				continue
 			}
 			v := strings.Join(names, ";")
-			f.err = set(s.Name, &v)
+			set(t, s.Name, &v)
 		default:
 			if !committed(gtx, &f.editor, &f.focused) {
 				continue
@@ -296,26 +354,25 @@ func (p *PropertiesPanel) input(gtx layout.Context, ed ZoneEditor) string {
 			}
 			switch {
 			case v == "" && f.set:
-				f.err = set(s.Name, nil)
+				set(t, s.Name, nil)
 			case v == "" || f.set && v == f.value:
 				f.err = ""
 			case f.err != "" && v == f.rejected:
 				// Already refused; leaving the field does not retry it.
 			default:
-				if f.err = set(s.Name, &v); f.err != "" {
-					f.err, f.rejected = "Recusado: "+kindText(s), v
-				}
+				set(t, s.Name, &v)
 			}
 		}
 	}
 
 	for _, f := range p.free {
+		t := editTarget{kind: freeTarget, name: f.name}
 		for f.remove.Clicked(gtx) {
-			f.err = set(f.name, nil)
+			set(t, f.name, nil)
 		}
 		if committed(gtx, &f.editor, &f.focused) && f.editor.Text() != f.value {
 			v := f.editor.Text()
-			f.err = set(f.name, &v)
+			set(t, f.name, &v)
 		}
 	}
 
@@ -337,16 +394,11 @@ func (p *PropertiesPanel) input(gtx layout.Context, ed ZoneEditor) string {
 			p.addErr = "Digite o nome do parâmetro"
 		} else if _, dup := paramValue(p.params(), name); dup {
 			p.addErr = name + " já está definido"
-		} else if p.addErr = set(name, &v); p.addErr == "" {
-			p.newName.SetText("")
-			p.newValue.SetText("")
-		} else if s, known := zone.KnownParam(name); known {
-			p.addErr = "Recusado: " + kindText(s)
 		} else {
-			p.addErr = "Recusado: nome reservado pelo ZoneParser do servidor"
+			set(editTarget{kind: addTarget, name: name}, name, &v)
 		}
 	}
-	return status
+	return reqs
 }
 
 // params is every parameter the fields hold, known ones first.

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/l2pkg"
 )
 
@@ -14,7 +15,7 @@ func clientRoot(t *testing.T) string {
 	t.Helper()
 	root := os.Getenv("ZB_CLIENT")
 	if root == "" {
-		t.Skip("ZB_CLIENT não definido: testes contra o cliente real pulados")
+		t.Skip("ZB_CLIENT not set: tests against the real client skipped")
 	}
 	return root
 }
@@ -36,9 +37,9 @@ func TestSweepOpensEveryClientPackage(t *testing.T) {
 		t.Fatal(err)
 	}
 	if opened == 0 {
-		t.Fatalf("nenhum pacote encontrado em %s", root)
+		t.Fatalf("no package found in %s", root)
 	}
-	t.Logf("%d pacotes abertos", opened)
+	t.Logf("%s opened", inflect.Count(opened, "package", "packages"))
 }
 
 // A Ver121 package keys its XOR on its own file name. Under its own name the
@@ -52,26 +53,28 @@ func TestRenamedVer121OpensByKeyRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want.Container.Version != 121 || want.Container.Recovered {
-		t.Fatalf("original: container %v, quer Lineage2Ver121 com a chave do nome", want.Container)
+		t.Fatalf("original: container %v, want Lineage2Ver121 with the key from the name", want.Container)
 	}
 
 	data, err := os.ReadFile(original)
 	if err != nil {
 		t.Fatal(err)
 	}
-	renamed := filepath.Join(t.TempDir(), "Renomeado.utx")
+	renamed := filepath.Join(t.TempDir(), "Renamed.utx")
 	if err := os.WriteFile(renamed, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	got, err := l2pkg.Open(renamed)
 	if err != nil {
-		t.Fatalf("renomeado: %v", err)
+		t.Fatalf("renamed: %v", err)
 	}
 	if !got.Container.Recovered || got.Container.Key != want.Container.Key {
-		t.Errorf("renomeado: container %v, quer a chave 0x%02x recuperada", got.Container, want.Container.Key)
+		t.Errorf("renamed: container %v, want the key 0x%02x recovered", got.Container, want.Container.Key)
 	}
 	if len(got.Exports) != len(want.Exports) || len(got.Names) != len(want.Names) {
-		t.Errorf("renomeado: %d nomes/%d exports, quer %d/%d", len(got.Names), len(got.Exports), len(want.Names), len(want.Exports))
+		t.Errorf("renamed: %s/%s, want %d/%d",
+			inflect.Count(len(got.Names), "name", "names"), inflect.Count(len(got.Exports), "export", "exports"),
+			len(want.Names), len(want.Exports))
 	}
 }
 
@@ -94,8 +97,9 @@ func TestExportCountsMatchUE2Studio(t *testing.T) {
 			continue
 		}
 		if len(pkg.Names) != c.names || len(pkg.Imports) != c.imports || len(pkg.Exports) != c.exports {
-			t.Errorf("%s: %d nomes, %d imports, %d exports; UE2-Studio: %d, %d, %d",
-				c.path, len(pkg.Names), len(pkg.Imports), len(pkg.Exports), c.names, c.imports, c.exports)
+			t.Errorf("%s: %s, %s, %s; UE2-Studio: %d, %d, %d",
+				c.path, inflect.Count(len(pkg.Names), "name", "names"), inflect.Count(len(pkg.Imports), "import", "imports"),
+				inflect.Count(len(pkg.Exports), "export", "exports"), c.names, c.imports, c.exports)
 		}
 	}
 }

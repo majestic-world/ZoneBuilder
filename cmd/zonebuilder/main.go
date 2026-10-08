@@ -27,6 +27,7 @@ import (
 
 	"zonebuilder/internal/camera"
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/project"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/render/egl"
@@ -277,8 +278,11 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 					status = msg
 				}
 			}
-			if msg := shell.Props.Update(gtx, zones); msg != "" {
-				status = msg
+			sel, selOK := zones.selectedZone()
+			for _, req := range shell.Props.Update(gtx, sel, selOK) {
+				if msg := shell.Props.Applied(req, zones.apply(req.Command)); msg != "" {
+					status = msg
+				}
 			}
 			if msg, load := sess.update(gtx, w, shell, zones, tiles.openTiles(), tiles.opening()); msg != "" || len(load) > 0 {
 				status = msg
@@ -331,7 +335,8 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			}
 			shell.Status = probe.status(tiles.world, &cam, shell.Viewport.Size())
 			shell.Zone.Info = zones.info()
-			shell.Zones.Rows, shell.Zones.Selected = zones.rows(), zones.selectedZone()
+			sel, _ = zones.selectedZone()
+			shell.Zones.Rows, shell.Zones.Selected = zones.rows(), sel.ID
 			if rows, ok := zones.problemRows(); ok {
 				shell.Problems.Rows = rows
 			}
@@ -339,9 +344,10 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				status = msg
 			}
 			if zones.anchored && tiles.world != nil && probe.inside {
-				zones.hoverAt(pickAt(tiles.world, &cam, probe.cursor, shell.Viewport.Size()))
+				h, ok := pickAt(tiles.world, &cam, probe.cursor, shell.Viewport.Size())
+				zones.hoverAt(tiles.world, h, ok)
 			} else {
-				zones.hoverAt(scene.Hit{}, false)
+				zones.hoverAt(nil, scene.Hit{}, false)
 			}
 			shell.Zone.Tools.Armed, shell.Zone.Tools.Active = zones.tool, zones.armed
 			var renderer *render.Renderer
@@ -417,7 +423,7 @@ func openTiles(tiles *tiles, shell *ui.Shell, list []scene.Tile) string {
 func logScene(tile scene.Tile, r tileResult) {
 	s := r.scene
 	log.Printf("cena: %s carregado em %v (preparo para a GPU %v): %s",
-		tile.Name(), r.load.Round(time.Millisecond), r.prepare.Round(time.Millisecond), count(len(s.Batches), "batch", "batches"))
+		tile.Name(), r.load.Round(time.Millisecond), r.prepare.Round(time.Millisecond), inflect.Count(len(s.Batches), "batch", "batches"))
 	for _, t := range s.Terrains {
 		ox, oy := t.Tile.Origin()
 		textured := 0
@@ -427,13 +433,13 @@ func logScene(tile scene.Tile, r tileResult) {
 			}
 		}
 		log.Printf("cena: terreno %s: %d×%d amostras, %s, %s, faixa x [%.1f, %.1f] y [%.1f, %.1f] z [%.1f, %.1f]; início do tile (%.0f, %.0f); fallback MapX/MapY=%t",
-			t.Tile.Name(), t.Width, t.Height, count(len(s.Batches[t.Batch].Indices)/3, "triângulo", "triângulos"),
-			count(textured, "camada texturizada", "camadas texturizadas"),
+			t.Tile.Name(), t.Width, t.Height, inflect.Count(len(s.Batches[t.Batch].Indices)/3, "triângulo", "triângulos"),
+			inflect.Count(textured, "camada texturizada", "camadas texturizadas"),
 			t.Bounds.Min.X, t.Bounds.Max.X, t.Bounds.Min.Y, t.Bounds.Max.Y, t.Bounds.Min.Z, t.Bounds.Max.Z,
 			ox, oy, t.FallbackScale)
 	}
 	if n, tris := bspSummary(s); n > 0 {
-		log.Printf("cena: BSP: %s, %s", count(n, "superfície", "superfícies"), count(tris, "triângulo", "triângulos"))
+		log.Printf("cena: BSP: %s, %s", inflect.Count(n, "superfície", "superfícies"), inflect.Count(tris, "triângulo", "triângulos"))
 	}
 	log.Printf("cena: %s", meshSummary(s))
 	untextured := 0
@@ -442,7 +448,7 @@ func logScene(tile scene.Tile, r tileResult) {
 			untextured += len(b.Indices) / 3
 		}
 	}
-	log.Printf("cena: %s sem textura", count(untextured, "triângulo", "triângulos"))
+	log.Printf("cena: %s sem textura", inflect.Count(untextured, "triângulo", "triângulos"))
 	for _, w := range s.Warnings {
 		log.Printf("cena: aviso: %s", w)
 	}
@@ -473,7 +479,7 @@ func panelLines(g *gfx, status string, tiles *tiles, cam *camera.Camera) []strin
 		}
 		if terrains > 0 {
 			lines = append(lines,
-				fmt.Sprintf("Terreno: %s", count(terrain, "triângulo", "triângulos")),
+				fmt.Sprintf("Terreno: %s", inflect.Count(terrain, "triângulo", "triângulos")),
 				fmt.Sprintf("x %.0f … %.0f", bounds.Min.X, bounds.Max.X),
 				fmt.Sprintf("y %.0f … %.0f", bounds.Min.Y, bounds.Max.Y),
 				fmt.Sprintf("z %.0f … %.0f", bounds.Min.Z, bounds.Max.Z),
@@ -482,7 +488,7 @@ func panelLines(g *gfx, status string, tiles *tiles, cam *camera.Camera) []strin
 			lines = append(lines, "Nenhum tile aberto tem terreno")
 		}
 		if n, tris := bspSummary(scenes...); n > 0 {
-			lines = append(lines, fmt.Sprintf("BSP: %s, %s", count(n, "superfície", "superfícies"), count(tris, "triângulo", "triângulos")))
+			lines = append(lines, fmt.Sprintf("BSP: %s, %s", inflect.Count(n, "superfície", "superfícies"), inflect.Count(tris, "triângulo", "triângulos")))
 		}
 		if len(scenes) > 0 {
 			lines = append(lines, meshSummary(scenes...))
@@ -513,7 +519,7 @@ func meshSummary(scenes ...*scene.Scene) string {
 		}
 	}
 	return fmt.Sprintf("Static meshes: %s, %s",
-		count(actors, "ator", "atores"), count(tris, "triângulo", "triângulos"))
+		inflect.Count(actors, "ator", "atores"), inflect.Count(tris, "triângulo", "triângulos"))
 }
 
 // bspSummary is the BSP surface and triangle counts of scenes.
@@ -525,12 +531,4 @@ func bspSummary(scenes ...*scene.Scene) (surfaces, tris int) {
 		}
 	}
 	return surfaces, tris
-}
-
-// count inflects a noun to n ("1 triângulo", "2 triângulos").
-func count(n int, singular, plural string) string {
-	if n == 1 {
-		return "1 " + singular
-	}
-	return fmt.Sprintf("%d %s", n, plural)
 }

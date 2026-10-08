@@ -1,12 +1,12 @@
 package ui
 
 import (
-	"strconv"
-
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+
+	"zonebuilder/internal/inflect"
 )
 
 // ProblemList is the side panel's problem panel: every problem of the
@@ -51,13 +51,10 @@ func (s *Shell) problemList() []layout.FlexChild {
 }
 
 func problemTitle(n int) string {
-	switch n {
-	case 0:
+	if n == 0 {
 		return "Problemas: nenhum"
-	case 1:
-		return "Problemas: 1 problema"
 	}
-	return "Problemas: " + strconv.Itoa(n) + " problemas"
+	return "Problemas: " + inflect.Count(n, "problema", "problemas")
 }
 
 // problemRow is one problem, clickable: the zone's name over the message.
@@ -88,11 +85,8 @@ func (s *Shell) problemRow(r ProblemRow, pick *widget.Clickable) layout.Widget {
 
 // problemCount is a zone's problem count as the zone list shows it.
 func problemCount(n int) string {
-	switch n {
-	case 0:
+	if n == 0 {
 		return "sem problemas"
-	case 1:
-		return "1 problema"
 	}
-	return strconv.Itoa(n) + " problemas"
+	return inflect.Count(n, "problema", "problemas")
 }

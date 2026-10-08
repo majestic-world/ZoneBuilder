@@ -35,19 +35,19 @@ func TestWorldPicksAcrossTheTileBorder(t *testing.T) {
 		{"22_22 atanas :387", 90498, 147535, -3528, geom.Vec3{Z: 500}},
 		{"23_22 faf_herald_lokness :464", 102656, 157424, -3735, geom.Vec3{Z: 500}},
 		{"23_22 summoner_brynthea :1343", 106345, 135523, -3415, geom.Vec3{Z: 500}},
-		{"23_22 visto de 22_22", 102656, 157424, -3735, geom.Vec3{X: -5000, Z: 10000}},
+		{"23_22 seen from 22_22", 102656, 157424, -3735, geom.Vec3{X: -5000, Z: 10000}},
 	} {
 		target := geom.Vec3{X: p.x, Y: p.y, Z: p.z}
 		origin := scene.FromServer(target.Add(p.from))
 		h, ok := w.Pick(scene.Ray{Origin: origin, Dir: p.from.Scale(-1)})
 		if !ok {
-			t.Errorf("%s: sem acerto", p.name)
+			t.Errorf("%s: no hit", p.name)
 			continue
 		}
 		d := h.Pos.Sub(target).Length()
-		t.Logf("%s: servidor %v %v %v, pick %.1f %.1f %.1f (%v)", p.name, p.x, p.y, p.z, h.Pos.X, h.Pos.Y, h.Pos.Z, h.Surface)
+		t.Logf("%s: server %v %v %v, pick %.1f %.1f %.1f (%v)", p.name, p.x, p.y, p.z, h.Pos.X, h.Pos.Y, h.Pos.Z, h.Surface)
 		if math.IsNaN(float64(d)) || d >= 16 {
-			t.Errorf("%s: pick %v está a %.1f unidades do servidor %v, quero menos de 16", p.name, h.Pos, d, target)
+			t.Errorf("%s: pick %v is %.1f units from the server %v, want less than 16", p.name, h.Pos, d, target)
 		}
 	}
 }
@@ -65,10 +65,10 @@ func TestWorldForgetsARemovedTile(t *testing.T) {
 	w.Add(east)
 	r := scene.Ray{Origin: geom.Vec3{X: 106345, Y: 135523, Z: -2900}, Dir: geom.Vec3{Z: -1}}
 	if _, ok := w.Pick(r); !ok {
-		t.Fatal("sem acerto antes de remover o tile")
+		t.Fatal("no hit before removing the tile")
 	}
 	w.Remove(east)
 	if h, ok := w.Pick(r); ok {
-		t.Errorf("acerto em %v depois de remover o tile", h.Pos)
+		t.Errorf("hit at %v after removing the tile", h.Pos)
 	}
 }

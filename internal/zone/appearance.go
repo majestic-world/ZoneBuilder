@@ -63,7 +63,7 @@ type SetHidden struct {
 func (c SetHidden) apply(d *Document) error {
 	for _, id := range c.Zones {
 		if d.index(id) < 0 {
-			return fmt.Errorf("zone: no zone with ID %d", id)
+			return fmt.Errorf("zona: não há zona com ID %d", id)
 		}
 	}
 	for _, id := range c.Zones {

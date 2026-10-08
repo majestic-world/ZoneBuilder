@@ -6,8 +6,7 @@ import "reflect"
 // undoable step, and after each undone one. Every command goes through
 // Apply, which snapshots the zones (a deep clone, so commands may change
 // them in place); undoing swaps the snapshot back. Commands need nothing of
-// their own to be undoable, and any model field reachable from Zone is
-// covered. The ID counter is not part of a step: IDs are never reused.
+// their own to be undoable. The ID counter is not part of a step: IDs are never reused.
 type history struct {
 	undo, redo [][]Zone
 }
@@ -16,7 +15,7 @@ type history struct {
 // the snapshot is put back, so even a command that changed d before failing
 // leaves it unchanged; a command that changes nothing records no step.
 func (d *Document) record(c Command) error {
-	before := clone(d.zones)
+	before := cloneZones(d.zones)
 	if err := c.apply(d); err != nil {
 		d.zones = before
 		return err
@@ -56,9 +55,3 @@ func (d *Document) Redo() bool {
 	d.changed()
 	return true
 }
-
-// CanUndo reports whether Undo has a step to revert.
-func (d *Document) CanUndo() bool { return len(d.history.undo) > 0 }
-
-// CanRedo reports whether Redo has a step to reapply.
-func (d *Document) CanRedo() bool { return len(d.history.redo) > 0 }
