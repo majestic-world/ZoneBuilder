@@ -1,12 +1,14 @@
 // Package scene builds a map's renderable and pickable geometry in CPU
-// memory, with no GPU involved: the Scene seam of the spec (Load; Pick
-// arrives with terrain picking).
+// memory, with no GPU involved: the Scene seam of the spec (Load, Pick).
 //
-// Positions are absolute world coordinates in Unreal's basis (X/Y
-// horizontal, Z up), which is the server's world space: tile X_Y starts at
-// ((X-20)*32768, (Y-18)*32768). The renderer subtracts Origin before
-// uploading, to keep float precision near the camera, and swaps Y/Z into its
-// Y-up render basis (ToRender).
+// Geometry positions are absolute client world coordinates in Unreal's
+// basis (X/Y horizontal, Z up): tile X_Y starts at ((X-20)*32768,
+// (Y-18)*32768). The server uses the same X and Y, but its ground sits
+// ServerZOffset above the client's surfaces (docs/adr/0003); a Hit is in
+// server coordinates, and server-space data (zones, a typed x y z) goes
+// through FromServer before it meets the geometry. The renderer subtracts
+// Origin before uploading, to keep float precision near the camera, and
+// swaps Y/Z into its Y-up render basis (ToRender).
 package scene
 
 import (
@@ -21,6 +23,24 @@ import (
 
 // TileSpan is the world size of one map tile on X and Y.
 const TileSpan = 32768
+
+// ServerZOffset is how far the server's ground (its geodata, what //pos
+// prints) sits above the client's surfaces, measured against the
+// datapack's geodata (docs/adr/0003).
+const ServerZOffset = 32
+
+// ToServer converts a client world position to server coordinates.
+func ToServer(v geom.Vec3) geom.Vec3 {
+	v.Z += ServerZOffset
+	return v
+}
+
+// FromServer converts a server position to client world coordinates, the
+// space of the scene's geometry, rays and camera.
+func FromServer(v geom.Vec3) geom.Vec3 {
+	v.Z -= ServerZOffset
+	return v
+}
 
 // Tile names one map tile, the X_Y of Maps/X_Y.unr. Classic selects the
 // X_Y_Classic variant of the same tile.

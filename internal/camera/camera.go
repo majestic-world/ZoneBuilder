@@ -116,6 +116,21 @@ func (c *Camera) Basis() (right, up geom.Vec3) {
 	return right, right.Cross(f)
 }
 
+// Ray is the view ray through pixel (x, y) of a width×height viewport
+// (origin top-left, y down): it starts at the camera and its direction is
+// a unit vector, both in the camera's rebased render space. It is the exact
+// inverse of the renderer's projection (same FovY, aspect width/height and
+// basis), as in UE2-Studio's camera.rs ray.
+func (c *Camera) Ray(x, y float32, width, height int) (origin, dir geom.Vec3) {
+	w, h := float32(max(width, 1)), float32(max(height, 1))
+	ndcX := 2*x/w - 1
+	ndcY := 1 - 2*y/h
+	tan := float32(math.Tan(FovY / 2))
+	right, up := c.Basis()
+	dir = right.Scale(ndcX * tan * w / h).Add(up.Scale(ndcY * tan)).Add(c.Forward()).Normalize()
+	return c.Position, dir
+}
+
 func atan2(y, x float32) float32 { return float32(math.Atan2(float64(y), float64(x))) }
 func cos(a float32) float32      { return float32(math.Cos(float64(a))) }
 func sin(a float32) float32      { return float32(math.Sin(float64(a))) }

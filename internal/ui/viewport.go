@@ -33,7 +33,7 @@ func (v *Viewport) Update(gtx layout.Context) (event.Event, bool) {
 	filters := []event.Filter{
 		pointer.Filter{
 			Target:  v,
-			Kinds:   pointer.Press | pointer.Release | pointer.Drag | pointer.Move | pointer.Scroll,
+			Kinds:   pointer.Press | pointer.Release | pointer.Drag | pointer.Move | pointer.Scroll | pointer.Enter | pointer.Leave,
 			ScrollX: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20},
 			ScrollY: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20},
 		},
