@@ -1,6 +1,6 @@
 # Zone Builder: plano do projeto
 
-App desktop em Go + Gio para demarcar zonas do servidor Lineage 2 diretamente sobre o mapa do cliente (`.unr`) renderizado em 3D e compilar as demarcações para o XML que o datapack espera.
+App desktop em Go + Gio para demarcar zonas do servidor Lineage 2 diretamente sobre o mapa do cliente (`.unr`) renderizado em 3D e compilar as demarcações para o XML que o servidor Java espera. O app só abre `.unr` e gera XML: não lê o datapack nem altera o servidor Java.
 
 O problema que resolve: hoje as zonas são gravadas andando com o personagem (`//zone_panel` em `AdminZoneBuilder.java`), o que não alcança todos os cantos, sempre emite `peace_zone`, grava um Z por ponto e despeja o XML no console do servidor. No Zone Builder, cada ponto vem de um clique no viewport (ray cast contra terreno, BSP e static meshes), em qualquer lugar do mapa.
 
@@ -9,8 +9,8 @@ O problema que resolve: hoje as zonas são gravadas andando com o personagem (`/
 | Assunto | Fonte |
 | --- | --- |
 | Abrir e renderizar `.unr` | `C:/Workspace/UE2-Studio` (Rust): `crates/package-engine`, `crates/texture-engine`, `crates/static-mesh-engine`, `src/unreal/mod.rs`, `src/unreal/objects.rs`, `src/unreal/visual.rs`, `src/scene.rs`, `src/gpu.rs`, `docs/formats/client-versions.md`, `docs/formats/material-objects.md` |
-| Formato do XML | `majestic-datapack-main/gameserver/data/zone/zone.dtd` e os 20 arquivos em `data/zone/` |
-| Semântica do XML (quem consome) | `majestic-java-main/server/.../data/xml/parser/ZoneParser.java`, `templates/ZoneTemplate.java`, `model/Zone.java` (enum `ZoneType`, L655-679), `model/Territory.java`, `commons/.../geometry/Polygon.java`, `model/World.java` (L786-800) |
+| Formato do XML (só referência, o app não lê) | `majestic-datapack-main/gameserver/data/zone/zone.dtd` e os 20 arquivos em `data/zone/` |
+| Semântica do XML (quem consome; só referência, o app não altera) | `majestic-java-main/server/.../data/xml/parser/ZoneParser.java`, `templates/ZoneTemplate.java`, `model/Zone.java` (enum `ZoneType`, L655-679), `model/Territory.java`, `commons/.../geometry/Polygon.java`, `model/World.java` (L786-800) |
 
 O Zone Builder porta a lógica de leitura do UE2-Studio para Go; ele não chama o código Rust. Nenhum crate do UE2-Studio expõe C ABI (todos são `dylib` com ABI Rust), e o caminho de leitura é pequeno e puro (bytes → structs), então portar sai mais barato que manter uma ponte cgo.
 
@@ -43,9 +43,9 @@ Riscos que o M0 precisa eliminar:
 
 ### Projeto de trabalho + compilação
 
-- O documento de trabalho é um arquivo de projeto JSON (`*.zbproj`). Ele guarda caminho do cliente, caminho do datapack, tiles abertos e as zonas, inclusive rascunhos inválidos (polígono com 2 pontos, nome repetido, campo obrigatório vazio), além de cor e visibilidade.
+- O documento de trabalho é um arquivo de projeto JSON (`*.zbproj`). Ele guarda caminho do cliente, pasta de saída do XML, tiles abertos e as zonas, inclusive rascunhos inválidos (polígono com 2 pontos, nome repetido, campo obrigatório vazio), além de cor e visibilidade.
 - **Compilar** transforma as zonas válidas em XML. Zona com erro bloqueia a compilação e aparece na lista de problemas, com clique levando até ela.
-- Zonas já existentes no datapack entram como camada de referência somente leitura (ver a decisão em aberto 2).
+- O projeto é a única entrada de zonas. O app não lê XML de zona; as regras de leitura do `ZoneParser` só decidem o que o compilador emite.
 
 ### Fluxo
 
@@ -60,10 +60,9 @@ flowchart LR
   E --> F["renderer GLES<br/>passes"]
   E --> G["picking<br/>ray → x y z"]
   G --> H["zonas<br/>projeto .zbproj"]
-  I["datapack data/zone/*.xml"] --> H
   H --> J["validação"]
   J --> K["compilador XML"]
-  K --> L["data/zone/*.xml"]
+  K --> L["pasta de saída<br/>XML por tipo"]
 ```
 
 ### Estrutura do código
@@ -78,7 +77,7 @@ internal/scene/         construção de malha (grid do terreno, fan do BSP, tran
 internal/render/        bindings EGL/GLES via ANGLE, shaders, passes, upload de textura, overlay de zonas
 internal/camera/        câmera fly, ray a partir do cursor
 internal/zone/          modelo de zona, geometria (simple polygon, point-in-polygon), validação, tipos e parâmetros conhecidos
-internal/zonexml/       importação do datapack e compilação para XML
+internal/zonexml/       compilação para XML
 internal/project/       leitura e gravação do .zbproj
 internal/ui/            painéis Gio: zonas, propriedades, ferramentas, problemas, status
 ```
@@ -139,10 +138,10 @@ Overlay: prisma translúcido entre `zmin` e `zmax`, arestas desenhadas por cima 
 
 - **Lista de zonas:** busca por nome, filtro por tipo, mostrar/ocultar por zona e por tipo, contagem de problemas; selecionar leva a câmera até a zona.
 - **Painel de propriedades:** nome; tipo (lista fechada com os 23 valores do enum, respeitando maiúsculas); parâmetros conhecidos do `ZoneTemplate` com widget tipado e padrão (`enabled`, `default`, `target`, `affect_race`, `skill_name`, `damage_on_hp`, `blocked_actions` etc.); parâmetros livres chave/valor para os lidos por scripts (`residence`, `distribution_id`, `fishing_place_type`, `playerMinLevel` etc.).
-- **Importação do datapack:** lê `data/zone/*.xml` com a mesma semântica do `ZoneParser` (separadores `[\s,;]+`, Z padrão −32768..32767 quando a coords tem menos de 4 números, círculo como `c ± r`) e mostra as cerca de 1.700 zonas existentes como camada de referência.
+- **Duplicar zona** para criar variações sem redesenhar.
 - **Painel de problemas** atualizado a cada edição.
 
-**Pronto quando:** abrir um tile com o datapack configurado mostra todas as zonas existentes daquele tile no lugar certo (conferência visual de `[giran_non_trade]` com a exclusão dela); e salvar, fechar e reabrir o `.zbproj` devolve as zonas idênticas.
+**Pronto quando:** com 3 zonas de tipos diferentes no projeto, a busca, o filtro por tipo e o mostrar/ocultar afetam a lista e o viewport como esperado; selecionar uma zona leva a câmera até ela; e salvar, fechar e reabrir o `.zbproj` devolve as zonas idênticas.
 
 ### M7. Validação e compilação para XML
 
@@ -153,8 +152,7 @@ Regras (cada uma vira item no painel de problemas):
 - `zmin <= zmax` em todo shape.
 - Pelo menos 1 shape incluído por zona.
 - `type` dentro do enum, com a caixa exata.
-- Nome único no projeto **e** em todo o `data/zone/` do datapack.
-- Nomes usados no código Java (`[baium_epic]`, `residence_<id>`, `[giran_harbor_offshore]` etc.) geram aviso ao renomear.
+- Nome único no projeto. O app não conhece as zonas do datapack: evitar colisão com nomes existentes (o servidor sobrescreve sem avisar) fica com o usuário, por exemplo com um prefixo próprio.
 - `RESIDENCE` com nome `residence_<id>`; `FISHING` com `distribution_id` e `fishing_place_type`; `SIEGE`/`HEADQUARTER` com `residence`.
 - Coordenadas dentro de X ∈ [−163840, 229375] e Y ∈ [−262144, 294911].
 
@@ -167,7 +165,7 @@ Compilador:
 - Nunca emite `circle`.
 - Inclui só as zonas selecionadas ou marcadas para exportação.
 
-**Pronto quando:** o XML compilado de um projeto com 1 zona de cada tipo usado no datapack é carregado pelo `ZoneParser` do servidor sem nenhuma linha `invalid territory data`, `Empty territory` ou exceção; e `//zone_check` em 3 pontos de teste (dentro, fora e dentro da exclusão) responde conforme o desenho.
+**Pronto quando:** o XML compilado de um projeto com 1 zona de cada um dos 23 tipos é carregado pelo `ZoneParser` do servidor, sem nenhuma alteração no Java, sem nenhuma linha `invalid territory data`, `Empty territory` ou exceção; e `//zone_check` em 3 pontos de teste (dentro, fora e dentro da exclusão) responde conforme o desenho.
 
 ### M8. Containers 41x (condicional)
 
@@ -179,8 +177,10 @@ Blowfish (211/212) e RSA + zlib (411-414), a partir das referências públicas d
 
 - Editar ou salvar `.unr` e qualquer escrita em pacote.
 - Gerar geodata.
-- Reload de zonas no servidor em runtime (o servidor não tem; precisaria de um comando admin novo no Java).
+- Reload de zonas no servidor em runtime.
 - Iluminação (lightmaps, vertex colors), skeletal meshes, emitters e sons: o modo Textured do UE2-Studio também não usa iluminação.
+- Ler, mostrar, importar ou editar zonas que já existem no datapack. O datapack só serviu de referência para entender o formato.
+- Qualquer mudança no servidor Java, inclusive no `//zone_panel` e no bug do `Circle.isInside`.
 - `domains.xml`, `restart_points.xml` e territórios de spawn (`<mesh><vertex .../>`). O modelo de shape serve para eles depois, mas os formatos de saída são outros.
 
 ## Testes
@@ -189,12 +189,10 @@ Seguindo a regra de testar só o que tem um bug concreto para pegar:
 - **Leitura de pacote:** varredura do corpus do cliente pelo `zbdump`, com o caminho do cliente vindo de uma variável de ambiente; o teste é pulado quando ela não existe. Pega quebra de gate de versão/licensee.
 - **Compact index, propriedades e DXT:** casos de bytes reais tirados do cliente, em especial as bordas que o UE2-Studio já mediu (`skip_material_data`, Ver121 renomeado).
 - **Geometria de zona:** polígono com auto-interseção na aresta 0→1 (o caso que o servidor deixa passar), ponto na borda horizontal, exclusão.
-- **Compilação:** round-trip importar → compilar → importar mantendo a semântica do `ZoneParser`, e o teste de aceitação do M7 contra o servidor de verdade.
+- **Compilação:** todas as coords de um polígono compilado trazem o mesmo `zmin zmax`; compilar 2 vezes gera bytes idênticos; e o teste de aceitação do M7 contra o servidor de verdade.
 
 ## Decisões em aberto
 
 1. **Versões de cliente.** "Todas as versões como o UE2-Studio" hoje significa raw, Ver111 e Ver121, com ArVer 117-133. Algum cliente alvo usa container 41x (Blowfish/RSA)? Se sim, o M8 entra no escopo; se não, fica de fora.
-2. **Zonas existentes do datapack.** Recomendado: camada de referência somente leitura, e o Zone Builder grava só os próprios arquivos (por exemplo `data/zone/zone_builder_<tipo>.xml`). Alternativa: editar e regravar os arquivos existentes, o que perde comentários, zonas comentadas (como em `FISHING.xml` e `aoe_fun_zone.xml`) e a indentação mista atual.
-3. **Agrupamento da saída.** Um arquivo por tipo (padrão atual do datapack) ou um arquivo por projeto.
-4. **`AdminZoneBuilder` no servidor.** Mantido como está, ou trocado por um comando que desenha com `ExServerPrimitive` um XML compilado, para conferir no jogo sem reiniciar.
-5. **Plataforma.** O plano assume só Windows (ANGLE + HWND). Linux mudaria a camada EGL (EGL do sistema em vez de ANGLE).
+2. **Agrupamento da saída.** Um arquivo por tipo (padrão atual do datapack) ou um arquivo por projeto.
+3. **Plataforma.** O plano assume só Windows (ANGLE + HWND). Linux mudaria a camada EGL (EGL do sistema em vez de ANGLE).
