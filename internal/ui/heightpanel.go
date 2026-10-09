@@ -43,6 +43,9 @@ type HeightPanel struct {
 	// floors and moves the tops.
 	Height    widget.Editor
 	SetHeight widget.Clickable
+	// FloorToGround and TopToGround move one side of every shape of the
+	// zone to the floor under it, with the inspector's margin.
+	FloorToGround, TopToGround widget.Clickable
 	// Reopen, in the inspector, opens the window again after its × closed
 	// it.
 	Reopen widget.Clickable
@@ -109,6 +112,11 @@ func (s *Shell) heightWindow(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(s.fieldButton(&p.Base, "z", nil, apply(&p.SetBase))),
 			layout.Rigid(s.fieldLabel("Altura: topo = piso + altura")),
 			layout.Rigid(s.fieldButton(&p.Height, "altura", nil, apply(&p.SetHeight))),
+			layout.Rigid(s.fieldLabel("Ajustar ao chão, com a folga Z do inspetor")),
+			layout.Rigid(buttonRow(
+				s.button(&p.FloorToGround, secondaryButton, nil, "Piso ao chão"),
+				s.button(&p.TopToGround, secondaryButton, nil, "Topo ao chão"),
+			)),
 		)
 	})
 }

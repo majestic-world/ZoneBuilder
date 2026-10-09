@@ -25,7 +25,7 @@ type EditPanel struct {
 	// line per row, is how its Z range covers the floor under it.
 	Shape, Measure, Coverage string
 	// ZRange is "zmin zmax"; SetZRange (or Enter) applies it, GroundZ
-	// recomputes it from the ground under the vertices.
+	// recomputes it from the floor under the shape's area.
 	ZRange       widget.Editor
 	SetZRange    widget.Clickable
 	GroundZ      widget.Clickable
