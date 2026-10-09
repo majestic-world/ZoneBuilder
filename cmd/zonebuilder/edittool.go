@@ -395,10 +395,11 @@ func (e *zoneEditor) setZoneHeight(text string) string {
 // to undo; a shape with no floor counted, or that the move would turn
 // upside down, keeps its range.
 func (e *zoneEditor) zoneToGround(c *floorCoverage, s *scene.World, top bool) string {
-	side, name, sides := "piso", locale.Text(e.Language, "editor.ground.floor_side"), coverage.FloorSide
+	sideKey, side, sides := "editor.ground.floor_side", "piso", coverage.FloorSide
 	if top {
-		side, name, sides = "topo", locale.Text(e.Language, "editor.ground.top_side"), coverage.TopSide
+		sideKey, side, sides = "editor.ground.top_side", "topo", coverage.TopSide
 	}
+	name := locale.Text(e.Language, sideKey)
 	z, _, _, ok := e.zoneZ()
 	switch {
 	case s == nil:
@@ -427,7 +428,7 @@ func (e *zoneEditor) zoneToGround(c *floorCoverage, s *scene.World, top bool) st
 		steps = append(steps, zone.SetZRange{Zone: z.ID, Shape: i, ZMin: zmin, ZMax: zmax})
 	}
 	if len(steps) == 0 {
-		return e.message("editor.ground.none", map[string]string{"side": name, "name": z.Name})
+		return e.message("editor.ground.none", map[string]string{"side": name, "__side": sideKey, "name": z.Name})
 	}
 	if e.apply(steps) != nil {
 		return e.text("editor.ground.failed")
@@ -439,7 +440,7 @@ func (e *zoneEditor) zoneToGround(c *floorCoverage, s *scene.World, top bool) st
 			key = "editor.ground.one_kept"
 		}
 	}
-	return e.plural(key, len(steps), map[string]string{"side": name, "name": z.Name, "margin": intArg(e.margin), "kept": intArg(kept)})
+	return e.plural(key, len(steps), map[string]string{"side": name, "__side": sideKey, "name": z.Name, "margin": intArg(e.margin), "kept": intArg(kept)})
 }
 
 // insertAfter inserts a vertex in the middle of the current shape's edge

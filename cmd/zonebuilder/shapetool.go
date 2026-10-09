@@ -248,7 +248,7 @@ func (e *zoneEditor) circleClick(s *scene.World, c *floorCoverage, v zone.Point)
 	if e.banned {
 		key = "editor.circle.exclusion_done"
 	}
-	return e.message(key, map[string]string{"name": z.Name, "radius": intArg(r), "vertices": intArg(len(pts)), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language)})
+	return e.message(key, map[string]string{"name": z.Name, "radius": intArg(r), "vertices": intArg(len(pts)), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language), "__source": fit.sourceKey()})
 }
 
 // restartClick adds v to the selected zone's restart points (player
@@ -338,7 +338,7 @@ func (e *zoneEditor) hoverAt(s *scene.World, c *floorCoverage, h scene.Hit, ok b
 	}
 	e.ghostZ = fit
 	e.version++
-	return e.message("editor.preview", map[string]string{"hint": e.hint(), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language)})
+	return e.message("editor.preview", map[string]string{"hint": e.hint(), "__hint": e.hintKey(), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language), "__source": fit.sourceKey()})
 }
 
 // preview is the rectangle or circle being placed: from the anchor to the

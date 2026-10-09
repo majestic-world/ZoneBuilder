@@ -82,12 +82,12 @@ func newZoneEditor() *zoneEditor {
 
 // message retains the identity and raw user data behind a visible editor status.
 func (e *zoneEditor) message(key string, args map[string]string) string {
-	e.LastMessage = locale.Message{Key: key, Args: retainEditorArgs(args, e.Language)}
+	e.LastMessage = locale.Message{Key: key, Args: args}
 	return e.Status(e.Language)
 }
 
 func (e *zoneEditor) plural(key string, count int, args map[string]string) string {
-	e.LastMessage = locale.Message{Key: key, Count: count, Plural: true, Args: retainEditorArgs(args, e.Language)}
+	e.LastMessage = locale.Message{Key: key, Count: count, Plural: true, Args: args}
 	return e.Status(e.Language)
 }
 
@@ -128,44 +128,6 @@ func (e *zoneEditor) Status(lang locale.Language) string {
 	return msg.Render(lang)
 }
 
-func retainEditorArgs(args map[string]string, lang locale.Language) map[string]string {
-	if len(args) == 0 {
-		return args
-	}
-	for _, field := range []string{"source", "hint", "side"} {
-		for _, key := range editorInnerKeys(field) {
-			if args[field] == locale.Text(lang, key) {
-				args["__"+field] = key
-				break
-			}
-		}
-	}
-	for _, field := range []string{"vertices", "files"} {
-		if words := strings.Fields(args[field]); len(words) > 0 {
-			if _, err := strconv.Atoi(words[0]); err == nil {
-				args["__"+field] = words[0]
-			}
-		}
-	}
-	return args
-}
-
-func editorInnerKeys(field string) []string {
-	switch field {
-	case "source":
-		return []string{"editor.source.ground", "editor.source.measuring", "editor.source.off_tiles", "editor.source.no_ground"}
-	case "side":
-		return []string{"editor.ground.floor_side", "editor.ground.top_side"}
-	default:
-		return []string{
-			"editor.hint.rectangle_opposite", "editor.hint.rectangle_first", "editor.hint.exclusion_rectangle_opposite", "editor.hint.exclusion_rectangle_first",
-			"editor.hint.circle_radius", "editor.hint.circle_center", "editor.hint.exclusion_circle_radius", "editor.hint.exclusion_circle_center",
-			"editor.hint.restart", "editor.hint.pk_restart", "editor.hint.polygon_continue", "editor.hint.exclusion_polygon_continue",
-			"editor.hint.polygon_first", "editor.hint.exclusion_polygon_first",
-		}
-	}
-}
-
 func (e *zoneEditor) text(key string) string { return e.message(key, nil) }
 
 func intArg(n int) string { return fmt.Sprint(n) }
@@ -183,7 +145,7 @@ func pointArgs(p zone.Point) map[string]string {
 }
 
 func shapeArgs(lang locale.Language, name string, a, b zone.Point, fit zSuggestion) map[string]string {
-	return map[string]string{"name": name, "x0": intArg(a.X), "y0": intArg(a.Y), "x1": intArg(b.X), "y1": intArg(b.Y), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(lang)}
+	return map[string]string{"name": name, "x0": intArg(a.X), "y0": intArg(a.Y), "x1": intArg(b.X), "y1": intArg(b.Y), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(lang), "__source": fit.sourceKey()}
 }
 
 // apply runs c on the document, logging a failure, and returns its error.
@@ -214,7 +176,7 @@ func (e *zoneEditor) create(name string, t zone.Type, tool ui.Tool) string {
 	e.zone = id
 	log.Printf("zona: criada %s (%s)", name, t)
 	e.arm(tool, false)
-	return e.message("editor.create.done", map[string]string{"name": name, "hint": e.hint()})
+	return e.message("editor.create.done", map[string]string{"name": name, "hint": e.hint(), "__hint": e.hintKey()})
 }
 
 // points is the polygon being drawn.
@@ -297,7 +259,7 @@ func (e *zoneEditor) close(s *scene.World, c *floorCoverage) string {
 	if e.banned {
 		key = "editor.polygon.exclusion_closed"
 	}
-	return e.message(key, map[string]string{"name": z.Name, "vertices": e.vertexCount(len(pts)), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language)})
+	return e.message(key, map[string]string{"name": z.Name, "vertices": e.vertexCount(len(pts)), "__vertices": intArg(len(pts)), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language), "__source": fit.sourceKey()})
 }
 
 // selection is the zones checked for compilation, in creation order.
@@ -343,14 +305,15 @@ func (e *zoneEditor) compile() (string, []zonexml.File) {
 	}
 	files, err := e.doc.Compile(sel)
 	if b, ok := errors.AsType[*zone.BlockedError](err); ok {
-		return e.blockedStatus(b), nil
+		e.blockedStatus(b, e.Language)
+		return e.plural("zone.problem.blocked_status", len(b.Problems), nil), nil
 	}
 	if err != nil {
 		log.Printf("zona: compilação: %v", err)
 		return e.message("editor.compile.failed", map[string]string{"detail": err.Error()}), nil
 	}
 	log.Printf("zona: compiladas %s em %s", inflect.Count(len(sel), "zona", "zonas"), inflect.Count(len(files), "arquivo", "arquivos"))
-	return e.plural("editor.compile.done", len(sel), map[string]string{"files": e.fileCount(len(files))}), files
+	return e.plural("editor.compile.done", len(sel), map[string]string{"files": e.fileCount(len(files)), "__files": intArg(len(files))}), files
 }
 
 // info is the zone panel's lines below its controls: the armed tool's
