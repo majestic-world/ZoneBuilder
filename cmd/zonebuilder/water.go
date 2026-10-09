@@ -15,12 +15,9 @@ import (
 	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
+	"zonebuilder/internal/water"
 	"zonebuilder/internal/zone"
 )
-
-// waterServerZOffset is what a water zone's Z adds to the client Z of its
-// volume (spec D6): the status shows the server top with it.
-const waterServerZOffset = -30
 
 // waterSelection is the water volumes the user selected by clicking (spec
 // D3), kept by identity so they survive the tiles' scenes being re-added
@@ -159,7 +156,7 @@ func (ws *waterSelection) status(w *scene.World) string {
 	}
 	client, server := make([]string, len(tops)), make([]string, len(tops))
 	for i, t := range tops {
-		client[i], server[i] = strconv.Itoa(t), strconv.Itoa(t+waterServerZOffset)
+		client[i], server[i] = strconv.Itoa(t), strconv.Itoa(t+water.ServerZOffset)
 	}
 	topWord := "topo"
 	if len(tops) > 1 {
