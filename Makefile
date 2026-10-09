@@ -1,5 +1,4 @@
-APP := zonebuilder
-BIN := bin/$(APP).exe
+BIN := bin/Zone Builder.exe
 
 # scripts/build.ps1 compiles without cgo and copies ANGLE's libEGL.dll and
 # libGLESv2.dll from third_party/angle next to the executable.
@@ -13,4 +12,4 @@ build:
 	$(POWERSHELL) -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 
 run: build
-	./$(BIN) $(ARGS)
+	"./$(BIN)" $(ARGS)

@@ -1,6 +1,6 @@
 # ANGLE
 
-64-bit `libEGL.dll` and `libGLESv2.dll` that the Zone Builder loads at run time (OpenGL ES 3.0 over Direct3D 11). `scripts/build.ps1` copies them next to `bin/zonebuilder.exe`. License: BSD, in `LICENSE`.
+64-bit `libEGL.dll` and `libGLESv2.dll` that the Zone Builder loads at run time (OpenGL ES 3.0 over Direct3D 11). `scripts/build.ps1` copies them next to `bin/Zone Builder.exe`. License: BSD, in `LICENSE`.
 
 - Version: ANGLE 2.1.23105, git hash 5d4df51d1d7d (as the app logs it at startup).
 - Taken from a Chromium Embedded Framework build (`cef.win64`); they depend only on Windows system DLLs (`d3dcompiler_47.dll` comes from System32).
