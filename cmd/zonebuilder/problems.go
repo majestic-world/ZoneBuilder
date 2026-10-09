@@ -12,25 +12,34 @@ import (
 	"zonebuilder/internal/zone"
 )
 
-// problemRows is the problem panel's rows, when the document changed
-// since they were last built (ok); the problems they show are kept, which
-// a click refers to.
-func (e *zoneEditor) problemRows() (rows []ui.ProblemRow, ok bool) {
-	if e.problemsAt == e.version+1 {
+// problemRows is the problem panel's rows, when the document or the floor
+// warnings ws changed since they were last built (ok): the problems, then
+// the warnings. The problems and warnings they show are kept, which a
+// click refers to.
+func (e *zoneEditor) problemRows(ws []floorWarning, wsChanged bool) (rows []ui.ProblemRow, ok bool) {
+	if e.problemsAt == e.version+1 && !wsChanged {
 		return nil, false
 	}
 	e.problemsAt = e.version + 1
 	e.problems = e.doc.Problems()
-	rows = make([]ui.ProblemRow, len(e.problems))
-	for i, p := range e.problems {
-		z, _ := e.doc.Zone(p.Zone)
-		name := z.Name
-		if name == "" {
-			name = "(sem nome)"
-		}
-		rows[i] = ui.ProblemRow{Zone: name, Message: p.Message}
+	e.warnings = ws
+	rows = make([]ui.ProblemRow, 0, len(e.problems)+len(ws))
+	for _, p := range e.problems {
+		rows = append(rows, ui.ProblemRow{Zone: e.zoneName(p.Zone), Message: p.Message})
+	}
+	for _, w := range ws {
+		rows = append(rows, ui.ProblemRow{Zone: e.zoneName(w.zone), Message: warningText(w), Warning: true})
 	}
 	return rows, true
+}
+
+// zoneName is zone id's name as the problem panel shows it.
+func (e *zoneEditor) zoneName(id zone.ZoneID) string {
+	z, _ := e.doc.Zone(id)
+	if z.Name == "" {
+		return "(sem nome)"
+	}
+	return z.Name
 }
 
 // problemCounts is how many problems each zone has.
@@ -46,8 +55,12 @@ func (e *zoneEditor) problemCounts() map[zone.ZoneID]int {
 // problem's shape as the current shape and its vertex selected, and frames
 // where the problem is: the vertex or restart point, else the shape, else
 // the zone. While a polygon is being drawn the selection stays on it, but
-// the camera still goes. It returns the status line.
+// the camera still goes. A floor warning's row goes to it (goToWarning).
+// It returns the status line.
 func (e *zoneEditor) goToProblem(i int, s *scene.World, cam *camera.Camera) string {
+	if n := len(e.problems); i >= n && i-n < len(e.warnings) {
+		return e.goToWarning(e.warnings[i-n], s, cam)
+	}
 	if i < 0 || i >= len(e.problems) {
 		return ""
 	}

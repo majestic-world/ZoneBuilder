@@ -142,6 +142,10 @@ type Report struct {
 	// i. Where the edge has no floor there is a gap; where floors overlap,
 	// spans overlap.
 	Edges [][]Span
+	// Warnings are the ways the range fits the floor badly (spec D6),
+	// judged by the floor no ban excludes. Sum leaves them out: they are
+	// per shape.
+	Warnings []Warning
 }
 
 // Total is the outline's area as the report splits it: the floor in each
@@ -490,11 +494,17 @@ func (p *Profile) Classify(zmin, zmax float64) Report {
 	if p.measured {
 		r.FloorClearance, r.TopClearance = p.lo.Z-zmin, zmax-p.hi.Z
 	}
+	// lo and hi are the lowest and highest floor no ban excludes.
+	lo, hi, free := p.lo, p.hi, p.measured
+	excluded := false
 	var cut, slab []Spot // scratch polygons
 	for _, pc := range p.pieces {
-		switch {
-		case pc.nbans > 0 && p.excluded(pc):
+		if pc.nbans > 0 && p.excluded(pc) {
 			r.Excluded += pc.area
+			excluded = true
+			continue
+		}
+		switch {
 		case pc.zlo >= zmin && pc.zhi <= zmax:
 			r.Inside += pc.area
 		case pc.zlo > zmax:
@@ -516,7 +526,39 @@ func (p *Profile) Classify(zmin, zmax float64) Report {
 	if r.NoGround <= 1e-9*p.area {
 		r.NoGround = 0
 	}
+	if excluded {
+		lo, hi, free = p.freeExtremes()
+	}
+	r.Warnings = warnings(r, zmin, zmax, lo, hi, free)
 	return r
+}
+
+// freeExtremes is the lowest and highest floor of the pieces no ban
+// excludes; free is false when every piece is excluded.
+func (p *Profile) freeExtremes() (lo, hi Spot, free bool) {
+	lo, hi = Spot{Z: math.Inf(1)}, Spot{Z: math.Inf(-1)}
+	take := func(l, h Spot) {
+		if l.Z < lo.Z {
+			lo = l
+		}
+		if h.Z > hi.Z {
+			hi = h
+		}
+	}
+	for _, pc := range p.pieces {
+		if pc.nbans > 0 && p.excluded(pc) {
+			continue
+		}
+		if pc.clip >= 0 {
+			c := p.clipped[pc.clip]
+			take(c.lo, c.hi)
+			continue
+		}
+		for _, q := range p.verts[pc.first : pc.first+pc.n] {
+			take(q, q)
+		}
+	}
+	return lo, hi, lo.Z <= hi.Z
 }
 
 // clipZ appends to out the part of flat polygon vs with z ≥ level (above)
