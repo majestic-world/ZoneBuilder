@@ -202,6 +202,9 @@ type Scene struct {
 	Warnings []string
 	// Actors are the placed static mesh actors, in load order.
 	Actors []MeshActor
+	// WaterVolumes are the live WaterVolume actors of every tile, in load
+	// order.
+	WaterVolumes []WaterVolume
 	// Tiles are the tiles the scene was loaded from: their squares are
 	// the part of the world it covers.
 	Tiles []Tile
@@ -246,6 +249,9 @@ func Load(clientRoot string, tiles []Tile) (*Scene, error) {
 		}
 		if err := s.addBSP(ld, m, t, footprint); err != nil {
 			return nil, fmt.Errorf("%s: BSP: %w", t.Name(), err)
+		}
+		if err := s.addWaterVolumes(m, t); err != nil {
+			return nil, fmt.Errorf("%s: volumes de água: %w", t.Name(), err)
 		}
 	}
 	s.Bounds = geom.EmptyBox()
