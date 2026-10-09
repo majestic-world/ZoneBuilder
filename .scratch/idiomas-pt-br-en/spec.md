@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # Idiomas da interface: português brasileiro e inglês
 
