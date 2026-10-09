@@ -10,10 +10,6 @@ import (
 	"zonebuilder/internal/zone"
 )
 
-// newShape is the shape index under which floorCoverage keeps the profile
-// of the selected zone's shape being placed, not in the document yet.
-const newShape = -1
-
 // zSource is where a new shape's Z range comes from.
 type zSource int
 
@@ -52,23 +48,23 @@ func (z zSuggestion) note() string {
 	return "pelos vértices: nenhum chão medido na área"
 }
 
-// suggest is the Z range for a shape of e's selected zone not yet in the
-// document, of outline pts over w (spec D5): margin below the lowest and
-// above the highest floor under its whole area that the layer rule counts
+// suggest is the Z range for shape i of e's selected zone, being added
+// with outline pts over w (spec D5): margin below the lowest and above the
+// highest floor under its whole area that the layer rule counts
 // (coverage.Profile.Ground). The rule measures BSP and mesh floors from
 // the range the shape would get without them: vmin…vmax, from its
 // vertices, or, with fromTerrain, the terrain under the outline plus the
-// margin (the whole tile, whose vertices lie on nothing). vmin…vmax is the range
-// itself when part of the outline lies off w's tiles, when no floor
-// counts, and, unless now, while the outline's profile is measured in the
-// background; now measures it on the spot.
-func (c *floorCoverage) suggest(e *zoneEditor, w *scene.World, pts []zone.Point, vmin, vmax int, fromTerrain, now bool) zSuggestion {
+// margin (the whole tile, whose vertices lie on nothing). vmin…vmax is
+// the range itself when part of the outline lies off w's tiles, when no
+// floor counts, and, unless now, while the outline's profile is measured
+// in the background; now measures it on the spot.
+func (c *floorCoverage) suggest(e *zoneEditor, w *scene.World, i int, pts []zone.Point, vmin, vmax int, fromTerrain, now bool) zSuggestion {
 	z := zSuggestion{zmin: vmin, zmax: vmax, vmin: vmin, vmax: vmax}
 	if w == nil || offTiles(w, coverageOutline(pts)) {
 		z.from = zOffTiles
 		return z
 	}
-	p := c.newProfile(e, w, pts, now)
+	p := c.newProfile(e, w, i, pts, now)
 	if p == nil {
 		z.from = zMeasuring
 		return z
@@ -92,42 +88,28 @@ func (c *floorCoverage) suggest(e *zoneEditor, w *scene.World, pts []zone.Point,
 	return z
 }
 
-// newProfile is the floor profile of the new shape of e's selected zone,
-// of outline pts over w: the one kept when it is for pts, else measured
-// on the spot when now, else nil and measured in the background once
-// nothing else is.
-func (c *floorCoverage) newProfile(e *zoneEditor, w *scene.World, pts []zone.Point, now bool) *coverage.Profile {
+// newProfile is the floor profile of shape i of e's selected zone, being
+// added with outline pts over w: the one kept when it is for pts, else
+// measured on the spot when now, else nil and measured in the background
+// once nothing else is. It is kept as shape i's, the index the shape has
+// once added, so the shape needs no measuring again.
+func (c *floorCoverage) newProfile(e *zoneEditor, w *scene.World, i int, pts []zone.Point, now bool) *coverage.Profile {
 	c.receive(e)
-	key := newCoverageKey(shapeRef{e.zone, newShape}, pts, w)
+	key, bans := newCoverageKey(e, shapeRef{e.zone, i}, pts, w)
 	if s := c.shapes[key.shape]; s != nil && s.done == key {
 		return s.profile
 	}
 	if !now {
 		if !c.running {
-			c.start(key, pts, w)
+			c.start(key, pts, bans, w)
 		}
 		return nil
 	}
 	began := time.Now()
-	p := coverage.Measure(w, coverageOutline(pts))
+	p := coverage.Measure(w, coverageOutline(pts), bans)
 	log.Printf("cobertura: perfil do shape novo medido na hora em %v", time.Since(began).Round(time.Millisecond))
 	c.shapes[key.shape] = &shapeCoverage{done: key, profile: p, hist: p.Histogram()}
 	return p
-}
-
-// adopt hands the new shape's profile, when it is for outline pts over w,
-// to shape i of e's selected zone, just created with that outline, so it
-// is not measured again.
-func (c *floorCoverage) adopt(e *zoneEditor, w *scene.World, i int, pts []zone.Point) {
-	from := shapeRef{e.zone, newShape}
-	s := c.shapes[from]
-	if s == nil || w == nil || s.done != newCoverageKey(from, pts, w) {
-		return
-	}
-	delete(c.shapes, from)
-	to := shapeRef{e.zone, i}
-	s.done.shape = to
-	c.shapes[to] = &shapeCoverage{done: s.done, profile: s.profile, hist: s.hist}
 }
 
 // offSlack is how much of an outline's area, in server units², may lie

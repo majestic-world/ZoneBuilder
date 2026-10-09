@@ -117,14 +117,13 @@ func (e *zoneEditor) rectangleClick(s *scene.World, c *floorCoverage, v zone.Poi
 	if a.X == v.X || a.Y == v.Y {
 		return "O retângulo precisa de largura e altura: clique noutro canto"
 	}
-	pts, fit := e.placed(s, c, v, true)
+	_, fit := e.placed(s, c, v, true)
 	z, _ := e.doc.Zone(e.zone)
 	if e.apply(zone.AddShape{Zone: e.zone, Kind: zone.Rectangle, Banned: e.banned, Points: []zone.Point{a, v}, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
 		return "Não foi possível adicionar o retângulo"
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
 	e.shape = len(z.Shapes)
-	c.adopt(e, s, e.shape, pts)
 	what := "Retângulo"
 	if e.banned {
 		what = "Exclusão retangular"
@@ -158,13 +157,12 @@ func (e *zoneEditor) wholeTile(c *floorCoverage, w *scene.World, t scene.Tile, s
 	vmax := int(math.Ceil(float64(s.Bounds.Max.Z+scene.ServerZOffset))) + e.margin
 	floor := vmin + e.margin
 	pts := []zone.Point{{X: x0, Y: y0, Z: floor}, {X: x1, Y: y0, Z: floor}, {X: x1, Y: y1, Z: floor}, {X: x0, Y: y1, Z: floor}}
-	fit := c.suggest(e, w, pts, vmin, vmax, true, true)
+	fit := c.suggest(e, w, len(z.Shapes), pts, vmin, vmax, true, true)
 	if e.apply(zone.AddShape{Zone: e.zone, Banned: banned, Points: pts, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
 		return "Não foi possível cobrir o tile"
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
 	e.shape = len(z.Shapes)
-	c.adopt(e, w, e.shape, pts)
 	what := "Tile inteiro"
 	if banned {
 		what = "Exclusão do tile inteiro"
@@ -212,7 +210,6 @@ func (e *zoneEditor) circleClick(s *scene.World, c *floorCoverage, v zone.Point)
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
 	e.shape = len(z.Shapes)
-	c.adopt(e, s, e.shape, pts)
 	what := "Círculo"
 	if e.banned {
 		what = "Exclusão circular"
@@ -268,7 +265,13 @@ func (e *zoneEditor) placed(s *scene.World, c *floorCoverage, v zone.Point, now 
 		vertices = pts
 	}
 	vmin, vmax := zone.SuggestZRange(vertices, e.margin)
-	return pts, c.suggest(e, s, pts, vmin, vmax, false, now)
+	return pts, c.suggest(e, s, e.nextShape(), pts, vmin, vmax, false, now)
+}
+
+// nextShape is the index the next shape added to the selected zone gets.
+func (e *zoneEditor) nextShape() int {
+	z, _ := e.doc.Zone(e.zone)
+	return len(z.Shapes)
 }
 
 // hoverAt tracks the surface point under the cursor (h, when ok) while a
@@ -295,7 +298,7 @@ func (e *zoneEditor) hoverAt(s *scene.World, c *floorCoverage, h scene.Hit, ok b
 	if moved {
 		e.ghost, fit = e.placed(s, c, p, false)
 	} else {
-		fit = c.suggest(e, s, e.ghost, fit.vmin, fit.vmax, false, false)
+		fit = c.suggest(e, s, e.nextShape(), e.ghost, fit.vmin, fit.vmax, false, false)
 	}
 	if !moved && fit == e.ghostZ {
 		return ""

@@ -162,12 +162,11 @@ func (e *zoneEditor) close(s *scene.World, c *floorCoverage) string {
 		return fmt.Sprintf("O polígono tem %s; são precisos 3 para fechar", inflect.Count(len(pts), "vértice", "vértices"))
 	}
 	vmin, vmax := zone.SuggestZRange(pts, e.margin)
-	fit := c.suggest(e, s, pts, vmin, vmax, false, true)
+	fit := c.suggest(e, s, e.shape, pts, vmin, vmax, false, true)
 	if e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
 		return "Não foi possível fechar o polígono"
 	}
 	e.drawing, e.armed = false, false
-	c.adopt(e, s, e.shape, pts)
 	z, _ := e.doc.Zone(e.zone)
 	what := "Polígono fechado"
 	if e.banned {
