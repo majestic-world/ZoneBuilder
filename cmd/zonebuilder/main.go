@@ -32,6 +32,7 @@ import (
 	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/inflect"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/project"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/render/egl"
@@ -171,7 +172,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		cam     = camera.ForBounds(geom.EmptyBox())
 		tiles   = newTiles(w)
 		frames  frameLog
-		status  string
+		status  actionStatus
 		folders = make(chan string, 1)
 		probe   cursorProbe
 		zones   = newZoneEditor()
@@ -194,6 +195,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		// laid out; pinsShown are the ones the renderer's overlay has.
 		pins, pinsShown []worstPin
 	)
+	zones.Language = shell.Language
 	defer func() { g.release() }()
 	if proj != "" {
 		var load []scene.Tile
@@ -230,7 +232,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				msg, used := zones.viewportEvent(tiles.world, &cam, ev, shell.Viewport.Size())
 				if used {
 					if msg != "" {
-						status = msg
+						status = editorResult(msg, zones)
 					}
 				} else {
 					fly.Handle(ev, &cam)
@@ -248,9 +250,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 						probe.click, probe.clickHit = pickAt(tiles.world, &cam, e.Position, shell.Viewport.Size())
 						logClick(probe.click, probe.clickHit)
 						if msg := zones.click(tiles.world, cover, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit); msg != "" {
-							status = msg
+							status = editorResult(msg, zones)
 						} else if !zones.armed && !waterSel.pressTaken {
-							if msg := waterSel.click(tiles.world, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit, e.Modifiers.Contain(key.ModCtrl)); msg != "" {
+							if msg := waterSel.click(tiles.world, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit, e.Modifiers.Contain(key.ModCtrl)); msg.render(shell.Language) != "" {
 								status = msg
 							}
 						}
@@ -262,17 +264,17 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 						if open {
 							shell.WaterMenu.Menu.Open(image.Pt(round(e.Position.X), round(e.Position.Y)))
 							if zones.drawing {
-								msg = waterBusy
+								msg = action(waterBusy)
 							}
 						}
-						if msg != "" {
+						if msg.render(shell.Language) != "" {
 							status = msg
 						}
 					}
 				case key.Event:
 					if (e.Name == key.NameReturn || e.Name == key.NameEnter) && e.State == key.Press {
 						if msg := zones.close(tiles.world, cover); msg != "" {
-							status = msg
+							status = editorResult(msg, zones)
 						}
 					}
 					if e.Name == key.NameEscape && e.State == key.Press {
@@ -280,17 +282,18 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 							break
 						}
 						if msg := zones.escape(); msg != "" {
-							status = msg
+							status = editorResult(msg, zones)
 						} else if waterSel.clear() {
-							status = "Seleção de água limpa"
+							status = action("actions.water.cleared")
 						}
 					}
 				}
 			}
 			if shell.Browse.Clicked(gtx) {
+				lang := shell.Language
 				start := shell.Client.Text()
 				go func() {
-					if p, ok := ui.PickFolder("Pasta do cliente Lineage II (a que contém Maps)", start); ok {
+					if p, ok := ui.PickFolder(locale.Text(lang, "actions.map.folder_dialog"), start); ok {
 						folders <- p
 						w.Invalidate()
 					}
@@ -302,17 +305,18 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			default:
 			}
 			if shell.Zone.CreateRequested(gtx) {
-				status = zones.create(shell.Zone.Name.Text(), shell.Zone.Type(), shell.Zone.Tools.Shape)
+				status = editorResult(zones.create(shell.Zone.Name.Text(), shell.Zone.Type(), shell.Zone.Tools.Shape), zones)
 			}
 			if t, ok := shell.Zone.Tools.Requested(gtx); ok {
-				status = zones.arm(t, shell.Zone.Tools.Banned.Value)
+				status = editorResult(zones.arm(t, shell.Zone.Tools.Banned.Value), zones)
 			}
 			if shell.Zone.Tools.WholeTile.Clicked(gtx) {
-				status = wholeTile(zones, cover, tiles, &cam, shell.Viewport.Size(), shell.Zone.Tools.Banned.Value)
+				status = editorResult(wholeTile(zones, cover, tiles, &cam, shell.Viewport.Size(), shell.Zone.Tools.Banned.Value), zones)
 			}
 			if shell.Zone.Compile.Clicked(gtx) {
 				var files []zonexml.File
-				status, files = zones.compile()
+				msg, compiled := zones.compile()
+				status, files = editorResult(msg, zones), compiled
 				if len(files) > 0 {
 					shell.XML.Open(files)
 				}
@@ -326,28 +330,30 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				}
 			}
 			if name, ok := shell.XML.Copied(gtx); ok {
-				status = name + " copiado para a área de transferência"
+				status = actionArgs("actions.xml.copied", map[string]string{"name": name})
 			}
 			for _, req := range shell.Zones.Update(gtx) {
 				if msg := zones.listRequest(req, tiles.world, &cam); msg != "" {
-					status = msg
+					status = editorResult(msg, zones)
 				}
 			}
 			if i, ok := shell.Problems.Clicked(gtx); ok {
-				if msg := zones.goToProblem(i, tiles.world, &cam); msg != "" {
-					status = msg
+				if msg := zones.goToProblem(i, tiles.world, &cam, shell.Language); msg != "" {
+					status = actionStatus{raw: msg, problemClick: true}
 				}
 			}
 			if i, ok := shell.PinClicked(gtx); ok && i < len(pins) {
-				status = goToPin(pins[i], tiles.world, &cam)
+				goToPin(pins[i], tiles.world, &cam, shell.Language)
+				pin := pins[i]
+				status = actionStatus{message: pinMessage(pin), pin: &pin}
 			}
 			sel, selOK := zones.selectedZone()
 			for _, req := range shell.Props.Update(gtx, sel, selOK) {
-				if msg := shell.Props.Applied(req, zones.apply(req.Command)); msg != "" {
-					status = msg
+				if msg := shell.Props.Applied(req, zones.apply(req.Command)); msg.Key != "" {
+					status = actionStatus{message: msg}
 				}
 			}
-			if msg, load := sess.update(gtx, w, shell, zones, tiles.openTiles(), tiles.opening()); msg != "" || len(load) > 0 {
+			if msg, load := sess.update(gtx, w, shell, zones, tiles.openTiles(), tiles.opening()); msg.render(shell.Language) != "" || len(load) > 0 {
 				status = msg
 				if len(load) > 0 {
 					status = openTiles(tiles, shell, load)
@@ -361,7 +367,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			if openTile && !tiles.opening() {
 				t, err := scene.ParseTile(shell.Tile.Text())
 				if err != nil {
-					status = err.Error()
+					status = actionError("actions.error.invalid_tile", err, nil)
 				} else {
 					status = openTiles(tiles, shell, []scene.Tile{t})
 				}
@@ -369,7 +375,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			for _, r := range tiles.receive() {
 				t := r.entry.tile
 				if r.err != nil {
-					status = fmt.Sprintf("%s: %v", t.Name(), r.err)
+					status = actionError("actions.error.load_tile", r.err, map[string]string{"tile": t.Name()})
 					log.Printf("cena: %s: %v", t.Name(), r.err)
 					continue
 				}
@@ -387,21 +393,21 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 					start.apply(&cam, tiles.world)
 				}
 				log.Printf("cena: câmera %s", formatPose(&cam, tiles.world))
-				status = "" // the Tiles line names it
+				status = actionStatus{} // the Tiles line names it
 				probe.click = scene.Hit{}
 				probe.clickHit = false
 			}
 
 			if shell.Meshes.Toggled(gtx) {
-				status = "Static meshes visíveis"
+				status = action("actions.map.meshes_visible")
 				if shell.Meshes.On {
-					status = "Static meshes ocultos: só terreno e BSP"
+					status = action("actions.map.meshes_hidden")
 				}
 			}
 			if shell.Ground.Toggled(gtx) {
-				status = "Grade do chão oculta"
+				status = action("actions.map.grid_hidden")
 				if shell.Ground.On {
-					status = fmt.Sprintf("Chão: grade das células do terreno, linha forte a cada %d", render.GridMajor)
+					status = actionArgs("actions.map.grid_visible", map[string]string{"step": fmt.Sprint(render.GridMajor)})
 				}
 			}
 			moving := fly.Step(&cam, gtx.Now)
@@ -412,9 +418,21 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				tiles.follow(worldPosition(tiles.world, cam.Position))
 			}
 			waterSel.prune(tiles.world)
+			if lang, ok := shell.LanguageRequested(gtx); ok {
+				warning := sess.chooseLanguage(shell, lang)
+				zones.Language = shell.Language
+				if warning != "" {
+					status = sess.languageWarning
+				} else if status.problemClick {
+					status.raw = zones.reformatProblemClick(shell.Language)
+				}
+				// Render the same state in the selected language next frame.
+				shell.Project.Name = sess.name(shell.Language)
+				gtx.Execute(op.InvalidateCmd{})
+			}
 			shell.WaterMenu.Disabled = zones.drawing
-			shell.Cursor, shell.Click = probe.status(tiles.world, &cam, shell.Viewport.Size())
-			shell.Tiles, shell.Warnings = loadedTiles(tiles)
+			shell.Cursor, shell.Click = probe.status(tiles.world, &cam, shell.Viewport.Size(), shell.Language)
+			shell.Tiles, shell.Warnings = loadedTiles(tiles, shell.Language)
 			shell.Zone.Info = zones.info()
 			sel, _ = zones.selectedZone()
 			shell.Zones.Rows, shell.Zones.Selected = zones.rows(), sel.ID
@@ -424,32 +442,33 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				groundBuilt = k
 			}
 			if msg := zones.panel(gtx, &shell.Edit, tiles.world, cover); msg != "" {
-				status = msg
+				status = editorResult(msg, zones)
 			}
-			shell.Edit.Coverage = cover.inspector(zones, tiles.world)
+			shell.Edit.Coverage = cover.inspector(zones, tiles.world, shell.Language)
 			if msg := zones.heightPanel(gtx, &shell.Height, tiles.world, cover); msg != "" {
-				status = msg
+				status = editorResult(msg, zones)
 			}
-			cover.heightWindow(zones, tiles.world, &shell.Height)
+			cover.heightWindow(zones, tiles.world, &shell.Height, shell.Language)
 			shell.Arrow = zones.layoutArrow(tiles.world, &cam, shell.Viewport.Size(), gtx.Dp(90))
 			shell.EdgeLabels = nil
 			if shell.Ground.On && tiles.world != nil {
-				shell.EdgeLabels = zones.edgeLabels(tiles.world, &cam, shell.Viewport.Size())
+				shell.EdgeLabels = zones.edgeLabels(tiles.world, &cam, shell.Viewport.Size(), shell.Language)
 			}
 			pins = cover.pins(zones, tiles.world)
 			// After the selected zone's coverage asked for its profiles, so
 			// they are measured first.
-			if rows, ok := zones.problemRows(cover.warnings(zones, tiles.world)); ok {
+			ws, wsChanged := cover.warnings(zones, tiles.world)
+			if rows, ok := zones.problemRows(ws, wsChanged, shell.Language); ok {
 				shell.Problems.Rows = rows
 			}
 			shell.Pins = nil
 			if tiles.world != nil {
-				shell.Pins = pinLabels(pins, tiles.world, &cam, shell.Viewport.Size())
+				shell.Pins = pinLabels(pins, tiles.world, &cam, shell.Viewport.Size(), shell.Language)
 			}
 			if zones.anchored && tiles.world != nil && probe.inside {
 				h, ok := pickAt(tiles.world, &cam, probe.cursor, shell.Viewport.Size())
 				if msg := zones.hoverAt(tiles.world, cover, h, ok); msg != "" {
-					status = msg
+					status = editorResult(msg, zones)
 				}
 			} else {
 				zones.hoverAt(nil, cover, scene.Hit{}, false)
@@ -459,12 +478,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			if g != nil {
 				renderer = g.renderer
 			}
-			shell.Loading, shell.Progress = tiles.progress(renderer)
-			if lang, ok := shell.LanguageRequested(gtx); ok {
-				status = sess.chooseLanguage(shell, lang)
-			}
+			shell.Loading, shell.Progress = tiles.progress(renderer, shell.Language)
 
-			shell.Message = status
+			shell.Message = status.render(shell.Language)
 			rect := shell.Layout(gtx)
 			if e.Size != size || rect != vpRect {
 				log.Printf("frame: window %dx%d, viewport %v", e.Size.X, e.Size.Y, rect)
@@ -520,18 +536,16 @@ func worldPosition(w *scene.World, p geom.Vec3) geom.Vec3 {
 	return scene.ToRender(p).Add(w.Origin)
 }
 
-// openTiles opens list in tiles, with the neighbours when the panel asks
-// for them, from the client folder of the panel; it returns the status
-// line.
-func openTiles(tiles *tiles, shell *ui.Shell, list []scene.Tile) string {
+// openTiles starts loading the selected tiles and retains the status identity.
+func openTiles(tiles *tiles, shell *ui.Shell, list []scene.Tile) actionStatus {
 	if err := tiles.open(strings.TrimSpace(shell.Client.Text()), list, shell.Neighbours.Value); err != nil {
 		log.Printf("cena: %v", err)
-		return err.Error()
+		return actionError("actions.error.open_map", err, nil)
 	}
 	if shell.Neighbours.Value {
-		return "Carregando " + list[0].Name() + " e os vizinhos…"
+		return actionArgs("actions.map.loading_neighbours", map[string]string{"tile": list[0].Name()})
 	}
-	return "Carregando " + strings.Join(tileNames(list), ", ") + "…"
+	return actionArgs("actions.map.loading_tiles", map[string]string{"tiles": strings.Join(tileNames(list), ", ")})
 }
 
 // logScene logs what loading tile brought.
@@ -574,15 +588,16 @@ func logScene(tile scene.Tile, r tileResult) {
 	}
 }
 
-// loadedTiles names the open tiles and lists what failed to load in them.
-// The counts and bounds of what loaded go to the log (logScene).
-func loadedTiles(tiles *tiles) (names string, warnings []string) {
+// loadedTiles presents names and raw scene warnings with localized context.
+func loadedTiles(tiles *tiles, lang locale.Language) (names string, warnings []string) {
 	w := tiles.world
 	if w == nil {
 		return "", nil
 	}
 	for _, s := range w.Scenes() {
-		warnings = append(warnings, s.Warnings...)
+		for _, warning := range s.Warnings {
+			warnings = append(warnings, locale.Format(lang, "actions.map.warning", map[string]string{"detail": warning}))
+		}
 	}
 	return strings.Join(tiles.shown(), ", "), warnings
 }
