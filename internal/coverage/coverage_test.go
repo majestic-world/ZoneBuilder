@@ -316,15 +316,15 @@ func TestHistogramSpreadsARampOverItsZ(t *testing.T) {
 	ramp := func(x, y float32) geom.Vec3 { return v(x, y, x-95) }
 	a, b, c, d := ramp(-50, -50), ramp(250, -50), ramp(250, 250), ramp(-50, 250)
 	h := coverage.Measure(floor{tri(a, b, c), tri(a, c, d)}, square(0, 0, 200, 200), nil).Histogram()
-	if h.First != -6 || len(h.Area) != 13 {
-		t.Fatalf("bins %d..%d, want -6..6", h.First, h.First+len(h.Area)-1)
+	if h.First != -6 || len(h.Terrain) != 13 {
+		t.Fatalf("bins %d..%d, want -6..6", h.First, h.First+len(h.Terrain)-1)
 	}
-	for i, got := range h.Area {
+	for i, got := range h.Terrain {
 		want := 3200.0
 		switch i {
 		case 0:
 			want = 3000
-		case len(h.Area) - 1:
+		case len(h.Terrain) - 1:
 			want = 1800
 		}
 		if !near(got, want) {

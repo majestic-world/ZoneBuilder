@@ -48,7 +48,11 @@ func signed(n int) string {
 
 // pins are the worst points of e's current shape over w, from c's report
 // classified by the Z range shown this frame: the labels follow a Z drag.
+// None while the selected zone is hidden, like its overlay.
 func (c *floorCoverage) pins(e *zoneEditor, w *scene.World) []worstPin {
+	if z, ok := e.doc.Zone(e.zone); !ok || z.Hidden {
+		return nil
+	}
 	r, _, ok := c.current(e, w)
 	if !ok {
 		return nil

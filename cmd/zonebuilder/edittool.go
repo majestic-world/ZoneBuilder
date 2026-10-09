@@ -385,17 +385,17 @@ func (e *zoneEditor) setZoneHeight(text string) string {
 	return fmt.Sprintf("%s: altura %d, z %d … %d", z.Name, v[0], base, base+v[0])
 }
 
-// zoneToGround moves one side of every shape of the selected zone to the
-// floor under it, by the layer rule of spec D5 from the shape's own range:
-// the top margin above its highest floor when top is set, else the floor
-// margin below its lowest. Exclusions are fitted too, so they keep
-// spanning the floor they cut out. All in one step to undo; a shape with
-// no floor counted, or that the move would turn upside down, keeps its
-// range.
+// zoneToGround moves one side of every included shape of the selected
+// zone to the floor under it, by the layer rule of spec D5 from the
+// shape's own range: the top margin above its highest floor when top is
+// set, else the floor margin below its lowest. Exclusions keep their
+// range: it decides which floor they cut out (spec D1). All in one step
+// to undo; a shape with no floor counted, or that the move would turn
+// upside down, keeps its range.
 func (e *zoneEditor) zoneToGround(c *floorCoverage, s *scene.World, top bool) string {
-	side, name := "piso", "Piso ao chão"
+	side, name, sides := "piso", "Piso ao chão", coverage.FloorSide
 	if top {
-		side, name = "topo", "Topo ao chão"
+		side, name, sides = "topo", "Topo ao chão", coverage.TopSide
 	}
 	z, _, _, ok := e.zoneZ()
 	switch {
@@ -407,18 +407,15 @@ func (e *zoneEditor) zoneToGround(c *floorCoverage, s *scene.World, top bool) st
 	var steps zone.Batch
 	kept := 0
 	for i, sh := range z.Shapes {
-		p := c.profileNow(e, s, z.ID, i, sh)
+		if sh.Banned {
+			continue
+		}
+		p := c.profile(e, s, shapeRef{z.ID, i}, outline(sh.Kind, e.shownPoints(z.ID, i, sh.Points)), true)
 		if p == nil {
 			kept++
 			continue
 		}
-		g := p.Ground(float64(sh.ZMin), float64(sh.ZMax))
-		zmin, zmax := sh.ZMin, sh.ZMax
-		if top {
-			zmax = g.Top(e.margin)
-		} else {
-			zmin = g.Floor(e.margin)
-		}
+		zmin, zmax, g := p.Fit(sh.ZMin, sh.ZMax, e.margin, sides)
 		if !g.Measured || zmin > zmax {
 			log.Printf("zona: %s, shape %d: %s mantido (chão contado: %v, faixa %d..%d)", z.Name, i+1, side, g.Measured, zmin, zmax)
 			kept++
@@ -477,7 +474,7 @@ func (e *zoneEditor) removeVertex() string {
 }
 
 // groundZRange sets the current shape's Z range from the floor under its
-// whole area (coverage.Profile.Ground, from the current range): the margin
+// whole area (coverage.Profile.Fit, from the current range): the margin
 // below the lowest and above the highest floor that counts.
 func (e *zoneEditor) groundZRange(c *floorCoverage, s *scene.World) string {
 	z, sh, ok := e.currentShape()
@@ -487,18 +484,17 @@ func (e *zoneEditor) groundZRange(c *floorCoverage, s *scene.World) string {
 	case !ok || e.drawing:
 		return "Selecione um shape fechado"
 	}
-	p := c.profileNow(e, s, z.ID, e.shape, sh)
+	p := c.profile(e, s, shapeRef{z.ID, e.shape}, outline(sh.Kind, e.shownPoints(z.ID, e.shape, sh.Points)), true)
 	if p == nil {
 		return "Selecione um shape fechado"
 	}
-	g := p.Ground(float64(sh.ZMin), float64(sh.ZMax))
+	zmin, zmax, g := p.Fit(sh.ZMin, sh.ZMax, e.margin, coverage.BothSides)
 	if !g.Measured {
 		if len(g.Others) > 0 {
 			return fmt.Sprintf("Nenhum chão a até %d da faixa; %s", coverage.GroundReach, othersText(g.Others))
 		}
 		return "Nenhum chão medido sob o shape"
 	}
-	zmin, zmax := g.Range(e.margin)
 	if e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: zmin, ZMax: zmax}) != nil {
 		return "Não foi possível definir a faixa Z"
 	}

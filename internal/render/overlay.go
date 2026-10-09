@@ -102,7 +102,7 @@ void main() {
 }
 `
 
-const overlayFrag = `#version 300 es
+var overlayFrag = `#version 300 es
 precision mediump float;
 uniform int uMode;
 uniform highp vec2 uViewport;
@@ -111,11 +111,11 @@ in highp vec4 vAnchor;
 out vec4 oColor;
 void main() {
 	vec4 c = vColor;
-	if (uMode == 1) {
+	if (uMode == ` + itoa(modeBuriedFace) + `) {
 		// Diagonal stripes, 3 px on, 3 px off.
 		if (mod(gl_FragCoord.x + gl_FragCoord.y, 6.0) >= 3.0) discard;
 		c.a *= 0.6; // the buried faces keep 60% of prismAlpha in their stripes
-	} else if (uMode == 2) {
+	} else if (uMode == ` + itoa(modeBuriedLine) + `) {
 		// Dashes 8 px on, 6 px off, measured on screen from the line's
 		// first end; a first end behind the camera falls back to a fixed
 		// diagonal pattern.

@@ -36,28 +36,35 @@ type Piece struct {
 // shape's Z range) reads instead of measuring again.
 func (p *Profile) Pieces() iter.Seq[Piece] {
 	return func(yield func(Piece) bool) {
-		for _, pc := range p.pieces {
-			out := Piece{Surface: pc.surface, Area: pc.area}
-			if pc.clip >= 0 {
-				c := &p.clipped[pc.clip]
-				out.Low, out.High = c.lo, c.hi
-			} else {
-				vs := p.verts[pc.first : pc.first+pc.n]
-				out.Low, out.High = vs[0], vs[0]
-				for _, q := range vs[1:] {
-					if q.Z < out.Low.Z {
-						out.Low = q
-					}
-					if q.Z > out.High.Z {
-						out.High = q
-					}
-				}
-			}
-			if !yield(out) {
+		for i := range p.pieces {
+			pc := &p.pieces[i]
+			lo, hi := p.span(pc)
+			if !yield(Piece{Surface: pc.surface, Area: pc.area, Low: lo, High: hi}) {
 				return
 			}
 		}
 	}
+}
+
+// span is the lowest and highest floor of piece pc: of its vertices for a
+// whole triangle, of the true corners of triangle ∩ outline for a cut
+// piece (piece.zlo and zhi are their Z).
+func (p *Profile) span(pc *piece) (lo, hi Spot) {
+	if pc.clip >= 0 {
+		c := &p.clipped[pc.clip]
+		return c.lo, c.hi
+	}
+	vs := p.verts[pc.first : pc.first+pc.n]
+	lo, hi = vs[0], vs[0]
+	for _, q := range vs[1:] {
+		if q.Z < lo.Z {
+			lo = q
+		}
+		if q.Z > hi.Z {
+			hi = q
+		}
+	}
+	return lo, hi
 }
 
 // stack counts the layers of the measured floor and the outline's area
@@ -220,18 +227,8 @@ func (p *Profile) inner(i int, o Outline) (Point, bool) {
 		in, on := contains(o, q)
 		return in && !on && inTriangle(tri, q)
 	}
-	var cx, cy, a2 float64
-	for k := 1; k+1 < len(vs); k++ {
-		a, b, c := vs[0], vs[k], vs[k+1]
-		w := (b.X-a.X)*(c.Y-a.Y) - (c.X-a.X)*(b.Y-a.Y)
-		cx += w * (a.X + b.X + c.X) / 3
-		cy += w * (a.Y + b.Y + c.Y) / 3
-		a2 += w
-	}
-	if a2 != 0 {
-		if q := (Point{cx / a2, cy / a2}); good(q) {
-			return q, true
-		}
+	if q := point(centroid(vs)); good(q) {
+		return q, true
 	}
 	for k := 1; k+1 < len(vs); k++ {
 		a, b, c := vs[0], vs[k], vs[k+1]
