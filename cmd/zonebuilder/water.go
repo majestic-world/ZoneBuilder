@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"log"
@@ -17,6 +18,7 @@ import (
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/water"
 	"zonebuilder/internal/zone"
+	"zonebuilder/internal/zonexml"
 )
 
 // waterSelection is the water volumes the user selected by clicking (spec
@@ -137,6 +139,147 @@ func (ws *waterSelection) click(w *scene.World, cam *camera.Camera, p f32.Point,
 	msg := ws.status(w)
 	log.Printf("água: %s", msg)
 	return msg
+}
+
+// rightClick handles a right click at viewport pixel p (spec D4): over a
+// water volume outside the selection, its body becomes the selection;
+// over any water volume, open reports that the context menu opens, with
+// the selection's status. Elsewhere nothing changes.
+func (ws *waterSelection) rightClick(w *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point) (msg string, open bool) {
+	h, ok := pickAt(w, cam, p, viewport)
+	v, found := pickWaterAt(w, cam, p, viewport, h, ok)
+	if !found {
+		return "", false
+	}
+	if !slices.Contains(ws.ids, v.ID()) {
+		ws.selectBody(w, v)
+	}
+	return ws.status(w), true
+}
+
+// selected are copies of the selected volumes of w and every live volume
+// of its tiles, the two lists water.Compile takes.
+func (ws *waterSelection) selected(w *scene.World) (selected, live []scene.WaterVolume) {
+	for _, v := range ws.volumes(w) {
+		selected = append(selected, *v)
+	}
+	if w != nil {
+		for _, s := range w.Scenes() {
+			live = append(live, s.WaterVolumes...)
+		}
+	}
+	return selected, live
+}
+
+// waterBusy is why the water can't be compiled while a polygon is open:
+// the context menu greys its item out and shows it.
+const waterBusy = "Feche o polígono aberto antes de compilar a zona de água"
+
+// compileWater turns the selected water volumes into water zones (spec
+// D5): the zones they don't have yet are created in one undo step, then
+// only those zones are compiled, leaving the list's compile selection
+// alone. live are every volume of the loaded tiles, for the overlap
+// warning. It returns the status line and the files for the XML window.
+func (e *zoneEditor) compileWater(selected, live []scene.WaterVolume) (string, []zonexml.File) {
+	if e.drawing {
+		return waterBusy, nil
+	}
+	plans := water.Compile(selected, live, e.doc)
+	if len(plans) == 0 {
+		return "Nenhuma água selecionada", nil
+	}
+	var (
+		b                 zone.Batch
+		ids               []zone.ZoneID
+		created, existing []string
+		warnings          []water.Warning
+	)
+	for _, p := range plans {
+		b = append(b, p.Commands...)
+		ids = append(ids, p.Zone)
+		if p.Existing {
+			existing = append(existing, p.Name)
+		} else {
+			created = append(created, fmt.Sprintf("%s (%s)", p.Name, inflect.Count(len(p.Volumes), "polígono", "polígonos")))
+		}
+		warnings = append(warnings, p.Warnings...)
+	}
+	if len(b) > 0 {
+		if err := e.apply(b); err != nil {
+			return err.Error(), nil
+		}
+	}
+	for _, w := range warnings {
+		log.Printf("água: aviso: %s", w)
+	}
+	files, err := e.doc.Compile(ids)
+	if bl, ok := errors.AsType[*zone.BlockedError](err); ok {
+		return e.blockedStatus(bl), nil
+	}
+	if err != nil {
+		log.Printf("zona: compilação: %v", err)
+		return err.Error(), nil
+	}
+	msg := waterCompiled(created, existing) + warningsStatus(warnings)
+	log.Printf("água: %s", msg)
+	return msg, files
+}
+
+// waterCompiled says which zones compileWater created, with their
+// polygons, and which it found in the project and compiled as they are.
+func waterCompiled(created, existing []string) string {
+	var parts []string
+	switch len(created) {
+	case 0:
+	case 1:
+		parts = append(parts, "Criada a zona de água "+created[0])
+	default:
+		parts = append(parts, fmt.Sprintf("Criadas %d zonas de água: %s", len(created), listPT(created)))
+	}
+	switch len(existing) {
+	case 0:
+	case 1:
+		parts = append(parts, "Zona "+existing[0]+" já existe no projeto: compilada a versão do projeto")
+	default:
+		parts = append(parts, "Zonas "+listPT(existing)+" já existem no projeto: compiladas as versões do projeto")
+	}
+	below := scene.ServerZOffset - water.ServerZOffset
+	return strings.Join(parts, ". ") + fmt.Sprintf(". No viewport o topo fica %d abaixo da água (ADR 0005)", below)
+}
+
+// warningsStatus is the D7 warnings for the status line, a sentence per
+// kind naming the volumes ("" without any); the full text of each goes to
+// the log.
+func warningsStatus(ws []water.Warning) string {
+	var approximate, outside, overlapOrder []string
+	overlaps := map[string][]string{}
+	for _, w := range ws {
+		switch w.Kind {
+		case water.Approximate:
+			approximate = append(approximate, w.Volume)
+		case water.OutsideTile:
+			outside = append(outside, w.Volume)
+		case water.Overlap:
+			if _, ok := overlaps[w.Volume]; !ok {
+				overlapOrder = append(overlapOrder, w.Volume)
+			}
+			// "25_25 WaterVolume7" crossing "25_25 WaterVolume9" reads
+			// as just WaterVolume7.
+			tile, _, _ := strings.Cut(w.Volume, " ")
+			overlaps[w.Volume] = append(overlaps[w.Volume], strings.TrimPrefix(w.Other, tile+" "))
+		}
+	}
+	var b strings.Builder
+	for _, v := range overlapOrder {
+		fmt.Fprintf(&b, ". Água sobreposta: %s cruza %s (o servidor usa o maior topo)", v, listPT(overlaps[v]))
+	}
+	if len(approximate) > 0 {
+		fmt.Fprintf(&b, ". Aproximada, parede ou topo inclinado: %s", listPT(approximate))
+	}
+	if len(outside) > 0 {
+		fmt.Fprintf(&b, ". Passa do próprio tile: %s", listPT(outside))
+	}
+	return b.String()
 }
 
 // status describes the selection: "Água: 8 volumes · topo -3780 (servidor

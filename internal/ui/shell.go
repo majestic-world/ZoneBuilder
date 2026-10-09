@@ -87,6 +87,8 @@ type Shell struct {
 	pinPicks []widget.Clickable
 	// XML shows the last compilation, to copy.
 	XML XMLWindow
+	// WaterMenu is the viewport's context menu over the water.
+	WaterMenu WaterMenu
 	// Message is the last outcome ("" for none), shown over the status
 	// pill with the armed tool's hints (Zone.Info).
 	Message string
@@ -155,7 +157,7 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	call, bar := measure(gtx, s.commandBar)
 	barAt := image.Pt(max(m+brand.X+gtx.Dp(16), (ix-bar.X)/2), m)
 	place(gtx, barAt, call)
-	s.Project.menuAt = barAt.Add(image.Pt(gtx.Dp(6), bar.Y+gtx.Dp(6)))
+	s.Project.popup.at = barAt.Add(image.Pt(gtx.Dp(6), bar.Y+gtx.Dp(6)))
 
 	call, status := measure(gtx, s.statusPill)
 	statusAt := image.Pt(max(left, (ix-status.X)/2), area.Y-m-status.Y)
@@ -167,6 +169,7 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	s.heightWindow(gtx)
 	s.xmlWindow(gtx)
 	s.projectMenu(gtx)
+	s.waterMenu(gtx)
 	return image.Rectangle{Max: s.Viewport.Size()}
 }
 

@@ -5,8 +5,6 @@ import (
 	"image/color"
 
 	"gioui.org/font"
-	"gioui.org/io/event"
-	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
@@ -35,13 +33,10 @@ type ProjectPanel struct {
 	RecentMaps []string
 	recent     []widget.Clickable
 
-	menu     widget.Clickable
-	menuOpen bool
-	// menuAt is where the menu drops down, below the command bar.
-	menuAt   image.Point
-	dismiss  pointerSink
-	sink     pointerSink
-	menuSink pointerSink
+	menu widget.Clickable
+	// popup is the menu, dropped down below the command bar.
+	popup ContextMenu
+	sink  pointerSink
 }
 
 // Requests reports the menu items clicked since the last call, and closes
@@ -49,7 +44,7 @@ type ProjectPanel struct {
 func (p *ProjectPanel) Requests(gtx layout.Context) (open, save, saveAs bool) {
 	open, save, saveAs = p.OpenProject.Clicked(gtx), p.Save.Clicked(gtx), p.SaveAs.Clicked(gtx)
 	if open || save || saveAs {
-		p.menuOpen = false
+		p.popup.Close()
 	}
 	return open, save, saveAs
 }
@@ -68,8 +63,8 @@ func (p *ProjectPanel) RecentMapClicked(gtx layout.Context) (string, bool) {
 // static mesh switch and Compilar XML.
 func (s *Shell) commandBar(gtx layout.Context) layout.Dimensions {
 	p := &s.Project
-	if p.menu.Clicked(gtx) {
-		p.menuOpen = !p.menuOpen
+	if p.menu.Clicked(gtx) && !p.popup.Close() {
+		p.popup.Open(p.popup.at)
 	}
 	divider := func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Left: unit.Dp(6), Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -103,7 +98,7 @@ func (s *Shell) projectButton(gtx layout.Context) layout.Dimensions {
 	p := &s.Project
 	c := &p.menu
 	return c.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		bg, _, _ := ghostButton.colors(c.Hovered() || p.menuOpen, c.Pressed())
+		bg, _, _ := ghostButton.colors(c.Hovered() || p.popup.IsOpen(), c.Pressed())
 		call, content := measure(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Left: unit.Dp(10), Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
@@ -166,48 +161,11 @@ func (s *Shell) toggleButton(c *widget.Clickable, ic *icon.Icon, txt string, on 
 // is open; a press anywhere else closes it.
 func (s *Shell) projectMenu(gtx layout.Context) {
 	p := &s.Project
-	for {
-		ev, ok := gtx.Event(pointer.Filter{Target: &p.dismiss, Kinds: pointer.Press})
-		if !ok {
-			break
-		}
-		if e, ok := ev.(pointer.Event); ok && e.Kind == pointer.Press {
-			p.menuOpen = false
-		}
-	}
-	if !p.menuOpen {
-		return
-	}
-	area := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
-	event.Op(gtx.Ops, &p.dismiss)
-	area.Pop()
-
-	item := func(c *widget.Clickable, ic *icon.Icon, txt string) layout.FlexChild {
-		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return c.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				size := image.Pt(gtx.Dp(220), gtx.Dp(34))
-				if c.Hovered() {
-					fillRRect(gtx, size, controlRadius, controlHover, color.NRGBA{})
-				}
-				at(gtx, image.Pt(gtx.Dp(10), (size.Y-gtx.Dp(iconSize))/2), func(gtx layout.Context) layout.Dimensions {
-					return ic.Layout(gtx, iconSize, dimText)
-				})
-				call, t := measure(gtx, s.text(txt, bodySize, font.Normal, textColor, 1))
-				place(gtx, image.Pt(gtx.Dp(36), (size.Y-t.Y)/2), call)
-				pointerCursor(gtx, size)
-				return layout.Dimensions{Size: size}
-			})
-		})
-	}
-	at(gtx, p.menuAt, func(gtx layout.Context) layout.Dimensions {
-		return card(gtx, &p.menuSink, layout.UniformInset(unit.Dp(6)), func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				item(&p.OpenProject, icon.FolderOpen, "Abrir projeto…"),
-				item(&p.Save, icon.Save, "Salvar"),
-				item(&p.SaveAs, icon.SaveAll, "Salvar como…"),
-			)
-		})
-	})
+	s.contextMenu(gtx, &p.popup,
+		MenuItem{Click: &p.OpenProject, Icon: icon.FolderOpen, Text: "Abrir projeto…"},
+		MenuItem{Click: &p.Save, Icon: icon.Save, Text: "Salvar"},
+		MenuItem{Click: &p.SaveAs, Icon: icon.SaveAll, Text: "Salvar como…"},
+	)
 }
 
 // recentMaps are the recent map chips, wrapping onto as many rows as they

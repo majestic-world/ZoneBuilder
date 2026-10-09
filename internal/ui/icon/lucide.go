@@ -44,6 +44,7 @@ var (
 	CodeXML           = lucide("code-xml")
 	Copy              = lucide("copy")
 	Crosshair         = lucide("crosshair")
+	Droplets          = lucide("droplets")
 	Eye               = lucide("eye")
 	EyeOff            = lucide("eye-off")
 	FileCode          = lucide("file-code")
