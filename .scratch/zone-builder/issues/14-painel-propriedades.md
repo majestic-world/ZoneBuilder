@@ -18,3 +18,5 @@
 ## Comments
 
 Resolvido na branch de integração `zone-builder`. Branch `zb/14-painel-propriedades`. Catálogo de 26 parâmetros do `ZoneTemplate` com tipo e padrão; todos os 2473 `<set>` do datapack aceitos. Teste `Siege` recusado. Manual: GameServer real.
+
+Em 2026-10-08, por decisão do usuário, a lista tipada dos parâmetros conhecidos do `ZoneTemplate` (catálogo, validação por tipo e tabela de SystemMsg) foi removida: o foco do app são as coordenadas. Ficam o tipo e os parâmetros chave/valor, usados para `residence`, `distribution_id` e `fishing_place_type`.

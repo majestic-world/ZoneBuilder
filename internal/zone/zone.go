@@ -91,8 +91,8 @@ type Zone struct {
 	Color Color
 }
 
-// Param is one <set name val> of a zone: a known ZoneTemplate parameter
-// (see KnownParams) or a free one that scripts read.
+// Param is one <set name val> of a zone, such as the residence a SIEGE zone
+// needs.
 type Param struct {
 	Name, Value string
 }

@@ -76,7 +76,7 @@ internal/unreal/        Level, Model (BSP), StaticMesh, TerrainInfo, atores, gra
 internal/scene/         construção de malha (grid do terreno, fan do BSP, transform dos atores), batches, filtros, picking
 internal/render/        bindings EGL/GLES via ANGLE, shaders, passes, upload de textura, overlay de zonas
 internal/camera/        câmera fly, ray a partir do cursor
-internal/zone/          modelo de zona, geometria (simple polygon, point-in-polygon), validação, tipos e parâmetros conhecidos
+internal/zone/          modelo de zona, geometria (simple polygon, point-in-polygon), validação, tipos e parâmetros chave/valor
 internal/zonexml/       compilação para XML
 internal/project/       leitura e gravação do .zbproj
 internal/ui/            painéis Gio: zonas, propriedades, ferramentas, problemas, status
@@ -137,7 +137,7 @@ Overlay: prisma translúcido entre `zmin` e `zmax`, arestas desenhadas por cima 
 ### M6. Ver e gerenciar demarcações
 
 - **Lista de zonas:** busca por nome, filtro por tipo, mostrar/ocultar por zona e por tipo, contagem de problemas; selecionar leva a câmera até a zona.
-- **Painel de propriedades:** nome; tipo (lista fechada com os 23 valores do enum, respeitando maiúsculas); parâmetros conhecidos do `ZoneTemplate` com widget tipado e padrão (`enabled`, `default`, `target`, `affect_race`, `skill_name`, `damage_on_hp`, `blocked_actions` etc.); parâmetros livres chave/valor para os lidos por scripts (`residence`, `distribution_id`, `fishing_place_type`, `playerMinLevel` etc.).
+- **Painel de propriedades:** nome; tipo (lista fechada com os 23 valores do enum, respeitando maiúsculas); parâmetros chave/valor, só para os que o servidor exige (`residence`, `distribution_id`, `fishing_place_type`) ou que scripts leem. A lista tipada dos parâmetros do `ZoneTemplate` foi removida: o foco do app são as coordenadas.
 - **Duplicar zona** para criar variações sem redesenhar.
 - **Painel de problemas** atualizado a cada edição.
 

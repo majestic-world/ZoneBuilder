@@ -25,15 +25,19 @@ func (c SetType) apply(d *Document) error {
 	return nil
 }
 
-// SetParam sets a zone parameter. A parameter the zone already has keeps
-// its place in the order and takes the new value; a new one goes last.
-// A known parameter (KnownParams) takes only values of its kind; any other
-// name is a free parameter and takes any value, except the names the
-// ZoneParser keeps its own data under.
+// SetParam sets a zone parameter, written as <set name val />. A parameter
+// the zone already has keeps its place in the order and takes the new
+// value; a new one goes last. Any name and value are taken, except the
+// names the ZoneParser keeps its own data under.
 type SetParam struct {
 	Zone        ZoneID
 	Name, Value string
 }
+
+// reservedParams are the names the ZoneParser stores its own values under
+// in the same set as the <set> parameters (zone name and type, shapes,
+// restart points): a <set> with one of them breaks the zone.
+var reservedParams = []string{"name", "type", "territory", "restart_points", "PKrestart_points"}
 
 func (c SetParam) apply(d *Document) error {
 	switch {
@@ -43,11 +47,6 @@ func (c SetParam) apply(d *Document) error {
 		return fmt.Errorf("zona: o nome de parâmetro %q começa ou termina com espaço", c.Name)
 	case slices.Contains(reservedParams, c.Name):
 		return fmt.Errorf("zona: %q é reservado pelo ZoneParser do servidor", c.Name)
-	}
-	if spec, ok := KnownParam(c.Name); ok {
-		if err := spec.Check(c.Value); err != nil {
-			return err
-		}
 	}
 	z, err := d.zone(c.Zone)
 	if err != nil {

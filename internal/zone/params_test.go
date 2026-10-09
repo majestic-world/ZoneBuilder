@@ -37,8 +37,8 @@ func TestTypeOutsideTheServerEnumCaseCannotBeSet(t *testing.T) {
 }
 
 // Parameters compile as <set name="..." val="..." /> lines, before the
-// shapes, in the order they were added: known and free ones mixed, a
-// re-set parameter keeping its place and a removed one gone.
+// shapes, in the order they were added: a re-set parameter keeping its
+// place and a removed one gone.
 func TestParamsCompileAsSetsInDocumentOrder(t *testing.T) {
 	d := zone.NewDocument()
 	id := d.NewZoneID()
@@ -64,64 +64,5 @@ func TestParamsCompileAsSetsInDocumentOrder(t *testing.T) {
 		"\t\t<polygon>\n"
 	if !strings.Contains(string(files[0].Data), want) {
 		t.Errorf("compiled XML lacks\n%s\ngot:\n%s", want, files[0].Data)
-	}
-}
-
-// A known ZoneTemplate parameter takes only values the server parses into
-// its type; anything else (which the server would read as false, or throw
-// on and drop the rest of the file) is refused and leaves the zone as it
-// was. Free parameters take any value.
-func TestKnownParamAcceptsOnlyValuesOfItsType(t *testing.T) {
-	d := zone.NewDocument()
-	id := d.NewZoneID()
-	polygonZone(t, d, id, "[zb_params]", zone.Damage, -3660, -3148, square...)
-
-	refused := []zone.SetParam{
-		{Name: "enabled", Value: "yes"},           // parseBoolean: silently false
-		{Name: "default", Value: "1"},             // same
-		{Name: "damage_on_hp", Value: "30.5"},     // Integer.parseInt throws
-		{Name: "damage_on_hp", Value: ""},         // same
-		{Name: "skill_prob", Value: " 100"},       // same
-		{Name: "restart_time", Value: "10min"},    // Long.parseLong throws
-		{Name: "move_bonus", Value: "fast"},       // Double.parseDouble throws
-		{Name: "target", Value: "PC"},             // ZoneTarget.valueOf is case-sensitive
-		{Name: "affect_race", Value: "kamael"},    // not in Race
-		{Name: "skill_name", Value: "4150"},       // needs "id level"
-		{Name: "message_no", Value: "999999"},     // SystemMsg.valueOf throws
-		{Name: "blocked_actions", Value: "jump"},  // never checked by the server
-		{Name: "entering_message_no", Value: "x"}, // Integer.parseInt throws
-	}
-	for _, c := range refused {
-		c.Zone = id
-		if err := d.Apply(c); err == nil {
-			t.Errorf("SetParam %s=%q succeeded; want an error", c.Name, c.Value)
-		}
-	}
-	if z, _ := d.Zone(id); len(z.Params) != 0 {
-		t.Fatalf("refused values changed the zone: %v", z.Params)
-	}
-
-	accepted := []zone.SetParam{
-		{Name: "enabled", Value: "false"},
-		{Name: "default", Value: "true"},
-		{Name: "damage_on_hp", Value: "30"},
-		{Name: "skill_prob", Value: "-5"},
-		{Name: "restart_time", Value: "600"},
-		{Name: "move_bonus", Value: "-80"},
-		{Name: "hp_regen_bonus", Value: "1.5"},
-		{Name: "target", Value: "only_pc"},
-		{Name: "affect_race", Value: "darkelf"},
-		{Name: "skill_name", Value: "4150;1"},
-		{Name: "message_no", Value: "686"},
-		{Name: "entering_message_no", Value: "-1"},
-		{Name: "blocked_actions", Value: "open_private_store;open_private_workshop"},
-		{Name: "restart_allowed_time", Value: "10min"},
-		{Name: "playerMinLevel", Value: "anything goes"},
-	}
-	for _, c := range accepted {
-		c.Zone = id
-		if err := d.Apply(c); err != nil {
-			t.Errorf("SetParam %s=%q: %v", c.Name, c.Value, err)
-		}
 	}
 }

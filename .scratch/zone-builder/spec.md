@@ -83,8 +83,8 @@ As coordenadas do mapa são as mesmas do servidor, então o ponto clicado vai di
 43. Como desenvolvedor do servidor, quero filtrar a lista por tipo, para focar num tipo de zona.
 44. Como desenvolvedor do servidor, quero mostrar ou ocultar zonas, uma a uma e por tipo, para limpar o viewport.
 45. Como desenvolvedor do servidor, quero escolher o tipo numa lista fechada com os 23 valores do enum do servidor, na caixa exata, para nunca gravar um tipo que derruba o arquivo.
-46. Como desenvolvedor do servidor, quero editar os parâmetros conhecidos do servidor (`enabled`, `default`, `target`, `affect_race`, `skill_name`, `damage_on_hp`, `blocked_actions` e os demais) com campos tipados e valores padrão visíveis, para não errar nome nem formato.
-47. Como desenvolvedor do servidor, quero adicionar parâmetros livres chave/valor, para os parâmetros lidos por scripts (`residence`, `distribution_id`, `playerMinLevel` e outros).
+46. ~~Como desenvolvedor do servidor, quero editar os parâmetros conhecidos do servidor (`enabled`, `default`, `target`, `affect_race`, `skill_name`, `damage_on_hp`, `blocked_actions` e os demais) com campos tipados e valores padrão visíveis, para não errar nome nem formato.~~ Removida em 2026-10-08: o foco do app são as coordenadas; parâmetros só entram como chave/valor (história 47).
+47. Como desenvolvedor do servidor, quero adicionar parâmetros chave/valor, para os que o servidor exige (`residence`, `distribution_id`, `fishing_place_type`) e outros lidos por scripts.
 48. Como desenvolvedor do servidor, quero renomear e apagar zonas, para manter o projeto organizado.
 49. Como desenvolvedor do servidor, quero duplicar uma zona, para criar variações sem redesenhar.
 50. Como desenvolvedor do servidor, quero salvar o trabalho num arquivo de projeto e reabri-lo depois, incluindo zonas incompletas, para trabalhar em várias sessões.
@@ -203,8 +203,7 @@ A UI só produz comandos; ela nunca altera zonas direto. Por isso o desfazer cob
 **Tipos:** lista fechada com os 23 valores do enum `ZoneType` do servidor, na caixa exata: SIEGE, RESIDENCE, HEADQUARTER, FISHING, water, battle_zone, damage, instant_skill, mother_tree, peace_zone, poison, ssq_zone, swamp, no_escape, no_landing, no_restart, no_summon, dummy, offshore, epic, fun, buff_store, JUMPING.
 
 **Parâmetros:**
-- Os conhecidos do `ZoneTemplate` têm nome, tipo e valor padrão declarados.
-- Qualquer outro nome é aceito como parâmetro livre.
+- Chave/valor livres, sem catálogo de tipos: qualquer nome é aceito, exceto os que o `ZoneParser` usa para os próprios dados (`name`, `type`, `territory`, `restart_points`, `PKrestart_points`).
 
 **Validação.** Cada regra produz um `Problem` com zona, shape ou vértice e mensagem:
 - Polígono com 3 ou mais vértices.

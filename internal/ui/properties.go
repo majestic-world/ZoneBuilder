@@ -26,21 +26,18 @@ type EditZone struct {
 	target editTarget
 }
 
-// editTarget is the control an EditZone came from.
+// editTarget is the control an EditZone came from: name is the
+// parameter's name.
 type editTarget struct {
 	kind targetKind
-	// known is the index into PropertiesPanel.known; name the free
-	// parameter's name; value the text the edit tried.
-	known       int
-	name, value string
+	name string
 }
 
 type targetKind int
 
 const (
 	typeTarget targetKind = iota
-	knownTarget
-	freeTarget
+	paramTarget
 	addTarget
 )
 
@@ -49,10 +46,9 @@ var (
 	errorText = color.NRGBA{R: 0xFF, G: 0x80, B: 0x70, A: 0xFF}
 )
 
-// PropertiesPanel edits the selected zone's type and parameters: the type
-// out of the server's 23 values, every known ZoneTemplate parameter in a
-// field of its kind showing the server's default while unset, and the free
-// key/value parameters in document order.
+// PropertiesPanel edits the selected zone's type, out of the server's 23
+// values, and its <set> parameters as key/value pairs in document order,
+// for the ones the server needs (residence, distribution_id, ...).
 type PropertiesPanel struct {
 	shown bool
 	zone  zone.ZoneID
@@ -63,31 +59,16 @@ type PropertiesPanel struct {
 	typeList                      bool
 	typeItems                     []widget.Clickable
 
-	known []knownField
-	free  []*freeField
+	params []*paramField
 
 	newName, newValue widget.Editor
-	addFree           widget.Clickable
+	add               widget.Clickable
 	addErr            string
 }
 
-// knownField is the field of one known parameter. set and value are the
-// zone's, as last loaded into the widgets.
-type knownField struct {
-	spec       zone.ParamSpec
-	set        bool
-	value      string
-	editor     widget.Editor
-	focused    bool
-	prev, next widget.Clickable
-	actions    []widget.Bool
-	err        string
-	// rejected is the text the last refused edit tried.
-	rejected string
-}
-
-// freeField is the value field of one free parameter.
-type freeField struct {
+// paramField is the value field of one parameter; value is the zone's, as
+// last loaded into the editor.
+type paramField struct {
 	name, value string
 	editor      widget.Editor
 	focused     bool
@@ -96,23 +77,7 @@ type freeField struct {
 }
 
 func (p *PropertiesPanel) init() {
-	p.known = make([]knownField, len(zone.KnownParams))
 	p.typeItems = make([]widget.Clickable, len(zone.Types))
-	for i, s := range zone.KnownParams {
-		f := &p.known[i]
-		f.spec = s
-		f.editor.SingleLine, f.editor.Submit = true, true
-		switch s.Kind {
-		case zone.IntParam, zone.LongParam, zone.MessageParam:
-			f.editor.Filter = "-+0123456789"
-		case zone.DoubleParam:
-			f.editor.Filter = "-+.0123456789eE"
-		case zone.SkillParam:
-			f.editor.Filter = "0123456789 ,;"
-		case zone.ActionsParam:
-			f.actions = make([]widget.Bool, len(s.Choices))
-		}
-	}
 	p.newName.SingleLine, p.newName.Submit = true, true
 	p.newValue.SingleLine, p.newValue.Submit = true, true
 }
@@ -139,14 +104,8 @@ func (p *PropertiesPanel) Applied(r EditZone, err error) string {
 		if err != nil {
 			return err.Error()
 		}
-	case knownTarget:
-		f := &p.known[t.known]
-		f.err = ""
-		if err != nil {
-			f.err, f.rejected = "Recusado: "+kindText(f.spec), t.value
-		}
-	case freeTarget:
-		for _, f := range p.free {
+	case paramTarget:
+		for _, f := range p.params {
 			if f.name == t.name {
 				f.err = ""
 				if err != nil {
@@ -155,17 +114,13 @@ func (p *PropertiesPanel) Applied(r EditZone, err error) string {
 			}
 		}
 	case addTarget:
-		switch {
-		case err == nil:
-			p.addErr = ""
-			p.newName.SetText("")
-			p.newValue.SetText("")
-		case isKnown(t.name):
-			s, _ := zone.KnownParam(t.name)
-			p.addErr = "Recusado: " + kindText(s)
-		default:
-			p.addErr = "Recusado: nome reservado pelo ZoneParser do servidor"
+		p.addErr = ""
+		if err != nil {
+			p.addErr = err.Error()
+			break
 		}
+		p.newName.SetText("")
+		p.newValue.SetText("")
 	}
 	if err != nil {
 		return ""
@@ -173,74 +128,36 @@ func (p *PropertiesPanel) Applied(r EditZone, err error) string {
 	return r.status
 }
 
-func isKnown(name string) bool {
-	_, ok := zone.KnownParam(name)
-	return ok
-}
-
 // load brings the fields up to date with z. A field whose zone value did
 // not change since the last load keeps what is being typed in it, unless
 // fresh (another zone) is set.
 func (p *PropertiesPanel) load(z zone.Zone, fresh bool) {
 	if fresh {
-		p.free = nil
+		p.params = nil
 		p.typeList = false
 		p.addErr = ""
 		p.newName.SetText("")
 		p.newValue.SetText("")
 	}
 	p.shown, p.zone, p.name, p.typ = true, z.ID, z.Name, z.Type
-	for i := range p.known {
-		f := &p.known[i]
-		v, set := paramValue(z.Params, f.spec.Name)
-		if !fresh && set == f.set && v == f.value {
-			continue
-		}
-		f.set, f.value, f.err = set, v, ""
-		f.editor.SetText(v)
-		if f.actions != nil {
-			names := listItems(v)
-			for k, a := range f.spec.Choices {
-				f.actions[k].Value = slices.Contains(names, a)
-			}
-		}
-	}
-	var free []*freeField
+	var params []*paramField
 	for _, prm := range z.Params {
-		if _, known := zone.KnownParam(prm.Name); known {
-			continue
-		}
-		i := slices.IndexFunc(p.free, func(f *freeField) bool { return f.name == prm.Name })
+		i := slices.IndexFunc(p.params, func(f *paramField) bool { return f.name == prm.Name })
 		if i < 0 {
-			f := &freeField{name: prm.Name, value: prm.Value}
+			f := &paramField{name: prm.Name, value: prm.Value}
 			f.editor.SingleLine, f.editor.Submit = true, true
 			f.editor.SetText(prm.Value)
-			free = append(free, f)
+			params = append(params, f)
 			continue
 		}
-		f := p.free[i]
+		f := p.params[i]
 		if f.value != prm.Value {
 			f.value, f.err = prm.Value, ""
 			f.editor.SetText(prm.Value)
 		}
-		free = append(free, f)
+		params = append(params, f)
 	}
-	p.free = free
-}
-
-func paramValue(params []zone.Param, name string) (string, bool) {
-	i := slices.IndexFunc(params, func(p zone.Param) bool { return p.Name == name })
-	if i < 0 {
-		return "", false
-	}
-	return params[i].Value, true
-}
-
-// listItems splits a skill or action list value the way the server does.
-func listItems(v string) []string {
-	return strings.FieldsFunc(v, func(r rune) bool {
-		return r == ',' || r == ';' || r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == '\f'
-	})
+	p.params = params
 }
 
 // input turns the clicks and edits since the last frame into requests.
@@ -270,113 +187,26 @@ func (p *PropertiesPanel) input(gtx layout.Context) []EditZone {
 		}
 	}
 
-	// set asks for name=value from target t, or for the parameter's
-	// removal when value is nil.
-	set := func(t editTarget, name string, value *string) {
-		r := EditZone{
-			Command: zone.RemoveParam{Zone: p.zone, Name: name},
-			status:  fmt.Sprintf("%s: %s removido", p.name, name),
-			target:  t,
-		}
-		if value != nil {
-			r.Command = zone.SetParam{Zone: p.zone, Name: name, Value: *value}
-			r.status = fmt.Sprintf("%s: %s = %s", p.name, name, *value)
-			r.target.value = *value
-		}
-		reqs = append(reqs, r)
-	}
-
-	for i := range p.known {
-		f := &p.known[i]
-		s := f.spec
-		t := editTarget{kind: knownTarget, known: i}
-		switch {
-		case s.Kind == zone.BoolParam || s.Kind == zone.ChoiceParam:
-			// The options are the default (unset) and then each choice.
-			at := 0
-			if f.set {
-				at = slices.Index(s.Choices, f.value) + 1
-			}
-			step := 0
-			for f.prev.Clicked(gtx) {
-				step--
-			}
-			for f.next.Clicked(gtx) {
-				step++
-			}
-			if step == 0 {
-				continue
-			}
-			n := len(s.Choices) + 1
-			at = ((at+step)%n + n) % n
-			if at == 0 {
-				set(t, s.Name, nil)
-			} else {
-				set(t, s.Name, &s.Choices[at-1])
-			}
-		case s.Kind == zone.ActionsParam:
-			changed := false
-			for k := range f.actions {
-				if f.actions[k].Update(gtx) {
-					changed = true
-				}
-			}
-			if !changed {
-				continue
-			}
-			// Keep the order of the actions already listed; new ones go last.
-			var names []string
-			for _, a := range listItems(f.value) {
-				if k := slices.Index(s.Choices, a); k >= 0 && f.actions[k].Value && !slices.Contains(names, a) {
-					names = append(names, a)
-				}
-			}
-			for k, a := range s.Choices {
-				if f.actions[k].Value && !slices.Contains(names, a) {
-					names = append(names, a)
-				}
-			}
-			if len(names) == 0 {
-				if f.set {
-					set(t, s.Name, nil)
-				}
-				continue
-			}
-			v := strings.Join(names, ";")
-			set(t, s.Name, &v)
-		default:
-			if !committed(gtx, &f.editor, &f.focused) {
-				continue
-			}
-			v := f.editor.Text()
-			if s.Kind != zone.TextParam {
-				v = strings.TrimSpace(v)
-			}
-			switch {
-			case v == "" && f.set:
-				set(t, s.Name, nil)
-			case v == "" || f.set && v == f.value:
-				f.err = ""
-			case f.err != "" && v == f.rejected:
-				// Already refused; leaving the field does not retry it.
-			default:
-				set(t, s.Name, &v)
-			}
-		}
-	}
-
-	for _, f := range p.free {
-		t := editTarget{kind: freeTarget, name: f.name}
+	for _, f := range p.params {
+		t := editTarget{kind: paramTarget, name: f.name}
 		for f.remove.Clicked(gtx) {
-			set(t, f.name, nil)
+			reqs = append(reqs, EditZone{
+				Command: zone.RemoveParam{Zone: p.zone, Name: f.name},
+				status:  fmt.Sprintf("%s: %s removido", p.name, f.name),
+				target:  t,
+			})
 		}
 		if committed(gtx, &f.editor, &f.focused) && f.editor.Text() != f.value {
 			v := f.editor.Text()
-			set(t, f.name, &v)
+			reqs = append(reqs, EditZone{
+				Command: zone.SetParam{Zone: p.zone, Name: f.name, Value: v},
+				status:  fmt.Sprintf("%s: %s = %s", p.name, f.name, v),
+				target:  t,
+			})
 		}
 	}
 
-	add := p.addFree.Clicked(gtx)
+	add := p.add.Clicked(gtx)
 	for _, e := range []*widget.Editor{&p.newName, &p.newValue} {
 		for {
 			ev, ok := e.Update(gtx)
@@ -390,29 +220,20 @@ func (p *PropertiesPanel) input(gtx layout.Context) []EditZone {
 	}
 	if add {
 		name, v := strings.TrimSpace(p.newName.Text()), p.newValue.Text()
-		if name == "" {
+		switch {
+		case name == "":
 			p.addErr = "Digite o nome do parâmetro"
-		} else if _, dup := paramValue(p.params(), name); dup {
+		case slices.ContainsFunc(p.params, func(f *paramField) bool { return f.name == name }):
 			p.addErr = name + " já está definido"
-		} else {
-			set(editTarget{kind: addTarget, name: name}, name, &v)
+		default:
+			reqs = append(reqs, EditZone{
+				Command: zone.SetParam{Zone: p.zone, Name: name, Value: v},
+				status:  fmt.Sprintf("%s: %s = %s", p.name, name, v),
+				target:  editTarget{kind: addTarget, name: name},
+			})
 		}
 	}
 	return reqs
-}
-
-// params is every parameter the fields hold, known ones first.
-func (p *PropertiesPanel) params() []zone.Param {
-	var ps []zone.Param
-	for _, f := range p.known {
-		if f.set {
-			ps = append(ps, zone.Param{Name: f.spec.Name, Value: f.value})
-		}
-	}
-	for _, f := range p.free {
-		ps = append(ps, zone.Param{Name: f.name, Value: f.value})
-	}
-	return ps
 }
 
 // committed drains e's events and reports whether its text is to be
@@ -436,36 +257,6 @@ func committed(gtx layout.Context, e *widget.Editor, focused *bool) bool {
 	return commit
 }
 
-// kindText describes, in the panel's language, the values a known
-// parameter takes.
-func kindText(s zone.ParamSpec) string {
-	switch s.Kind {
-	case zone.BoolParam, zone.ChoiceParam:
-		return strings.Join(s.Choices, " | ")
-	case zone.IntParam:
-		return "inteiro (32 bits)"
-	case zone.LongParam:
-		return "inteiro"
-	case zone.DoubleParam:
-		return "número decimal (ex.: -80 ou 1.5)"
-	case zone.MessageParam:
-		return "id de SystemMsg, ou -1 para nenhuma"
-	case zone.SkillParam:
-		return `skill "id;nível" (ex.: 4150;1)`
-	case zone.ActionsParam:
-		return "ações bloqueadas"
-	}
-	return "texto"
-}
-
-// defaultText is the hint an unset known parameter shows.
-func defaultText(s zone.ParamSpec) string {
-	if s.Default == "" {
-		return "padrão: nenhum"
-	}
-	return "padrão: " + s.Default
-}
-
 func (s *Shell) propertiesPanel() []layout.FlexChild {
 	p := &s.Props
 	children := []layout.FlexChild{layout.Rigid(s.heading("Propriedades da zona"))}
@@ -483,38 +274,11 @@ func (s *Shell) propertiesPanel() []layout.FlexChild {
 		}
 	}
 
-	children = append(children, layout.Rigid(s.heading("Parâmetros conhecidos")))
-	for i := range p.known {
-		f := &p.known[i]
-		sp := f.spec
-		children = append(children, layout.Rigid(s.label(sp.Name+" ("+kindName(sp.Kind)+")")))
-		switch sp.Kind {
-		case zone.BoolParam, zone.ChoiceParam:
-			text := "padrão (" + sp.Default + ")"
-			if f.set {
-				text = f.value
-			}
-			children = append(children, layout.Rigid(s.stepper(&f.prev, &f.next, nil, text, f.set)))
-		case zone.ActionsParam:
-			if !f.set {
-				children = append(children, layout.Rigid(s.dimLabel(defaultText(sp))))
-			}
-			for k, a := range sp.Choices {
-				children = append(children, layout.Rigid(s.checkBox(&f.actions[k], a)))
-			}
-		default:
-			children = append(children, layout.Rigid(s.field(&f.editor, defaultText(sp))))
-		}
-		if f.err != "" {
-			children = append(children, layout.Rigid(s.errorLabel(f.err)))
-		}
-	}
-
-	children = append(children, layout.Rigid(s.heading("Parâmetros livres")))
-	if len(p.free) == 0 {
-		children = append(children, layout.Rigid(s.dimLabel("Nenhum")))
-	}
-	for _, f := range p.free {
+	children = append(children,
+		layout.Rigid(s.heading("Parâmetros")),
+		layout.Rigid(s.dimLabel("Só os que o servidor exige: residence (SIEGE, HEADQUARTER), distribution_id e fishing_place_type (FISHING)")),
+	)
+	for _, f := range p.params {
 		children = append(children,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
@@ -529,36 +293,14 @@ func (s *Shell) propertiesPanel() []layout.FlexChild {
 		}
 	}
 	children = append(children,
-		layout.Rigid(s.label("Novo parâmetro livre")),
-		layout.Rigid(s.field(&p.newName, "nome (ex.: residence, playerMinLevel)")),
+		layout.Rigid(s.field(&p.newName, "nome (ex.: residence)")),
 		layout.Rigid(s.field(&p.newValue, "valor")),
-		layout.Rigid(s.button(&p.addFree, "Adicionar parâmetro")),
+		layout.Rigid(s.button(&p.add, "Adicionar parâmetro")),
 	)
 	if p.addErr != "" {
 		children = append(children, layout.Rigid(s.errorLabel(p.addErr)))
 	}
 	return children
-}
-
-// kindName is the short type label next to a known parameter's name.
-func kindName(k zone.ParamKind) string {
-	switch k {
-	case zone.BoolParam:
-		return "booleano"
-	case zone.IntParam, zone.LongParam:
-		return "inteiro"
-	case zone.DoubleParam:
-		return "decimal"
-	case zone.ChoiceParam:
-		return "lista"
-	case zone.MessageParam:
-		return "SystemMsg"
-	case zone.SkillParam:
-		return "skill id;nível"
-	case zone.ActionsParam:
-		return "ações"
-	}
-	return "texto"
 }
 
 // stepper is "< text >": prev and next step through a closed list. With
