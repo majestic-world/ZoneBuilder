@@ -31,7 +31,7 @@ O Zone Builder porta a lógica de leitura do UE2-Studio para Go; ele não chama 
 
 O Gio não tem API 3D pública. O caminho oficial para misturar 3D próprio com a UI do Gio é `app.Window` com `app.CustomRenderer(true)`: o app recebe o `app.ViewEvent` (HWND no Windows), cria o contexto EGL e desenha a cena; depois `gpu.New(gpu.OpenGL{ES: true, Shared: true})` desenha os painéis do Gio por cima no mesmo frame (exemplo `gioui.org/example/opengl`).
 
-- No Windows, o Gio carrega OpenGL via ANGLE (`libEGL.dll`, `libGLESv2.dll`). O app distribui essas duas DLLs ao lado do executável (licença BSD; dá para tirar de um build do ANGLE ou da instalação do Chrome/Edge).
+- No Windows, o Gio carrega OpenGL via ANGLE (`libEGL.dll`, `libGLESv2.dll`). O app distribui essas duas DLLs ao lado do executável; elas ficam versionadas em `third_party/angle` (licença BSD), com versão e hashes no README da pasta.
 - As chamadas EGL/GLES saem por `syscall.NewLazyDLL`, do mesmo jeito que o Gio faz internamente, sem cgo e sem precisar de toolchain C.
 - O viewport 3D desenha com `glViewport`/`glScissor` só na área do widget de viewport; os eventos de ponteiro dessa área chegam pelo `event.Op` do Gio.
 
