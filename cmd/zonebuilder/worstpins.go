@@ -8,6 +8,7 @@ import (
 
 	"zonebuilder/internal/camera"
 	"zonebuilder/internal/coverage"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
@@ -22,7 +23,7 @@ var worstPinColor = [3]float32{1, 0.8, 0.15}
 // (with the top clearance) or the lowest (with the floor clearance).
 type worstPin struct {
 	at    coverage.Spot
-	text  string
+	clearance int
 	alert bool // the clearance is negative
 	top   bool // the highest floor, else the lowest
 }
@@ -33,8 +34,8 @@ func worstPins(r coverage.Report) []worstPin {
 		return nil
 	}
 	return []worstPin{
-		{at: r.GroundMax, text: "topo " + signed(roundF(r.TopClearance)), alert: roundF(r.TopClearance) < 0, top: true},
-		{at: r.GroundMin, text: "piso " + signed(roundF(r.FloorClearance)), alert: roundF(r.FloorClearance) < 0},
+		{at: r.GroundMax, clearance: roundF(r.TopClearance), alert: roundF(r.TopClearance) < 0, top: true},
+		{at: r.GroundMin, clearance: roundF(r.FloorClearance), alert: roundF(r.FloorClearance) < 0},
 	}
 }
 
@@ -44,6 +45,40 @@ func signed(n int) string {
 		return "−" + units(-n)
 	}
 	return "+" + units(n)
+}
+
+func (p worstPin) label(lang locale.Language) string {
+	key := "editor.pin.floor"
+	if p.top {
+		key = "editor.pin.top"
+	}
+	value := locale.Number(lang, float64(abs(p.clearance)), 0)
+	if p.clearance < 0 {
+		value = "−" + value
+	} else {
+		value = "+" + value
+	}
+	return locale.Format(lang, key, map[string]string{"clearance": value})
+}
+
+func pinMessage(p worstPin) locale.Message {
+	key := "editor.pin.lowest"
+	if p.top {
+		key = "editor.pin.highest"
+	}
+	return locale.Message{Key: key, Args: map[string]string{"clearance": intArg(p.clearance)}}
+}
+
+func pinStatus(p worstPin, lang locale.Language) string {
+	msg := pinMessage(p)
+	clearance := locale.Number(lang, float64(abs(p.clearance)), 0)
+	if p.clearance < 0 {
+		clearance = "−" + clearance
+	} else {
+		clearance = "+" + clearance
+	}
+	msg.Args = map[string]string{"clearance": clearance}
+	return msg.Render(lang)
 }
 
 // pins are the worst points of e's current shape over w, from c's report
@@ -92,7 +127,7 @@ func pinShapes(pins []worstPin) []render.ZoneShape {
 // pinLabels are the labels of pins on the viewport of size vp seen by cam,
 // at the top of each pin; a pin off screen has none, but keeps its index
 // so PinClicked maps back to pins.
-func pinLabels(pins []worstPin, s *scene.World, cam *camera.Camera, vp image.Point) []ui.EdgeLabel {
+func pinLabels(pins []worstPin, s *scene.World, cam *camera.Camera, vp image.Point, lang locale.Language) []ui.EdgeLabel {
 	labels := make([]ui.EdgeLabel, 0, len(pins))
 	for _, p := range pins {
 		top := p.point()
@@ -101,23 +136,20 @@ func pinLabels(pins []worstPin, s *scene.World, cam *camera.Camera, vp image.Poi
 		if !ok {
 			x, y = -1e6, -1e6 // off the viewport
 		}
-		labels = append(labels, ui.EdgeLabel{At: f32.Pt(x, y), Text: p.text, Alert: p.alert})
+		labels = append(labels, ui.EdgeLabel{At: f32.Pt(x, y), Text: p.label(lang), Alert: p.alert})
 	}
 	return labels
 }
 
 // goToPin frames pin p like a problem's vertex (pointBox); it returns the
 // status line.
-func goToPin(p worstPin, s *scene.World, cam *camera.Camera) string {
+func goToPin(p worstPin, s *scene.World, cam *camera.Camera, lang locale.Language) string {
 	pt := p.point()
-	msg := "Chão mais baixo do shape: " + p.text
-	if p.top {
-		msg = "Chão mais alto do shape: " + p.text
-	}
+	msg := pinStatus(p, lang)
 	if s == nil {
 		return msg
 	}
 	cam.Frame(pointBox(s, pt))
-	log.Printf("zona: câmera no pior ponto %d %d %d (%s): %s", pt.X, pt.Y, pt.Z, p.text, formatPose(cam, s))
+	log.Printf("zona: câmera no pior ponto %d %d %d (%s): %s", pt.X, pt.Y, pt.Z, p.label(lang), formatPose(cam, s))
 	return msg
 }

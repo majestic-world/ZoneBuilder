@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image"
 	"log"
 	"math"
@@ -13,6 +12,7 @@ import (
 	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/inflect"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
@@ -48,15 +48,15 @@ const (
 // tool draws an exclusion when banned is set. It returns the status line.
 func (e *zoneEditor) arm(tool ui.Tool, banned bool) string {
 	if e.drawing {
-		return "Feche o polígono atual antes de trocar de ferramenta"
+		return e.text("editor.tool.finish_first")
 	}
 	if _, ok := e.doc.Zone(e.zone); !ok {
-		return "Crie uma zona antes de escolher uma ferramenta"
+		return e.text("editor.tool.create_first")
 	}
 	e.tool, e.armed, e.banned = tool, true, banned && tool.IsShape()
 	e.anchored, e.hovering = false, false
 	e.version++
-	return e.hint()
+	return e.text(e.hintKey())
 }
 
 // hint is the armed tool's instruction, or "" when none is armed.
@@ -64,30 +64,49 @@ func (e *zoneEditor) hint() string {
 	if !e.armed {
 		return ""
 	}
-	what := ""
-	if e.banned {
-		what = " (exclusão)"
+	return locale.Text(e.Language, e.hintKey())
+}
+
+func (e *zoneEditor) hintKey() string {
+	if !e.armed {
+		return ""
 	}
 	switch e.tool {
 	case ui.ToolRectangle:
-		if e.anchored {
-			return "Retângulo" + what + ": clique no canto oposto; Esc cancela"
+		switch {
+		case e.banned && e.anchored:
+			return "editor.hint.exclusion_rectangle_opposite"
+		case e.banned:
+			return "editor.hint.exclusion_rectangle_first"
+		case e.anchored:
+			return "editor.hint.rectangle_opposite"
 		}
-		return "Retângulo" + what + ": clique no 1º canto; Esc cancela"
+		return "editor.hint.rectangle_first"
 	case ui.ToolCircle:
-		if e.anchored {
-			return "Círculo" + what + ": clique na borda para dar o raio; Esc cancela"
+		switch {
+		case e.banned && e.anchored:
+			return "editor.hint.exclusion_circle_radius"
+		case e.banned:
+			return "editor.hint.exclusion_circle_center"
+		case e.anchored:
+			return "editor.hint.circle_radius"
 		}
-		return "Círculo" + what + ": clique no centro; Esc cancela"
+		return "editor.hint.circle_center"
 	case ui.ToolRestart:
-		return "Cada clique marca um restart_point; Esc termina"
+		return "editor.hint.restart"
 	case ui.ToolPKRestart:
-		return "Cada clique marca um PKrestart_point; Esc termina"
+		return "editor.hint.pk_restart"
 	}
 	if e.drawing {
-		return "Polígono" + what + ": clique adiciona vértice; Enter ou clique no 1º vértice fecha"
+		if e.banned {
+			return "editor.hint.exclusion_polygon_continue"
+		}
+		return "editor.hint.polygon_continue"
 	}
-	return "Polígono" + what + ": clique na superfície para o 1º vértice; Esc cancela"
+	if e.banned {
+		return "editor.hint.exclusion_polygon_first"
+	}
+	return "editor.hint.polygon_first"
 }
 
 // escape puts the armed tool down, dropping a rectangle's first corner or
@@ -96,13 +115,13 @@ func (e *zoneEditor) hint() string {
 func (e *zoneEditor) escape() string {
 	switch {
 	case e.drawing:
-		return "O polígono está aberto: Enter ou clique no 1º vértice fecha"
+		return e.text("editor.polygon.open")
 	case !e.armed:
 		return ""
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
 	e.version++
-	return "Ferramenta guardada"
+	return e.text("editor.tool.put_away")
 }
 
 // rectangleClick takes corner v: the first one anchors the rectangle, the
@@ -111,16 +130,16 @@ func (e *zoneEditor) rectangleClick(s *scene.World, c *floorCoverage, v zone.Poi
 	if !e.anchored {
 		e.anchor, e.anchored = v, true
 		e.version++
-		return fmt.Sprintf("1º canto em %d %d %d; clique no canto oposto", v.X, v.Y, v.Z)
+		return e.message("editor.rectangle.anchor", pointArgs(v))
 	}
 	a := e.anchor
 	if a.X == v.X || a.Y == v.Y {
-		return "O retângulo precisa de largura e altura: clique noutro canto"
+		return e.text("editor.rectangle.zero_size")
 	}
 	_, fit := e.placed(s, c, v, true)
 	z, _ := e.doc.Zone(e.zone)
 	if e.apply(zone.AddShape{Zone: e.zone, Kind: zone.Rectangle, Banned: e.banned, Points: []zone.Point{a, v}, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
-		return "Não foi possível adicionar o retângulo"
+		return e.text("editor.rectangle.failed")
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
 	e.shape = len(z.Shapes)
@@ -129,7 +148,11 @@ func (e *zoneEditor) rectangleClick(s *scene.World, c *floorCoverage, v zone.Poi
 		what = "Exclusão retangular"
 	}
 	log.Printf("zona: %s: %s %d %d … %d %d, z %d..%d %s", z.Name, what, a.X, a.Y, v.X, v.Y, fit.zmin, fit.zmax, fit.note())
-	return fmt.Sprintf("%s em %s: %d %d … %d %d, z %d … %d %s", what, z.Name, a.X, a.Y, v.X, v.Y, fit.zmin, fit.zmax, fit.note())
+	key := "editor.rectangle.done"
+	if e.banned {
+		key = "editor.rectangle.exclusion_done"
+	}
+	return e.message(key, shapeArgs(e.Language, z.Name, a, v, fit))
 }
 
 // wholeTile adds to the selected zone a polygon over tile t's whole square,
@@ -144,11 +167,11 @@ func (e *zoneEditor) wholeTile(c *floorCoverage, w *scene.World, t scene.Tile, s
 	z, ok := e.doc.Zone(e.zone)
 	switch {
 	case e.drawing:
-		return "Feche o polígono atual antes de cobrir o tile"
+		return e.text("editor.tile.finish_first")
 	case !ok:
-		return "Crie uma zona antes de cobrir o tile"
+		return e.text("editor.tile.create_first")
 	case s.Bounds.Empty():
-		return t.Name() + " não tem geometria para medir a faixa Z"
+		return e.message("editor.tile.no_geometry", map[string]string{"tile": t.Name()})
 	}
 	ox, oy := t.Origin()
 	x0, y0 := int(ox), int(oy)
@@ -159,7 +182,7 @@ func (e *zoneEditor) wholeTile(c *floorCoverage, w *scene.World, t scene.Tile, s
 	pts := []zone.Point{{X: x0, Y: y0, Z: floor}, {X: x1, Y: y0, Z: floor}, {X: x1, Y: y1, Z: floor}, {X: x0, Y: y1, Z: floor}}
 	fit := c.suggest(e, w, len(z.Shapes), pts, vmin, vmax, true, true)
 	if e.apply(zone.AddShape{Zone: e.zone, Banned: banned, Points: pts, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
-		return "Não foi possível cobrir o tile"
+		return e.text("editor.tile.failed")
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
 	e.shape = len(z.Shapes)
@@ -168,14 +191,20 @@ func (e *zoneEditor) wholeTile(c *floorCoverage, w *scene.World, t scene.Tile, s
 		what = "Exclusão do tile inteiro"
 	}
 	log.Printf("zona: %s: %s %s: %d %d … %d %d, z %d..%d %s", z.Name, what, t.Name(), x0, y0, x1, y1, fit.zmin, fit.zmax, fit.note())
-	return fmt.Sprintf("%s %s em %s: %d %d … %d %d, z %d … %d %s", what, t.Name(), z.Name, x0, y0, x1, y1, fit.zmin, fit.zmax, fit.note())
+	key := "editor.tile.done"
+	if banned {
+		key = "editor.tile.exclusion_done"
+	}
+	args := shapeArgs(e.Language, z.Name, pts[0], pts[2], fit)
+	args["tile"] = t.Name()
+	return e.message(key, args)
 }
 
 // wholeTile covers, in the selected zone, the tile in view: the one under
 // the viewport's centre, or under the camera when the centre meets nothing.
 func wholeTile(e *zoneEditor, c *floorCoverage, ts *tiles, cam *camera.Camera, vp image.Point, banned bool) string {
 	if ts.world == nil {
-		return "Abra um mapa antes de cobrir o tile"
+		return e.text("editor.tile.open_first")
 	}
 	at := worldPosition(ts.world, cam.Position)
 	if h, ok := pickAt(ts.world, cam, f32.Pt(float32(vp.X)/2, float32(vp.Y)/2), vp); ok {
@@ -183,7 +212,7 @@ func wholeTile(e *zoneEditor, c *floorCoverage, ts *tiles, cam *camera.Camera, v
 	}
 	t, s, ok := ts.sceneAt(at.X, at.Y)
 	if !ok {
-		return "Nenhum tile carregado no centro da vista"
+		return e.text("editor.tile.not_loaded")
 	}
 	return e.wholeTile(c, ts.world, t, s, banned)
 }
@@ -196,17 +225,17 @@ func (e *zoneEditor) circleClick(s *scene.World, c *floorCoverage, v zone.Point)
 	if !e.anchored {
 		e.anchor, e.anchored = v, true
 		e.version++
-		return fmt.Sprintf("Centro em %d %d %d; clique na borda para dar o raio", v.X, v.Y, v.Z)
+		return e.message("editor.circle.anchor", pointArgs(v))
 	}
 	a := e.anchor
 	r := radius(a, v)
 	if r < minCircleRadius {
-		return fmt.Sprintf("Raio de %d: o mínimo é %d; clique mais longe do centro", r, minCircleRadius)
+		return e.message("editor.circle.small_radius", map[string]string{"radius": intArg(r), "min": intArg(minCircleRadius)})
 	}
 	pts, fit := e.placed(s, c, v, true)
 	z, _ := e.doc.Zone(e.zone)
 	if e.apply(zone.AddShape{Zone: e.zone, Banned: e.banned, Points: pts, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
-		return "Não foi possível adicionar o círculo"
+		return e.text("editor.circle.failed")
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
 	e.shape = len(z.Shapes)
@@ -215,7 +244,11 @@ func (e *zoneEditor) circleClick(s *scene.World, c *floorCoverage, v zone.Point)
 		what = "Exclusão circular"
 	}
 	log.Printf("zona: %s: %s centro %d %d raio %d → polígono de %s, z %d..%d %s", z.Name, what, a.X, a.Y, r, inflect.Count(len(pts), "vértice", "vértices"), fit.zmin, fit.zmax, fit.note())
-	return fmt.Sprintf("%s em %s: raio %d, polígono de %s, z %d … %d %s", what, z.Name, r, inflect.Count(len(pts), "vértice", "vértices"), fit.zmin, fit.zmax, fit.note())
+	key := "editor.circle.done"
+	if e.banned {
+		key = "editor.circle.exclusion_done"
+	}
+	return e.message(key, map[string]string{"name": z.Name, "radius": intArg(r), "vertices": intArg(len(pts)), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language)})
 }
 
 // restartClick adds v to the selected zone's restart points (player
@@ -223,7 +256,7 @@ func (e *zoneEditor) circleClick(s *scene.World, c *floorCoverage, v zone.Point)
 func (e *zoneEditor) restartClick(v zone.Point) string {
 	pk := e.tool == ui.ToolPKRestart
 	if e.apply(zone.AddRestartPoint{Zone: e.zone, PK: pk, Point: v}) != nil {
-		return "Não foi possível marcar o ponto"
+		return e.text("editor.restart.failed")
 	}
 	z, _ := e.doc.Zone(e.zone)
 	name, n := "restart_point", len(z.RestartPoints)
@@ -231,7 +264,7 @@ func (e *zoneEditor) restartClick(v zone.Point) string {
 		name, n = "PKrestart_point", len(z.PKRestartPoints)
 	}
 	log.Printf("zona: %s: %s %d em %d %d %d", z.Name, name, n, v.X, v.Y, v.Z)
-	return fmt.Sprintf("%s %d de %s em %d %d %d", name, n, z.Name, v.X, v.Y, v.Z)
+	return e.message("editor.restart.done", map[string]string{"kind": name, "index": intArg(n), "name": z.Name, "x": intArg(v.X), "y": intArg(v.Y), "z": intArg(v.Z)})
 }
 
 // radius is the circle radius from center c to v, in server units.
@@ -305,7 +338,7 @@ func (e *zoneEditor) hoverAt(s *scene.World, c *floorCoverage, h scene.Hit, ok b
 	}
 	e.ghostZ = fit
 	e.version++
-	return fmt.Sprintf("%s · prévia: z %d … %d %s", e.hint(), fit.zmin, fit.zmax, fit.note())
+	return e.message("editor.preview", map[string]string{"hint": e.hint(), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language)})
 }
 
 // preview is the rectangle or circle being placed: from the anchor to the

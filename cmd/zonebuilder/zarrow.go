@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image"
 	"math"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 	"gioui.org/layout"
 
 	"zonebuilder/internal/camera"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
 	"zonebuilder/internal/zone"
@@ -144,11 +144,11 @@ func (e *zoneEditor) arrowEvent(ev pointer.Event) string {
 			d.dz = dz
 			e.version++
 		}
-		verb := "Subindo"
+		key := "editor.arrow.raising"
 		if dz < 0 {
-			verb = "Descendo"
+			key = "editor.arrow.lowering"
 		}
-		return fmt.Sprintf("%s a zona %d (Shift: passo de %d)", verb, abs(dz), e.step)
+		return e.message(key, map[string]string{"delta": intArg(abs(dz)), "step": intArg(e.step)})
 	case pointer.Release:
 		dz := d.dz
 		*d = zDrag{}
@@ -199,7 +199,7 @@ func (e *zoneEditor) heightPanel(gtx layout.Context, p *ui.HeightPanel, s *scene
 	z, base, top, ok := e.zoneZ()
 	p.Zone = ""
 	if ok {
-		p.Zone = fmt.Sprintf("%s: piso z %d, topo z %d, altura %d", z.Name, base, top, top-base)
+		p.Zone = locale.Format(e.Language, "editor.height.zone", map[string]string{"name": z.Name, "min": intArg(base), "max": intArg(top), "height": intArg(top-base)})
 	}
 	k := heightKey{zone: z.ID, ok: ok, version: e.version}
 	if k != e.heightFilled && !e.zdrag.active {
