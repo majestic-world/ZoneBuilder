@@ -202,6 +202,9 @@ type Scene struct {
 	Warnings []string
 	// Actors are the placed static mesh actors, in load order.
 	Actors []MeshActor
+	// Tiles are the tiles the scene was loaded from: their squares are
+	// the part of the world it covers.
+	Tiles []Tile
 }
 
 // ToRender converts an Unreal-basis vector (Z up) to the renderer's Y-up
@@ -219,7 +222,7 @@ func Load(clientRoot string, tiles []Tile) (*Scene, error) {
 	}
 	c := l2pkg.NewClient(clientRoot)
 	ld := newLoader(c)
-	s := &Scene{}
+	s := &Scene{Tiles: append([]Tile(nil), tiles...)}
 	for _, t := range tiles {
 		m, err := c.Package(t.Name())
 		if err != nil {
