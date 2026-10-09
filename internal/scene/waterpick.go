@@ -92,38 +92,6 @@ func (v *WaterVolume) entry(r Ray) (float64, bool) {
 	return enter, true
 }
 
-// waterBodySlack is how far apart, in world units, two volumes of one
-// body may be: their XY gap and the difference of their tops (spec,
-// "Corpo d'água").
-const waterBodySlack = 1
-
-// WaterBody is the body of water v belongs to: v and every selectable
-// volume of the world joined to it through volumes that touch in XY (boxes
-// at most 1 apart) with the same top (within 1), in the world's order. It
-// crosses the tiles' scenes, as water does.
-func (w *World) WaterBody(v *WaterVolume) []*WaterVolume {
-	all := w.waterVolumes(true)
-	in := map[*WaterVolume]bool{v: true}
-	for queue := []*WaterVolume{v}; len(queue) > 0; queue = queue[1:] {
-		for _, o := range all {
-			if !in[o] && sameBody(queue[0], o) {
-				in[o] = true
-				queue = append(queue, o)
-			}
-		}
-	}
-	var body []*WaterVolume
-	for _, o := range all {
-		if in[o] {
-			body = append(body, o)
-		}
-	}
-	if len(body) == 0 { // v is not in the world
-		body = append(body, v)
-	}
-	return body
-}
-
 // waterVolumes is every water volume of the world a click may select
 // (supported), or every Unsupported one.
 func (w *World) waterVolumes(supported bool) []*WaterVolume {
@@ -188,12 +156,4 @@ func cross(a, b, c geom.Vec3) float64 {
 	abx, aby := float64(b.X)-float64(a.X), float64(b.Y)-float64(a.Y)
 	acx, acy := float64(c.X)-float64(a.X), float64(c.Y)-float64(a.Y)
 	return abx*acy - aby*acx
-}
-
-// sameBody reports whether a and b touch in XY and share their top.
-func sameBody(a, b *WaterVolume) bool {
-	ab, bb := a.Bounds, b.Bounds
-	return math.Abs(float64(a.Top()-b.Top())) <= waterBodySlack &&
-		ab.Min.X <= bb.Max.X+waterBodySlack && bb.Min.X <= ab.Max.X+waterBodySlack &&
-		ab.Min.Y <= bb.Max.Y+waterBodySlack && bb.Min.Y <= ab.Max.Y+waterBodySlack
 }

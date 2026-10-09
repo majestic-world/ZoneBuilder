@@ -51,12 +51,9 @@ func (ws *waterSelection) volumes(w *scene.World) []*scene.WaterVolume {
 	return vs
 }
 
-// selectBody replaces the selection with the body of water v belongs to.
-func (ws *waterSelection) selectBody(w *scene.World, v *scene.WaterVolume) {
-	ws.ids = ws.ids[:0]
-	for _, o := range w.WaterBody(v) {
-		ws.ids = append(ws.ids, o.ID())
-	}
+// selectOne replaces the selection with volume v alone.
+func (ws *waterSelection) selectOne(w *scene.World, v *scene.WaterVolume) {
+	ws.ids = append(ws.ids[:0], v.ID())
 	ws.world = w
 	ws.version++
 }
@@ -131,9 +128,10 @@ func unsupportedStatus(v *scene.WaterVolume) string {
 }
 
 // click handles a left click at viewport pixel p, with no zone tool armed,
-// that picked h (ok: something was hit): the water body under it becomes
-// the selection, Ctrl toggles the one volume, and a click elsewhere
-// clears it. A click on an Unsupported volume says why it is not selected.
+// that picked h (ok: something was hit): the volume under it becomes the
+// selection, Ctrl adds it to the selection or takes it out, and a click
+// elsewhere clears it. A click on an Unsupported volume says why it is not
+// selected.
 // It returns the status line, "" to keep the current one.
 func (ws *waterSelection) click(w *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point, h scene.Hit, ok, ctrl bool) string {
 	v, unsupported := pickWaterAt(w, cam, p, viewport, h, ok)
@@ -141,7 +139,7 @@ func (ws *waterSelection) click(w *scene.World, cam *camera.Camera, p f32.Point,
 	case v != nil && ctrl:
 		ws.toggle(w, v)
 	case v != nil:
-		ws.selectBody(w, v)
+		ws.selectOne(w, v)
 	case unsupported != nil:
 		if !ctrl {
 			ws.clear()
@@ -162,8 +160,8 @@ func (ws *waterSelection) click(w *scene.World, cam *camera.Camera, p f32.Point,
 	return msg
 }
 
-// rightClick handles a right click at viewport pixel p (spec D4): over a
-// water volume outside the selection, its body becomes the selection;
+// rightClick handles a right click at viewport pixel p (spec D4): a water
+// volume outside the selection becomes the selection alone;
 // over any water volume, open reports that the context menu opens, with
 // the selection's status. Over an Unsupported volume msg says why it is
 // not selected; elsewhere nothing changes.
@@ -177,7 +175,7 @@ func (ws *waterSelection) rightClick(w *scene.World, cam *camera.Camera, p f32.P
 		return "", false
 	}
 	if !slices.Contains(ws.ids, v.ID()) {
-		ws.selectBody(w, v)
+		ws.selectOne(w, v)
 	}
 	return ws.status(w), true
 }

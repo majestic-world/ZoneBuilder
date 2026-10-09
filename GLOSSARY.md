@@ -45,10 +45,6 @@ O `x y z` do chão com a menor folga, separado para o piso (chão mais baixo) e 
 Um ator `WaterVolume` vivo do mapa (em `Level.Actors`, sem `bDeleteMe`): brush convexo lido de todas as faces BSP do Model dele, em coordenadas do cliente. No código, `scene.WaterVolume`; identificado por tile e export.
 _Evite_: superfície de água (é o material desenhado no pass Water; 70 superfícies não têm volume nenhum), lago (não é termo do código).
 
-**Corpo d'água**:
-Volumes de água que se tocam em XY (folga ≤ 1) e têm o mesmo topo (±1), inclusive entre tiles carregados. É o que o clique na água seleciona (`World.WaterBody`).
-_Evite_: lago, grupo.
-
 **Topo**:
 O maior Z das faces do volume, a superfície da água no cliente. Vira o `zmax` da zona com `water.ServerZOffset` (−30, ADR 0005, pendente da medição em jogo), nunca com o +32 de `scene.ToServer`. Volumes de topos diferentes viram zonas diferentes.
 _Evite_: superfície, nível da água.

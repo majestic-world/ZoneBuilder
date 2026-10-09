@@ -2,11 +2,9 @@ package scene_test
 
 import (
 	"math"
-	"slices"
 	"testing"
 
 	"zonebuilder/internal/geom"
-	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/scene/scenetest"
 	"zonebuilder/internal/unreal"
@@ -85,40 +83,10 @@ func TestPickWaterClipsTheRayByTheVolumePlanes(t *testing.T) {
 	}
 }
 
-// TestWaterBodyJoinsTouchingVolumesWithTheSameTop lays 3 boxes side by
-// side with the same top, the third in another tile's scene and 0.5 apart
-// (within the 1 unit gap), and a 4th touching the first with its top 100
-// higher. Catches a body that stops at the first neighbour or at the
-// tile's scene, or that swallows water of another level, which would
-// compile into one zone breathing at the higher top.
-func TestWaterBodyJoinsTouchingVolumesWithTheSameTop(t *testing.T) {
-	w := scene.NewWorld(geom.Vec3{})
-	w.Add(&scene.Scene{WaterVolumes: []scene.WaterVolume{
-		waterBox(t, 1, scenetest.UnitBrush(), vec(0, 0, 0), vec(100, 100, 100)),
-		waterBox(t, 2, scenetest.UnitBrush(), vec(100, 0, 0), vec(200, 100, 100)),
-		waterBox(t, 4, scenetest.UnitBrush(), vec(0, 100, 0), vec(100, 200, 200)),
-	}})
-	w.Add(&scene.Scene{WaterVolumes: []scene.WaterVolume{
-		waterBox(t, 3, scenetest.UnitBrush(), vec(200.5, 0, 50), vec(300, 100, 100)),
-	}})
-	first, _, ok := w.PickWater(scene.Ray{Origin: vec(50, 50, 300), Dir: vec(0, 0, -1)}, noFloor)
-	if !ok {
-		t.Fatal("no volume under the ray")
-	}
-	var got []int
-	for _, v := range w.WaterBody(first) {
-		got = append(got, v.Export)
-	}
-	if !slices.Equal(got, []int{1, 2, 3}) {
-		t.Errorf("body exports %v, want [1 2 3]", got)
-	}
-}
-
 // TestPickWaterNeverChoosesAnUnsupportedVolume puts a sheared volume (its
 // shape is not the client's) above a plain one and beside it, same top.
-// Catches the unsupported volume selected by the click, or pulled into the
-// body of its neighbour, and then compiled; or the click on it unable to
-// say why it is not selected (spec D1).
+// Catches the unsupported volume selected by the click and then compiled;
+// or the click on it unable to say why it is not selected (spec D1).
 func TestPickWaterNeverChoosesAnUnsupportedVolume(t *testing.T) {
 	sheared := scenetest.UnitBrush()
 	sheared.MainScale.SheerRate = 0.5
@@ -134,9 +102,6 @@ func TestPickWaterNeverChoosesAnUnsupportedVolume(t *testing.T) {
 	}
 	if v.Export != 2 {
 		t.Fatalf("picked export %d, want export 2 under the sheared one", v.Export)
-	}
-	if body := w.WaterBody(v); len(body) != 1 {
-		t.Errorf("body of export 2 has %s, want only itself", inflect.Count(len(body), "volume", "volumes"))
 	}
 	if v, _, ok := w.PickWater(scene.Ray{Origin: vec(150, 50, 300), Dir: vec(0, 0, -1)}, noFloor); ok {
 		t.Errorf("picked sheared export %d, want no hit", v.Export)
