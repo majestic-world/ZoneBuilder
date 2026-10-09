@@ -41,13 +41,15 @@ type textureEntry struct {
 }
 
 // batchKey is a batch's identity outside the terrain: the Texture pointer
-// (shared by every user of one export), the render mode, and whether the
-// texture's alpha is ignored (Batch.OpaqueTexture). Those batches have no
-// Mask.
+// (shared by every user of one export), the render mode, whether the
+// texture's alpha is ignored (Batch.OpaqueTexture), and whether it draws
+// static mesh actors (Batch.Mesh), which never share a batch with the BSP.
+// Those batches have no Mask.
 type batchKey struct {
 	tex    *texture.Texture
 	mode   RenderMode
 	opaque bool
+	mesh   bool
 }
 
 func newLoader(c *l2pkg.Client) *loader {
@@ -66,7 +68,7 @@ func (s *Scene) batch(ld *loader, k batchKey) int {
 		return i
 	}
 	i := len(s.Batches)
-	s.Batches = append(s.Batches, Batch{Mode: k.mode, Texture: k.tex, OpaqueTexture: k.opaque, Bounds: geom.EmptyBox()})
+	s.Batches = append(s.Batches, Batch{Mode: k.mode, Texture: k.tex, OpaqueTexture: k.opaque, Mesh: k.mesh, Bounds: geom.EmptyBox()})
 	ld.batches[k] = i
 	return i
 }

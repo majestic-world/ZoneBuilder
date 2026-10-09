@@ -72,3 +72,29 @@ func TestWorldForgetsARemovedTile(t *testing.T) {
 		t.Errorf("hit at %v after removing the tile", h.Pos)
 	}
 }
+
+// With static meshes hidden, as the viewport's toggle hides them, the ray
+// that hits the roof of a Giran house (Giran_house02, see
+// TestPickHitsGiranRoof) goes through it to the fixed map geometry below.
+// Catches a vertex placed on a roof the user cannot see.
+func TestWorldWithMeshesHiddenPicksThroughThem(t *testing.T) {
+	s, err := scene.Load(clientRoot(t), []scene.Tile{{X: 22, Y: 22}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := scene.NewWorld(geom.Vec3{})
+	w.Add(s)
+	r := scene.Ray{Origin: geom.Vec3{X: 77833, Y: 149110, Z: 10000}, Dir: geom.Vec3{Z: -1}}
+	roof, ok := w.Pick(r)
+	if !ok || roof.Surface != scene.SurfaceMesh {
+		t.Fatalf("meshes shown: hit %v (%v), want the roof mesh", roof.Pos, roof.Surface)
+	}
+	w.HideMeshes = true
+	h, ok := w.Pick(r)
+	if !ok {
+		t.Fatal("meshes hidden: no hit under the roof")
+	}
+	if h.Surface == scene.SurfaceMesh || h.Pos.Z >= roof.Pos.Z-300 {
+		t.Errorf("meshes hidden: hit at z %.1f (%v), want the terrain or BSP well below the roof at %.1f", h.Pos.Z, h.Surface, roof.Pos.Z)
+	}
+}

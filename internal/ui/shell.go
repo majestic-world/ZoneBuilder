@@ -63,6 +63,8 @@ type Shell struct {
 	// Arrow is the viewport's handle that raises and lowers the selected
 	// zone.
 	Arrow ZArrow
+	// Meshes is the viewport's button that hides the static meshes.
+	Meshes MeshToggle
 	// Status is the status bar's text.
 	Status string
 	list   widget.List
@@ -121,6 +123,7 @@ func (s *Shell) Layout(gtx layout.Context, lines []string) image.Rectangle {
 					// floating window takes the input over its bounds.
 					s.Arrow.Layout(gtx)
 					s.heightWindow(gtx)
+					s.meshToggle(gtx)
 					return dims
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {

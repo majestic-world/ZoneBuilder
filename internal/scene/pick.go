@@ -39,7 +39,10 @@ type Hit struct {
 // triangles are hit: an invisible terrain quad is a hole, and BSP surfaces
 // and mesh sections Load skipped (invisible, portal, backdrop,
 // region-filtered, hidden actor) do not exist.
-func (s *Scene) Pick(r Ray) (Hit, bool) {
+func (s *Scene) Pick(r Ray) (Hit, bool) { return s.pick(r, false) }
+
+// pick is Pick, leaving the static mesh actors out when noMeshes is set.
+func (s *Scene) pick(r Ray, noMeshes bool) (Hit, bool) {
 	if r.Dir.Dot(r.Dir) == 0 {
 		return Hit{}, false
 	}
@@ -50,7 +53,7 @@ func (s *Scene) Pick(r Ray) (Hit, bool) {
 			best = Hit{Pos: ToServer(r.Origin.Add(r.Dir.Scale(d))), Distance: d, Surface: SurfaceTerrain}
 		}
 	}
-	s.pickTriangles(r, &best)
+	s.pickTriangles(r, &best, noMeshes)
 	return best, best.Surface != 0
 }
 

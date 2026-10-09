@@ -335,8 +335,17 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				probe.clickHit = false
 			}
 
+			if shell.Meshes.Toggled(gtx) {
+				status = "Static meshes visíveis"
+				if shell.Meshes.Hidden {
+					status = "Static meshes ocultos: só terreno e BSP"
+				}
+			}
 			moving := fly.Step(&cam, gtx.Now)
 			if tiles.world != nil {
+				// Hidden meshes are not picked either: a vertex never lands
+				// on geometry the user cannot see.
+				tiles.world.HideMeshes = shell.Meshes.Hidden
 				tiles.follow(worldPosition(tiles.world, cam.Position))
 			}
 			shell.Status = probe.status(tiles.world, &cam, shell.Viewport.Size())
@@ -375,6 +384,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				e.Frame(gtx.Ops)
 				continue
 			}
+			g.renderer.SetMeshesHidden(shell.Meshes.Hidden)
 			uploading := tiles.sync(g.renderer, uploadBudget)
 			if zonesShown != zones.version {
 				g.renderer.SetZones(zones.overlay())

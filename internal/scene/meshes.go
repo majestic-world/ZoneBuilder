@@ -180,7 +180,7 @@ func (s *Scene) placeMesh(ld *loader, ma *MeshActor, m, owner *l2pkg.Package, me
 			if mat.masked {
 				mode = Masked
 			}
-			kept.Batch = s.batch(ld, batchKey{tex: mat.texture, mode: mode, opaque: mat.vertexOpacity})
+			kept.Batch = s.batch(ld, batchKey{tex: mat.texture, mode: mode, opaque: mat.vertexOpacity, mesh: true})
 			b := &s.Batches[kept.Batch]
 			kept.First, kept.Count = len(b.Indices), len(tris)
 			for k := range remap {

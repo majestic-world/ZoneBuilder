@@ -105,6 +105,12 @@ func (r *Renderer) SetOrigin(origin geom.Vec3) {
 	r.scene.rebase = origin
 }
 
+// SetMeshesHidden hides (or shows again) the static mesh actors, leaving
+// only the map's fixed geometry, terrain and BSP, as UnrealEd's W does.
+func (r *Renderer) SetMeshesHidden(hidden bool) {
+	r.scene.hideMeshes = hidden
+}
+
 // AddScene queues the scene p was prepared from for upload. Upload puts it
 // on the GPU a little per frame; it is drawn once it is all there.
 func (r *Renderer) AddScene(p *Prepared) {

@@ -27,12 +27,16 @@ func (s *Scene) addPickable(surface Surface, batch, first, count int, bounds geo
 }
 
 // pickTriangles improves best with the nearest triangle of every pickable
-// set r meets closer than best.Distance. A set whose box the ray enters
-// beyond the best hit so far is skipped (UE2-Studio's ray_box_entry
-// early-out). r.Dir must be unit length.
-func (s *Scene) pickTriangles(r Ray, best *Hit) {
+// set r meets closer than best.Distance, the mesh actors' sets left out
+// when noMeshes is set. A set whose box the ray enters beyond the best hit
+// so far is skipped (UE2-Studio's ray_box_entry early-out). r.Dir must be
+// unit length.
+func (s *Scene) pickTriangles(r Ray, best *Hit, noMeshes bool) {
 	for i := range s.pickables {
 		set := &s.pickables[i]
+		if noMeshes && set.Surface == SurfaceMesh {
+			continue
+		}
 		if entry, ok := rayBoxEntry(r, set.Bounds); !ok || entry > best.Distance {
 			continue
 		}

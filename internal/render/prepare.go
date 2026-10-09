@@ -43,6 +43,7 @@ type sector struct {
 type preparedBatch struct {
 	mode          scene.RenderMode
 	opaque        bool
+	mesh          bool
 	vertices      []scene.Vertex
 	set           int
 	texture, mask textureKey
@@ -99,7 +100,7 @@ func Prepare(s *scene.Scene) *Prepared {
 			sets[&b.Indices[0]] = set
 			p.sets = append(p.sets, sectorize(b.Vertices, b.Indices))
 		}
-		pb := preparedBatch{mode: b.Mode, opaque: b.OpaqueTexture, vertices: b.Vertices, set: set}
+		pb := preparedBatch{mode: b.Mode, opaque: b.OpaqueTexture, mesh: b.Mesh, vertices: b.Vertices, set: set}
 		role := roleMaterial
 		if b.Mode == scene.Masked && !b.OpaqueTexture {
 			role = roleMasked

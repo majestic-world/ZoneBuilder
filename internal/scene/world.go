@@ -15,7 +15,11 @@ type World struct {
 	// subtracts it from every vertex and the camera's render space has it
 	// at zero.
 	Origin geom.Vec3
-	scenes []*Scene
+	// HideMeshes leaves the static mesh actors out of Pick, as the viewport
+	// leaves them out of the view: only the map's fixed geometry (terrain
+	// and BSP) is hit.
+	HideMeshes bool
+	scenes     []*Scene
 }
 
 // NewWorld returns an empty world rebased on origin.
@@ -42,7 +46,7 @@ func (w *World) Scenes() []*Scene { return w.scenes }
 func (w *World) Pick(r Ray) (Hit, bool) {
 	best, found := Hit{Distance: float32(math.Inf(1))}, false
 	for _, s := range w.scenes {
-		if h, ok := s.Pick(r); ok && h.Distance < best.Distance {
+		if h, ok := s.pick(r, w.HideMeshes); ok && h.Distance < best.Distance {
 			best, found = h, true
 		}
 	}

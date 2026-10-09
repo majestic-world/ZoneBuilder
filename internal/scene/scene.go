@@ -130,8 +130,8 @@ type Vertex struct {
 
 // Batch is a run of triangles drawn with one texture, mask and render mode.
 // Outside the terrain, whose layers are a batch each, one Load makes one
-// batch per (Texture, Mask, Mode, OpaqueTexture), shared by every BSP
-// surface and mesh section drawn that way.
+// batch per (Texture, Mask, Mode, OpaqueTexture, Mesh), shared by every BSP
+// surface, or every mesh section, drawn that way.
 type Batch struct {
 	Mode RenderMode
 	// Texture is the bitmap the batch is drawn with; nil draws it
@@ -143,7 +143,10 @@ type Batch struct {
 	OpaqueTexture bool
 	// Mask is the coverage bitmap a TerrainLayer batch is blended by (its
 	// R channel); nil covers everything.
-	Mask     *texture.Texture
+	Mask *texture.Texture
+	// Mesh marks a batch of static mesh actors, which the viewport can
+	// hide to leave only the map's fixed geometry.
+	Mesh     bool
 	Vertices []Vertex
 	Indices  []uint32
 	// Bounds is the world AABB of Vertices.

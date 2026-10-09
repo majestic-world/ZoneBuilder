@@ -136,6 +136,7 @@ type indexRange struct{ first, count int }
 type gpuBatch struct {
 	mode          scene.RenderMode
 	opaque        bool
+	mesh          bool
 	vao, vbo      uint32
 	set           int
 	texture, mask uint32
@@ -169,6 +170,8 @@ type sceneRenderer struct {
 	// rebase is the world's origin, subtracted in the vertex shader.
 	rebase geom.Vec3
 	stats  DrawStats
+	// hideMeshes leaves the static mesh batches out of draw.
+	hideMeshes bool
 }
 
 func newSceneRenderer(anisotropic bool) (*sceneRenderer, error) {
@@ -326,7 +329,7 @@ func (gs *gpuScene) uploadBatch(tc *textureCache, b *preparedBatch) gpuBatch {
 	if !ok {
 		mask = tc.acquire(b.mask)
 	}
-	g := gpuBatch{mode: b.mode, opaque: b.opaque, set: b.set, texture: texture, mask: mask}
+	g := gpuBatch{mode: b.mode, opaque: b.opaque, mesh: b.mesh, set: b.set, texture: texture, mask: mask}
 	stride := int(unsafe.Sizeof(scene.Vertex{}))
 	g.vao = gles.GenVertexArray()
 	gles.BindVertexArray(g.vao)
@@ -427,7 +430,7 @@ func (sr *sceneRenderer) draw(viewProj mat4, eye geom.Vec3) {
 			}
 			for _, b := range gs.batches {
 				visible := gs.sets[b.set].visible
-				if b.mode != mode || len(visible) == 0 {
+				if b.mode != mode || len(visible) == 0 || b.mesh && sr.hideMeshes {
 					continue
 				}
 				if !started {
