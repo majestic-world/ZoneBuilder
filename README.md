@@ -44,6 +44,12 @@ Opções de linha de comando:
 
 Sem `-client`, o app usa a última pasta salva na configuração do usuário (`%AppData%\ZoneBuilder\config.json`), depois a variável de ambiente `ZB_CLIENT`.
 
+## Traduções para desenvolvimento
+
+Mensagens da interface ficam embutidas em `internal/locale/catalog/<área>/pt-BR.json` e `en.json`. Ao acrescentar uma área, crie **os dois arquivos**: cada chave estável começa com `<área>.`, e os dois idiomas precisam conter as mesmas chaves, os mesmos parâmetros nomeados (`{name}`) e, para mensagens com contagem, as variantes `one` e `other`. A forma `one` vale somente para 1; `other` vale para 0 e demais contagens. Use uma frase completa por variante, não fragmentos concatenados.
+
+Apresente texto estático com `locale.Text`, texto parametrizado com `locale.Format` e contagem com `locale.Plural`. Números exibidos usam `locale.Number` ou `locale.Percent` antes da interpolação; números digitados, projetos e XML não são localizados. Para um status que deve sobreviver à troca de idioma, retenha `locale.Message` com chave e dados e chame `Render` no idioma corrente. Prefira chaves literais nas chamadas, para que `go test ./internal/locale` verifique automaticamente os pares, os parâmetros, as variantes, as chaves duplicadas e as chaves usadas pelo código. A verificação lê os arquivos Go da árvore sem uma lista manual de áreas; identificadores de chave montados dinamicamente não podem ser verificados dessa forma.
+
 ## Como usar
 
 1. Informe a pasta do cliente e o tile, e clique em **Abrir**.
