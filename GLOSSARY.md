@@ -13,7 +13,15 @@ Cada superfície de chão empilhada numa mesma coluna `x y`: terreno, piso de pr
 _Evite_: andar, nível.
 
 **Outras camadas**:
-Camadas de BSP ou de mesh que não cruzam a faixa Z do shape nem ficam a até 1024 unidades dela. Ficam fora dos extremos, das folgas, da cobertura e dos avisos, e não puxam a faixa nos ajustes. O terreno nunca é outra camada.
+Camadas que não cruzam a faixa Z do shape nem ficam a até 1024 unidades dela. Ficam fora dos extremos, das folgas, da cobertura e dos avisos, e não puxam a faixa nos ajustes. Inclui o terreno, julgado como um bloco só (todo o terreno sob o contorno): ele é outra camada quando nenhuma parte dele alcança a faixa e alguma peça de BSP ou mesh alcança; se nenhuma alcança, o terreno conta (ADR 0006).
+
+**Origem da faixa nova**:
+De onde um polígono, retângulo ou círculo novo tira `zmin zmax`: **chão da área** (padrão, pelo perfil do chão sob o contorno) ou **pontos clicados** (`menorZ − folga … maiorZ + folga` dos vértices, sem medir o chão). O tile inteiro sempre usa o chão da área. Escolhida no seletor "Faixa nova" do inspetor e guardada só na sessão.
+_Evite_: modo de sugestão.
+
+**Anel**:
+Linha horizontal desenhada na parede do prisma de um shape a cada passo de Z, contado a partir do `zmin` dele. O passo-base é 64 e dobra até os anéis ficarem a pelo menos 6 px um do outro na tela. O prisma não tem tampas nem preenchimento: são só anéis, arestas e contornos.
+_Evite_: listra, hachura (é a marca do chão fora da faixa).
 
 **Excluída**:
 Área de chão cujo centróide cai dentro de uma exclusão (shape banido) da zona e dentro da faixa Z dela. Não conta como falha nem define o pior ponto.

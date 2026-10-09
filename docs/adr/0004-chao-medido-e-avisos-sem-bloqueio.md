@@ -22,7 +22,11 @@ O perfil (caro, depende do contorno e da cena) é calculado fora do loop; a clas
 
 **Exclusões:** uma peça cujo centróide cai num shape banido da zona, e na faixa Z dele, conta como excluída. O erro fica limitado a 1 célula ao longo do contorno da exclusão. O chão excluído não define os extremos, as folgas, os pinos nem os avisos, e não puxa a faixa nos ajustes.
 
-**Camadas:** o terreno sempre conta. Uma camada de BSP ou de mesh só conta quando cruza a faixa ou fica a até `GroundReach = 1024` dela; as outras vão para "outras camadas" e ficam fora dos extremos, das folgas, dos avisos e do histograma. Nos ajustes ("Recalcular pelo chão", "Piso ao chão", "Topo ao chão") a regra é julgada **uma vez**, a partir da faixa de antes do clique. Iterar até um ponto fixo foi testado e descartado: no tile inteiro, a faixa subia de piso em piso até o telhado de uma torre (z 7105). A consequência aceita é que, logo depois de um ajuste, uma camada que ficou ao alcance da faixa nova aparece como acima ou abaixo dela, com aviso, e apertar o botão de novo a puxa.
+**Camadas:** substituído pelo [ADR 0006](0006-terreno-como-camada.md), que faz o terreno seguir a regra de alcance, julgado em bloco e com fallback. O texto original fica abaixo como histórico.
+
+> O terreno sempre conta. Uma camada de BSP ou de mesh só conta quando cruza a faixa ou fica a até `GroundReach = 1024` dela; as outras vão para "outras camadas" e ficam fora dos extremos, das folgas, dos avisos e do histograma.
+
+Continua valendo: nos ajustes ("Recalcular pelo chão", "Piso ao chão", "Topo ao chão") a regra é julgada **uma vez**, a partir da faixa de antes do clique. Iterar até um ponto fixo foi testado e descartado: no tile inteiro, a faixa subia de piso em piso até o telhado de uma torre (z 7105). A consequência aceita é que, logo depois de um ajuste, uma camada que ficou ao alcance da faixa nova aparece como acima ou abaixo dela, com aviso, e apertar o botão de novo a puxa.
 
 **Descartada:** amostrar com raios verticais numa grade. Perde picos entre as amostras, custa um `Pick` (que percorre todos os pickables) por raio e deixa o erro dependendo do passo.
 

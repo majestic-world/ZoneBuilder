@@ -91,10 +91,13 @@ O servidor só considera um personagem dentro da zona quando o `x y` dele está 
 | Linha azul no chão | onde o chão cruza o piso (`z = zmin`): fronteira exata da parte abaixo |
 | Linha na cor da aresta, em cada parede do prisma | o chão ao longo daquela aresta, do shape selecionado; some enquanto o shape é medido de novo |
 | Aresta ou linha sólida | parte visível |
-| Aresta ou linha tracejada, faces com listras fracas | parte do prisma enterrada ou atrás da cena, vista através do terreno |
+| Anéis horizontais nas paredes do prisma | o volume do shape: o prisma é oco, sem tampas nem preenchimento. Os anéis ficam a cada 64 de Z a partir do `zmin` e o passo dobra de longe, para nunca ficarem a menos de 6 px um do outro |
+| Aresta ou linha tracejada, anéis fracos | parte do prisma enterrada ou atrás da cena, vista através do terreno |
 | Pino com rótulo `topo +412` | chão mais alto do shape e a folga do topo nele |
 | Pino com rótulo `piso −96` | chão mais baixo do shape e a folga do piso nele |
 | Rótulo vermelho | folga negativa: o chão sai da faixa naquele ponto |
+
+A pegada (tinta, hachuras e linhas de nível) só pinta chão: as faces voltadas para cima, vistas de cima. Paredes e tetos ficam com a cor original; só o contorno da zona continua desenhado sobre qualquer superfície que ele cruze, para mostrar onde a parede do prisma encontra o mapa. Com a câmera dentro do prisma, o mapa fica limpo: só os anéis nas paredes e a pegada no piso.
 
 Clicar no rótulo de um pino leva a câmera ao ponto. O shader desenha a pegada de até 8 shapes e 128 pontos; acima disso, o inspetor diz "Pegada parcial: N shapes fora do desenho". Os números não têm esse limite.
 
@@ -106,7 +109,7 @@ O inspetor mostra, para o shape selecionado:
 - **Folga do piso** (`chãoMin − zmin`) e **folga do topo** (`zmax − chãoMax`). Negativa quer dizer que fura e aparece como `−96 (fura)`;
 - **Chão em N camadas**: o maior número de superfícies empilhadas numa coluna (terreno, piso de prédio, ponte);
 - a área de chão, em unidades² e em % do chão sob o contorno: **Dentro da faixa**, **Acima do topo**, **Abaixo do piso**, **Excluída** (dentro de uma exclusão da zona e na faixa Z dela), **Em outras camadas** e **Sem chão** (quad invisível, tile não carregado, fora do mapa);
-- **Outras camadas**, com o Z de cada uma: pisos de BSP ou mesh longe demais da faixa para contar (veja a regra das camadas abaixo).
+- **Outras camadas**, com o Z de cada uma: pisos de BSP ou mesh, ou o terreno, longe demais da faixa para contar (veja a regra das camadas abaixo).
 
 Enquanto um contorno é medido, os números anteriores ficam com a marca "medindo…". Arrastar a seta Z ou mudar a faixa atualiza números, cores e pinos no mesmo frame.
 
@@ -145,8 +148,11 @@ O chão excluído e o das outras camadas não geram aviso. Sem um tile aberto n�
 - **Piso ao chão** e **Topo ao chão**, na janela de altura, mexem só num lado, em todos os shapes incluídos da zona. As exclusões ficam com a faixa delas. Shapes sem chão medido, ou em que o lado novo passaria do outro, ficam como estão e são contados na mensagem.
 - Cada botão é 1 passo de desfazer.
 - Ao criar um retângulo, círculo, polígono ou tile inteiro, a faixa sugerida sai do chão da área da mesma forma. A mensagem diz de onde ela veio: "pelo chão da área", ou "pelos vértices" quando parte da área está fora dos tiles carregados ou não há chão medido.
+- O seletor **Faixa nova**, no inspetor, logo abaixo de "Folga Z da faixa sugerida", escolhe a origem da faixa de um polígono, retângulo ou círculo novo: **Chão da área** (padrão, como acima) ou **Pontos clicados**, que dá exatamente o menor Z dos vértices menos a folga até o maior mais a folga, sem medir o chão. A prévia e a mensagem dizem "pelos pontos clicados". O tile inteiro sempre usa o chão da área. A escolha vale só na sessão.
 
-**Regra das camadas.** O terreno sempre conta. Um piso de BSP ou de static mesh só puxa a faixa quando cruza a faixa atual ou fica a até 1024 unidades dela; os outros aparecem como "outras camadas". Assim o telhado de uma torre ou uma caverna muito abaixo não esticam a faixa de uma zona de rua. O chão excluído também não puxa. Com o botão **Static meshes** desligado, meshes não entram na medição.
+**Regra das camadas** ([ADR 0006](docs/adr/0006-terreno-como-camada.md)). Um piso de BSP ou de static mesh só puxa a faixa quando cruza a faixa atual ou fica a até 1024 unidades dela; os outros aparecem como "outras camadas". O terreno segue a mesma regra, mas julgado em bloco: se alguma parte do terreno sob o contorno alcança a faixa, todo ele conta, e um morro no meio do retângulo continua puxando o topo. O terreno só vira outra camada quando nenhuma parte dele alcança a faixa e algum piso de BSP ou mesh alcança; se nenhum alcança, o terreno conta (fallback), e uma faixa longe de tudo ainda é ajustada por ele. Assim o telhado de uma torre ou uma caverna muito abaixo não esticam a faixa de uma zona de rua, e o terreno sob uma torre não puxa uma zona no topo dela. O chão excluído também não puxa. Com o botão **Static meshes** desligado, meshes não entram na medição.
+
+No modo chão da área, os pisos internos de uma estrutura alta a até 1024 da faixa continuam puxando o piso, e depois da criação ainda podem gerar um aviso "chão abaixo do piso": a faixa é ajustada a partir dos pontos clicados, e os avisos são julgados de novo a partir da faixa ajustada, que alcança mais um andar (a consequência descrita abaixo). No topo da torre do 23_18, um polígono nasce com `z 8464..10340` e 1 aviso de folga do piso −990, de um piso interno a z 7474. Para uma zona só no andar onde ela foi desenhada, use **Faixa nova: Pontos clicados**.
 
 A regra é aplicada uma vez, a partir da faixa de antes do clique. **Consequência aceita:** logo depois de um ajuste, uma camada que estava longe da faixa antiga mas fica perto da nova aparece como acima ou abaixo da faixa, com aviso; apertar o botão de novo a puxa para dentro. Repita só se essa camada deve mesmo fazer parte da zona.
 
