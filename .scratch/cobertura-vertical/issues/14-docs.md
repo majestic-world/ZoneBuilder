@@ -6,6 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] O README descreve o que cada cor e cada número significam
+- [x] O README descreve o que cada cor e cada número significam
 - [ ] O ADR 0004 registra as 2 decisões, com o resultado da verificação em jogo
-- [ ] O glossário existe na raiz com os termos da cobertura
+- [x] O glossário existe na raiz com os termos da cobertura
+
+## Comments
+
+README, `docs/plan.md`, `docs/adr/0004-chao-medido-e-avisos-sem-bloqueio.md` e `GLOSSARY.md` estão escritos na branch `cv/14-docs`, já integrada em `cobertura-vertical`. Falta o resultado do ticket 13: a seção "Verificação em jogo" do ADR 0004 está marcada como pendente. Quando o 13 for resolvido, preencher essa seção e marcar o item 2.
