@@ -12,7 +12,7 @@ import (
 )
 
 func TestActionStatusRendersAgainWithoutRepeatingAction(t *testing.T) {
-	status := actionArgs("actions.project.saved", map[string]string{"path": `C:\maps\giran.zbproj`})
+	status := actionArgs(locale.Message{Key: "actions.project.saved"}, map[string]string{"path": `C:\maps\giran.zbproj`})
 	if got := status.render(locale.PtBR); got != `Projeto salvo em C:\maps\giran.zbproj` {
 		t.Fatalf("Portuguese status = %q", got)
 	}
@@ -22,7 +22,7 @@ func TestActionStatusRendersAgainWithoutRepeatingAction(t *testing.T) {
 	if got := status.render(locale.PtBR); got != `Projeto salvo em C:\maps\giran.zbproj` {
 		t.Fatalf("restored status = %q", got)
 	}
-	failed := actionError("actions.error.load_tile", errors.New("access denied: map.unr"), map[string]string{"tile": "22_24"})
+	failed := actionError(locale.Message{Key: "actions.error.load_tile"}, errors.New("access denied: map.unr"), map[string]string{"tile": "22_24"})
 	if got := failed.render(locale.En); !strings.Contains(got, "Could not load tile 22_24") || !strings.Contains(got, "access denied: map.unr") {
 		t.Fatalf("localized failure lost technical detail: %q", got)
 	}
@@ -77,7 +77,7 @@ func TestLoadingProgressChangesLanguageWithoutAdvancingTileLoad(t *testing.T) {
 }
 
 func TestWaterWarningsRetainVolumeIdentityAcrossLanguageChoice(t *testing.T) {
-	status := waterAction("actions.water.compiled", &waterSummary{
+	status := waterAction(locale.Message{Key: "actions.water.compiled"}, &waterSummary{
 		kind: waterResult,
 		existing: []string{"[giran]"},
 		warnings: []water.Warning{{Kind: water.Approximate, Volume: "22_24 WaterVolume1"}},

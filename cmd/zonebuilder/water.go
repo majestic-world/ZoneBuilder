@@ -120,7 +120,7 @@ func pickWaterAt(w *scene.World, cam *camera.Camera, p f32.Point, viewport image
 
 // unsupportedStatus retains the volume identity and original diagnostic.
 func unsupportedStatus(v *scene.WaterVolume) actionStatus {
-	msg := actionArgs("actions.water.unsupported", map[string]string{
+	msg := actionArgs(locale.Message{Key: "actions.water.unsupported"}, map[string]string{
 		"tile": v.Tile.Name(), "name": v.Name, "detail": v.Unsupported,
 	})
 	log.Printf("água: %s", msg.render(locale.PtBR))
@@ -149,9 +149,9 @@ func (ws *waterSelection) click(w *scene.World, cam *camera.Camera, p f32.Point,
 		return actionStatus{}
 	case ok && h.Water:
 		ws.clear()
-		return action("actions.water.no_volume")
+		return action(locale.Message{Key: "actions.water.no_volume"})
 	case ws.clear():
-		return action("actions.water.cleared")
+		return action(locale.Message{Key: "actions.water.cleared"})
 	default:
 		return actionStatus{}
 	}
@@ -194,9 +194,6 @@ func (ws *waterSelection) selected(w *scene.World) (selected, live []scene.Water
 	return selected, live
 }
 
-// waterBusy is why the water can't be compiled while a polygon is open.
-const waterBusy = "actions.water.busy"
-
 // compileWater turns the selected water volumes into water zones (spec
 // D5): the zones they don't have yet are created in one undo step, then
 // only those zones are compiled, leaving the list's compile selection
@@ -204,11 +201,11 @@ const waterBusy = "actions.water.busy"
 // warning. It returns the status line and the files for the XML window.
 func (e *zoneEditor) compileWater(selected, live []scene.WaterVolume) (actionStatus, []zonexml.File) {
 	if e.drawing {
-		return action(waterBusy), nil
+		return action(locale.Message{Key: "actions.water.busy"}), nil
 	}
 	plans := water.Compile(selected, live, e.doc)
 	if len(plans) == 0 {
-		return action("actions.water.none"), nil
+		return action(locale.Message{Key: "actions.water.none"}), nil
 	}
 	var (
 		b zone.Batch
@@ -228,7 +225,7 @@ func (e *zoneEditor) compileWater(selected, live []scene.WaterVolume) (actionSta
 	}
 	if len(b) > 0 {
 		if err := e.apply(b); err != nil {
-			return actionError("actions.error.edit_water", err, nil), nil
+			return actionError(locale.Message{Key: "actions.error.edit_water"}, err, nil), nil
 		}
 	}
 	for _, w := range report.warnings {
@@ -237,13 +234,13 @@ func (e *zoneEditor) compileWater(selected, live []scene.WaterVolume) (actionSta
 	files, err := e.doc.Compile(ids)
 	if bl, ok := errors.AsType[*zone.BlockedError](err); ok {
 		e.blockedStatus(bl, e.Language)
-		return waterAction("zone.problem.blocked_status", &waterSummary{kind: waterBlocked, blocked: bl}), nil
+		return waterAction(locale.Message{Key: "zone.problem.blocked_status", Plural: true, Count: len(bl.Problems)}, &waterSummary{kind: waterBlocked, blocked: bl}), nil
 	}
 	if err != nil {
 		log.Printf("zona: compilação: %v", err)
-		return actionError("actions.error.compile_water", err, nil), nil
+		return actionError(locale.Message{Key: "actions.error.compile_water"}, err, nil), nil
 	}
-	msg := waterAction("actions.water.compiled", &report)
+	msg := waterAction(locale.Message{Key: "actions.water.compiled"}, &report)
 	log.Printf("água: %s", msg.render(locale.PtBR))
 	return msg, files
 }
@@ -386,7 +383,7 @@ func (ws *waterSelection) status(w *scene.World) actionStatus {
 		}
 		s.exact = s.exact && v.Exact
 	}
-	return waterAction("actions.water.selection", s)
+	return waterAction(locale.Message{Key: "actions.water.selection"}, s)
 }
 
 // overlay is the selected volumes as overlay prisms in the water zone's
