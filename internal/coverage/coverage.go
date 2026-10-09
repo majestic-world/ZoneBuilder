@@ -59,6 +59,19 @@ type Profile struct {
 	clipped []clipped
 	// edges is the floor along each outline edge, in the outline's order.
 	edges [][]Span
+	// banned lists, piece by piece (piece.bans), the bans whose outline
+	// holds the piece's centroid; banZ is each ban's Z range. The outline
+	// test is made once by Measure, the Z test by Classify, so a ban's
+	// range can change without measuring again (WithBanRanges).
+	banned []int32
+	banZ   [][2]float64
+}
+
+// Ban is a banned shape of the same zone: its outline and Z range. Floor
+// under it and within its range is excluded, not a failure (spec D1).
+type Ban struct {
+	Outline    Outline
+	ZMin, ZMax float64
 }
 
 // Station is a point of floor on an outline edge, D units from the edge's
@@ -84,6 +97,10 @@ type piece struct {
 	surface  scene.Surface
 	area     float64
 	zlo, zhi float64
+	// cz is the Z at the piece's centroid; bans indexes banned[bans :
+	// bans+nbans].
+	cz          float64
+	bans, nbans int32
 }
 
 // clipped is the floor triangle a piece was cut from, counter-clockwise,
@@ -110,6 +127,9 @@ type Report struct {
 	// and Below the floor under zmin, every layer counted: a bridge over
 	// the terrain adds its deck to the terrain under it.
 	Inside, Above, Below float64
+	// Excluded is the floor whose piece centroid lies under a ban and
+	// within its Z range; it is in none of Inside, Above, Below.
+	Excluded float64
 	// NoGround is the outline's area with no floor on any layer: an
 	// invisible terrain quad no building floor covers, a tile not loaded,
 	// off the map.
@@ -126,7 +146,7 @@ type Report struct {
 
 // Total is the outline's area as the report splits it: the floor in each
 // state, every layer counted, plus the area with no floor.
-func (r Report) Total() float64 { return r.Inside + r.Above + r.Below + r.NoGround }
+func (r Report) Total() float64 { return r.Inside + r.Above + r.Below + r.Excluded + r.NoGround }
 
 // Coverage is the fraction of Total that is floor inside the range, 0 for
 // an empty outline. Area with no floor counts against it, never as
@@ -150,6 +170,7 @@ func Sum(rs ...Report) Report {
 		z.Inside += r.Inside
 		z.Above += r.Above
 		z.Below += r.Below
+		z.Excluded += r.Excluded
 		z.NoGround += r.NoGround
 		z.Layers = max(z.Layers, r.Layers)
 		if !r.Measured {
@@ -174,9 +195,15 @@ func Sum(rs ...Report) Report {
 }
 
 // Measure clips the floor under outline o into its Profile. An outline of
-// fewer than 3 points, or of no area, has an empty profile.
-func Measure(f Floor, o Outline) *Profile {
+// fewer than 3 points, or of no area, has an empty profile. Each piece is
+// matched to the bans whose outline holds its centroid; their Z ranges
+// are applied by Classify.
+func Measure(f Floor, o Outline, bans []Ban) *Profile {
 	p := &Profile{}
+	p.banZ = make([][2]float64, len(bans))
+	for i, b := range bans {
+		p.banZ[i] = [2]float64{b.ZMin, b.ZMax}
+	}
 	if len(o) < 3 {
 		return p
 	}
@@ -191,7 +218,7 @@ func Measure(f Floor, o Outline) *Profile {
 		box.Include(geom.Vec3{X: float32(q.X), Y: float32(q.Y)})
 	}
 	box.Min.Z, box.Max.Z = 0, 0
-	m := measurer{p: p, outline: o, edges: edges, lo: Point{X: float64(box.Min.X), Y: float64(box.Min.Y)}, hi: Point{X: float64(box.Max.X), Y: float64(box.Max.Y)}}
+	m := measurer{p: p, outline: o, edges: edges, bans: bans, lo: Point{X: float64(box.Min.X), Y: float64(box.Min.Y)}, hi: Point{X: float64(box.Max.X), Y: float64(box.Max.Y)}}
 	p.edges = make([][]Span, len(edges))
 	f.Floor(box, m.triangle)
 	p.stack(o)
@@ -201,12 +228,28 @@ func Measure(f Floor, o Outline) *Profile {
 	return p
 }
 
+// WithBanRanges is p with the bans' Z ranges taken from bans (same order
+// and count as given to Measure; outlines are ignored). It shares p's
+// pieces, so changing a ban's range costs no new measurement.
+func (p *Profile) WithBanRanges(bans []Ban) *Profile {
+	if len(bans) != len(p.banZ) {
+		return p
+	}
+	q := *p
+	q.banZ = make([][2]float64, len(bans))
+	for i, b := range bans {
+		q.banZ[i] = [2]float64{b.ZMin, b.ZMax}
+	}
+	return &q
+}
+
 // measurer clips the floor's triangles by one outline into a Profile.
 type measurer struct {
 	p       *Profile
 	outline Outline // counter-clockwise
 	edges   Outline // the outline as given, whose edges Edges follows
-	lo, hi  Point   // the outline's X/Y box
+	bans    []Ban
+	lo, hi  Point // the outline's X/Y box
 	// clip and spare are scratch polygons for Sutherland–Hodgman.
 	clip, spare []Point
 	// surface is the current triangle's; cut, when set, the clipped entry
@@ -374,7 +417,48 @@ func (m *measurer) piece(first int, area float64) {
 	for _, q := range vs {
 		pc.zlo, pc.zhi = min(pc.zlo, q.Z), max(pc.zhi, q.Z)
 	}
+	if len(m.bans) > 0 {
+		c := centroid(vs)
+		pc.cz = c.Z
+		pc.bans = int32(len(m.p.banned))
+		for i, b := range m.bans {
+			if in, on := contains(b.Outline, point(c)); in || on {
+				m.p.banned = append(m.p.banned, int32(i))
+			}
+		}
+		pc.nbans = int32(len(m.p.banned)) - pc.bans
+	}
 	m.p.pieces = append(m.p.pieces, pc)
+}
+
+// centroid is the area centroid of flat polygon vs, with its Z on the
+// polygon's plane (a fan of triangles, each weighted by its signed area).
+func centroid(vs []Spot) Spot {
+	var c Spot
+	var w float64
+	for i := 1; i+1 < len(vs); i++ {
+		a, b, d := vs[0], vs[i], vs[i+1]
+		s := (b.X-a.X)*(d.Y-a.Y) - (d.X-a.X)*(b.Y-a.Y)
+		c.X += s * (a.X + b.X + d.X)
+		c.Y += s * (a.Y + b.Y + d.Y)
+		c.Z += s * (a.Z + b.Z + d.Z)
+		w += s
+	}
+	if w == 0 {
+		return vs[0]
+	}
+	return Spot{c.X / (3 * w), c.Y / (3 * w), c.Z / (3 * w)}
+}
+
+// excluded reports pc's centroid under one of its bans and within its Z
+// range.
+func (p *Profile) excluded(pc piece) bool {
+	for _, i := range p.banned[pc.bans : pc.bans+pc.nbans] {
+		if z := p.banZ[i]; pc.cz >= z[0] && pc.cz <= z[1] {
+			return true
+		}
+	}
+	return false
 }
 
 // extreme counts q in the lowest and highest floor.
@@ -409,6 +493,8 @@ func (p *Profile) Classify(zmin, zmax float64) Report {
 	var cut, slab []Spot // scratch polygons
 	for _, pc := range p.pieces {
 		switch {
+		case pc.nbans > 0 && p.excluded(pc):
+			r.Excluded += pc.area
 		case pc.zlo >= zmin && pc.zhi <= zmax:
 			r.Inside += pc.area
 		case pc.zlo > zmax:

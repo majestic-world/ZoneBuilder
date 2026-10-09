@@ -38,6 +38,35 @@ type coverageKey struct {
 	// scenes names the world's scenes, in order.
 	scenes     string
 	hideMeshes bool
+	// bans is the outlines of the zone's other banned shapes; their Z
+	// ranges are applied when classifying, so they are not in the key.
+	bans string
+}
+
+// zoneBans is the zone's banned shapes other than the shape at index
+// self, as shown (with any drag in progress), and the key of their
+// outlines.
+func zoneBans(e *zoneEditor, z zone.Zone, self int) ([]coverage.Ban, string) {
+	var bans []coverage.Ban
+	var key strings.Builder
+	for i, s := range z.Shapes {
+		if !s.Banned || i == self {
+			continue
+		}
+		pts := outline(s.Kind, e.shownPoints(z.ID, i, s.Points))
+		if len(pts) < 3 {
+			continue
+		}
+		zmin, zmax := e.shownZRange(z.ID, i, s)
+		b := coverage.Ban{Outline: make(coverage.Outline, len(pts)), ZMin: float64(zmin), ZMax: float64(zmax)}
+		for k, p := range pts {
+			b.Outline[k] = coverage.Point{X: float64(p.X), Y: float64(p.Y)}
+		}
+		bans = append(bans, b)
+		key.WriteString(outlineKey(pts))
+		key.WriteByte('|')
+	}
+	return bans, key.String()
 }
 
 // profileResult is a profile measured in the background.
@@ -70,6 +99,7 @@ type shapeCoverage struct {
 	report     coverage.Report
 	fit        coverage.Ground
 	zmin, zmax int
+	banZ       string
 	classified *coverage.Profile
 	// ground is the floor line along the walls of lined's outline.
 	ground []geom.Vec3
@@ -133,25 +163,30 @@ func (c *floorCoverage) shape(e *zoneEditor, w *scene.World, id zone.ZoneID, i i
 		return coverage.Report{}, false, false
 	}
 	ref := shapeRef{id, i}
-	key := newCoverageKey(ref, pts, w)
+	key, bans := newCoverageKey(e, ref, pts, w)
 	s := c.shapes[ref]
 	if (s == nil || key != s.done) && !c.running {
-		c.start(key, pts, w)
+		c.start(key, pts, bans, w)
 	}
 	if s == nil || s.done.world != w {
 		return coverage.Report{}, true, false
 	}
 	zmin, zmax := e.shownZRange(id, i, sh)
-	if s.classified != s.profile || zmin != s.zmin || zmax != s.zmax {
-		s.report, s.classified, s.zmin, s.zmax = s.profile.Classify(float64(zmin), float64(zmax)), s.profile, zmin, zmax
+	banZ := fmt.Sprint(bans)
+	if s.classified != s.profile || zmin != s.zmin || zmax != s.zmax || banZ != s.banZ {
+		p := s.profile.WithBanRanges(bans)
+		s.report, s.classified, s.zmin, s.zmax, s.banZ = p.Classify(float64(zmin), float64(zmax)), s.profile, zmin, zmax, banZ
 		s.fit = s.profile.Ground(float64(zmin), float64(zmax))
 	}
 	return s.report, key != s.done, true
 }
 
-// newCoverageKey is the key of shape ref's profile for outline pts over w.
-func newCoverageKey(ref shapeRef, pts []zone.Point, w *scene.World) coverageKey {
-	return coverageKey{shape: ref, outline: outlineKey(pts), world: w, scenes: scenesKey(w), hideMeshes: w.HideMeshes}
+// newCoverageKey is the key of shape ref's profile for outline pts over w,
+// and the zone's other banned shapes it is measured with.
+func newCoverageKey(e *zoneEditor, ref shapeRef, pts []zone.Point, w *scene.World) (coverageKey, []coverage.Ban) {
+	z, _ := e.doc.Zone(ref.zone)
+	bans, bansKey := zoneBans(e, z, ref.shape)
+	return coverageKey{shape: ref, outline: outlineKey(pts), world: w, scenes: scenesKey(w), hideMeshes: w.HideMeshes, bans: bansKey}, bans
 }
 
 // profileNow is the floor profile of shape i of zone id over w, for its
@@ -166,12 +201,12 @@ func (c *floorCoverage) profileNow(e *zoneEditor, w *scene.World, id zone.ZoneID
 		return nil
 	}
 	ref := shapeRef{id, i}
-	key := newCoverageKey(ref, pts, w)
+	key, bans := newCoverageKey(e, ref, pts, w)
 	if s := c.shapes[ref]; s != nil && s.done == key {
 		return s.profile
 	}
 	began := time.Now()
-	p := coverage.Measure(w, coverageOutline(pts))
+	p := coverage.Measure(w, coverageOutline(pts), bans)
 	log.Printf("cobertura: perfil do shape %d medido na hora em %v", i+1, time.Since(began).Round(time.Millisecond))
 	c.shapes[ref] = &shapeCoverage{done: key, profile: p, hist: p.Histogram()}
 	return p
@@ -189,7 +224,7 @@ func coverageOutline(pts []zone.Point) coverage.Outline {
 // start measures key's profile in the background, on a world of the same
 // scenes: the event loop may add tiles to w or drop them meanwhile, and
 // the scenes themselves are only read.
-func (c *floorCoverage) start(key coverageKey, pts []zone.Point, w *scene.World) {
+func (c *floorCoverage) start(key coverageKey, pts []zone.Point, bans []coverage.Ban, w *scene.World) {
 	snap := scene.NewWorld(w.Origin)
 	for _, s := range w.Scenes() {
 		snap.Add(s)
@@ -199,7 +234,7 @@ func (c *floorCoverage) start(key coverageKey, pts []zone.Point, w *scene.World)
 	c.running = true
 	go func() {
 		began := time.Now()
-		p := coverage.Measure(snap, o)
+		p := coverage.Measure(snap, o, bans)
 		h := p.Histogram()
 		if d := time.Since(began); d > profileBudget {
 			log.Printf("cobertura: perfil do chão medido em %v, acima do orçamento de %v", d.Round(time.Millisecond), profileBudget)
@@ -408,7 +443,7 @@ func coverageText(title, none string, r coverage.Report, measuring bool) string 
 	for _, a := range []struct {
 		name string
 		area float64
-	}{{"Dentro da faixa", r.Inside}, {"Acima do topo", r.Above}, {"Abaixo do piso", r.Below}, {"Sem chão", r.NoGround}} {
+	}{{"Dentro da faixa", r.Inside}, {"Acima do topo", r.Above}, {"Abaixo do piso", r.Below}, {"Excluída", r.Excluded}, {"Sem chão", r.NoGround}} {
 		lines = append(lines, fmt.Sprintf("%s: %s u² (%s)", a.name, units(roundF(a.area)), percent(a.area, total)))
 	}
 	return strings.Join(lines, "\n")
