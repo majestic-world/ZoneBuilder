@@ -4,10 +4,14 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Em ambos os idiomas, mensagens estáticas/dinâmicas e plural 0/1/2 resolvem com números próprios; chave inválida não cai silenciosamente para português.
-- [ ] Verificador detecta área nova sem par ou com chave/parâmetros/variantes divergentes e chaves usadas pelo código sem catálogo.
-- [ ] Catálogos embutidos, sem rede nem recarga por quadro; instruções de extensão em documentação de desenvolvimento.
+- [x] Em ambos os idiomas, mensagens estáticas/dinâmicas e plural 0/1/2 resolvem com números próprios; chave inválida não cai silenciosamente para português.
+- [x] Verificador detecta área nova sem par ou com chave/parâmetros/variantes divergentes e chaves usadas pelo código sem catálogo.
+- [x] Catálogos embutidos, sem rede nem recarga por quadro; instruções de extensão em documentação de desenvolvimento.
 
 ## Comments
+
+- API: `locale.Language`, `PtBR`, `En`, `Normalize(string) Language`; `Text(lang, key) string` para mensagens estáticas; `Format(lang, key, map[string]string) string` para argumentos nomeados pré-formatados; `Plural(lang, key, count, map[string]string) string` com `{count}` localizado; `Number(lang, value float64, decimals int) string` e `Percent(lang, fraction float64, decimals int) string` somente para apresentação; `Message{Key, Args, Count, Plural}.Render(lang)` reapresenta status sem repetir a ação.
+- Catálogos: `internal/locale/catalog/<área>/{pt-BR,en}.json`, com objeto JSON chave→texto ou chave→`{"one":"...","other":"..."}`; novas áreas com ambos arquivos são descobertas automaticamente. `locale.Verify(fs.FS)` confere os catálogos embutidos e usos literais no código Go; `locale.Check(catalogFS, sourceFS)` permite conferir entradas isoladas. Chaves compostas dinamicamente não são inspecionáveis estaticamente; usar chaves literais. Instruções de extensão em `README.md`.
+- Evidência escrita: `locale_test.go` cobre idioma padrão/inválido, texto estático, argumentos, plural 0/1/2, números negativos/percentuais, chave desconhecida e reapresentação de status; `check_test.go` cobre par válido, idioma ausente, chave faltante/duplicada, parâmetros incompatíveis, variantes plurais e chave usada sem tradução. Testes não executados neste ramo; integração os executará.
