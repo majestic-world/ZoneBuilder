@@ -173,6 +173,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		folders = make(chan string, 1)
 		probe   cursorProbe
 		zones   = newZoneEditor()
+		cover   = newFloorCoverage(w)
 		// zonesShown is the zones.version the renderer last got;
 		// groundShown is what its ground marking was last built for;
 		// groundMark was last built for groundBuilt.
@@ -372,6 +373,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			if msg := zones.panel(gtx, &shell.Edit, tiles.world); msg != "" {
 				status = msg
 			}
+			shell.Edit.Coverage = cover.inspector(zones, tiles.world)
 			if msg := zones.heightPanel(gtx, &shell.Height); msg != "" {
 				status = msg
 			}
