@@ -239,7 +239,11 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 					if e.Kind == pointer.Press {
 						waterSel.pressTaken = used
 					}
-					if probe.handle(e) && tiles.world != nil {
+					switch probe.handle(e) {
+					case pointer.ButtonPrimary:
+						if tiles.world == nil {
+							break
+						}
 						probe.click, probe.clickHit = pickAt(tiles.world, &cam, e.Position, shell.Viewport.Size())
 						logClick(probe.click, probe.clickHit)
 						if msg := zones.click(tiles.world, cover, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit); msg != "" {
@@ -247,6 +251,17 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 						} else if !zones.armed && !waterSel.pressTaken {
 							if msg := waterSel.click(tiles.world, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit, e.Modifiers.Contain(key.ModCtrl)); msg != "" {
 								status = msg
+							}
+						}
+					case pointer.ButtonSecondary:
+						if tiles.world == nil {
+							break
+						}
+						if msg, open := waterSel.rightClick(tiles.world, &cam, e.Position, shell.Viewport.Size()); open {
+							shell.WaterMenu.Menu.Open(image.Pt(round(e.Position.X), round(e.Position.Y)))
+							status = msg
+							if zones.drawing {
+								status = waterBusy
 							}
 						}
 					}
@@ -257,6 +272,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 						}
 					}
 					if e.Name == key.NameEscape && e.State == key.Press {
+						if shell.CloseMenus() {
+							break
+						}
 						if msg := zones.escape(); msg != "" {
 							status = msg
 						} else if waterSel.clear() {
@@ -291,6 +309,14 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			if shell.Zone.Compile.Clicked(gtx) {
 				var files []zonexml.File
 				status, files = zones.compile()
+				if len(files) > 0 {
+					shell.XML.Open(files)
+				}
+			}
+			if shell.WaterMenu.CompileRequested(gtx) {
+				var files []zonexml.File
+				sel, live := waterSel.selected(tiles.world)
+				status, files = zones.compileWater(sel, live)
 				if len(files) > 0 {
 					shell.XML.Open(files)
 				}
@@ -382,6 +408,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				tiles.follow(worldPosition(tiles.world, cam.Position))
 			}
 			waterSel.prune(tiles.world)
+			shell.WaterMenu.Disabled = zones.drawing
 			shell.Cursor, shell.Click = probe.status(tiles.world, &cam, shell.Viewport.Size())
 			shell.Tiles, shell.Warnings = loadedTiles(tiles)
 			shell.Zone.Info = zones.info()
