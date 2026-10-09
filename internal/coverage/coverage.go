@@ -12,7 +12,9 @@
 package coverage
 
 import (
+	"cmp"
 	"math"
+	"slices"
 
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/scene"
@@ -49,7 +51,22 @@ type Profile struct {
 	pieces   []piece
 	// verts are the pieces' vertices, piece by piece.
 	verts []Spot
+	// edges is the floor along each outline edge, in the outline's order.
+	edges [][]Span
 }
+
+// Station is a point of floor on an outline edge, D units from the edge's
+// first end.
+type Station struct {
+	D float64
+	Spot
+}
+
+// Span is a straight run of floor along an outline edge: the edge across
+// one floor triangle, from where it enters it to where it leaves. Its ends
+// are the edge's crossings with the triangle's edges, so the line is
+// exact.
+type Span struct{ From, To Station }
 
 // piece is a flat polygon of floor inside the outline: verts[first :
 // first+n], its X/Y area and its Z extent.
@@ -78,6 +95,11 @@ type Report struct {
 	// NoGround is the outline's area with no floor under it: an invisible
 	// terrain quad, a tile not loaded, off the map.
 	NoGround float64
+	// Edges is the floor along each edge of the outline, edge i running
+	// from outline point i to the next: its spans by distance from point
+	// i. Where the edge has no floor there is a gap; where floors overlap,
+	// spans overlap.
+	Edges [][]Span
 }
 
 // Total is the outline's area as the report splits it: the floor in each
@@ -101,6 +123,7 @@ func Measure(f Floor, o Outline) *Profile {
 	if len(o) < 3 {
 		return p
 	}
+	edges := o
 	o = counterClockwise(o)
 	p.area = signedArea2(o) / 2
 	if p.area <= 0 {
@@ -111,8 +134,12 @@ func Measure(f Floor, o Outline) *Profile {
 		box.Include(geom.Vec3{X: float32(q.X), Y: float32(q.Y)})
 	}
 	box.Min.Z, box.Max.Z = 0, 0
-	m := measurer{p: p, outline: o, lo: Point{X: float64(box.Min.X), Y: float64(box.Min.Y)}, hi: Point{X: float64(box.Max.X), Y: float64(box.Max.Y)}}
+	m := measurer{p: p, outline: o, edges: edges, lo: Point{X: float64(box.Min.X), Y: float64(box.Min.Y)}, hi: Point{X: float64(box.Max.X), Y: float64(box.Max.Y)}}
+	p.edges = make([][]Span, len(edges))
 	f.Floor(box, m.triangle)
+	for _, spans := range p.edges {
+		slices.SortFunc(spans, func(a, b Span) int { return cmp.Compare(a.From.D, b.From.D) })
+	}
 	return p
 }
 
@@ -120,6 +147,7 @@ func Measure(f Floor, o Outline) *Profile {
 type measurer struct {
 	p       *Profile
 	outline Outline // counter-clockwise
+	edges   Outline // the outline as given, whose edges Edges follows
 	lo, hi  Point   // the outline's X/Y box
 	// clip and spare are scratch polygons for Sutherland–Hodgman.
 	clip, spare []Point
@@ -140,6 +168,7 @@ func (m *measurer) triangle(t scene.FloorTriangle) {
 		return // seen edge on: no area to stand on
 	}
 	tri := [3]Spot{a, b, c}
+	m.edgeSpans(tri)
 	if m.whollyInside(tri) {
 		m.add(tri[:], area2/2)
 		return
@@ -191,6 +220,50 @@ func (m *measurer) whollyInside(tri [3]Spot) bool {
 		}
 	}
 	return true
+}
+
+// edgeSpans adds to the profile the part of each outline edge over
+// counter-clockwise tri: the edge clipped by the triangle's 3 sides, its
+// Z on the triangle's plane.
+func (m *measurer) edgeSpans(tri [3]Spot) {
+	var plane func(Point) float64
+	for i, p := range m.edges {
+		q := m.edges[(i+1)%len(m.edges)]
+		if max(p.X, q.X) < min(tri[0].X, tri[1].X, tri[2].X) || min(p.X, q.X) > max(tri[0].X, tri[1].X, tri[2].X) ||
+			max(p.Y, q.Y) < min(tri[0].Y, tri[1].Y, tri[2].Y) || min(p.Y, q.Y) > max(tri[0].Y, tri[1].Y, tri[2].Y) {
+			continue
+		}
+		t0, t1 := 0.0, 1.0
+		for k := range 3 {
+			a, b := tri[k], tri[(k+1)%3]
+			// side(t) = fp + t·(fq − fp) ≥ 0 inside the triangle.
+			fp := (b.X-a.X)*(p.Y-a.Y) - (b.Y-a.Y)*(p.X-a.X)
+			fq := (b.X-a.X)*(q.Y-a.Y) - (b.Y-a.Y)*(q.X-a.X)
+			switch {
+			case fp < 0 && fq < 0:
+				t0, t1 = 1, 0
+			case fp < 0:
+				t0 = max(t0, fp/(fp-fq))
+			case fq < 0:
+				t1 = min(t1, fp/(fp-fq))
+			}
+			if t1 <= t0 {
+				break
+			}
+		}
+		length := math.Hypot(q.X-p.X, q.Y-p.Y)
+		if (t1-t0)*length <= onSlack {
+			continue
+		}
+		if plane == nil {
+			plane = planeOf(tri)
+		}
+		at := func(t float64) Station {
+			x := Point{p.X + t*(q.X-p.X), p.Y + t*(q.Y-p.Y)}
+			return Station{t * length, Spot{x.X, x.Y, plane(x)}}
+		}
+		m.p.edges[i] = append(m.p.edges[i], Span{at(t0), at(t1)})
+	}
 }
 
 // corners takes the extremes of triangle ∩ outline from its corners: the
@@ -254,7 +327,7 @@ func (m *measurer) extreme(q Spot) {
 
 // Classify sorts the profile's floor by the Z range [zmin, zmax].
 func (p *Profile) Classify(zmin, zmax float64) Report {
-	r := Report{Measured: p.measured, GroundMin: p.lo, GroundMax: p.hi}
+	r := Report{Measured: p.measured, GroundMin: p.lo, GroundMax: p.hi, Edges: p.edges}
 	if p.measured {
 		r.FloorClearance, r.TopClearance = p.lo.Z-zmin, zmax-p.hi.Z
 	}

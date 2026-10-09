@@ -29,6 +29,7 @@ import (
 	"gioui.org/unit"
 
 	"zonebuilder/internal/camera"
+	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/project"
@@ -177,7 +178,10 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		// zonesShown is the zones.version the renderer last got;
 		// groundShown is what its ground marking was last built for;
 		// groundMark was last built for groundBuilt.
-		zonesShown  = -1
+		zonesShown = -1
+		// lineShown is the profile the ground line along the current
+		// shape's walls came from when the zones were last sent.
+		lineShown *coverage.Profile
 		groundShown = groundKey{version: -1}
 		groundBuilt = groundKey{version: -1}
 		groundMark  render.Ground
@@ -407,9 +411,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			}
 			g.renderer.SetMeshesHidden(shell.Meshes.On)
 			uploading := tiles.sync(g.renderer, uploadBudget)
-			if zonesShown != zones.version {
-				g.renderer.SetZones(zones.overlay())
-				zonesShown = zones.version
+			if line, from := cover.groundLine(zones, tiles.world); zonesShown != zones.version || lineShown != from {
+				g.renderer.SetZones(zones.overlay(line))
+				zonesShown, lineShown = zones.version, from
 			}
 			if groundShown != groundBuilt {
 				g.renderer.SetGround(groundMark)

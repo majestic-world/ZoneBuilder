@@ -35,7 +35,15 @@ type ZoneShape struct {
 	// whose handles are filled with problemColor.
 	Problem     bool
 	BadVertices []int
+	// Ground is the floor line along the prism's walls, as segments (pairs
+	// of points, server coordinates) drawn in the edge colour.
+	Ground []geom.Vec3
 }
+
+// groundLift raises the ground line along the walls this many units over
+// the floor it follows, so its visible pass wins the depth test against
+// the very triangles it lies on instead of flickering to dashed.
+const groundLift = 2
 
 // problemColor is the edge and handle colour that flags a problem.
 var problemColor = [4]float32{1, 0.12, 0.12, 1}
@@ -134,9 +142,10 @@ type zoneOverlay struct {
 	mode     int32
 	viewport int32
 	vao, vbo uint32
-	// verts holds the triangle run, then the line run, then the points.
-	verts       []overlayVertex
-	tris, lines int
+	// verts holds the triangle run, then the line run, then the ground
+	// line run, then the points.
+	verts               []overlayVertex
+	tris, lines, ground int
 	dirty       bool
 }
 
@@ -173,7 +182,7 @@ func newZoneOverlay() (*zoneOverlay, error) {
 // set rebuilds the vertex runs for shapes: triangles, then lines, then
 // points, so each draws with one call.
 func (o *zoneOverlay) set(shapes []ZoneShape) {
-	var tris, lines, points []overlayVertex
+	var tris, lines, ground, points []overlayVertex
 	for _, s := range shapes {
 		if len(s.Points) == 0 {
 			continue
@@ -212,6 +221,11 @@ func (o *zoneOverlay) set(shapes []ZoneShape) {
 					tris = append(tris, overlayVertex{Pos: at(client[k], z), Color: face})
 				}
 			}
+			for k := 0; k+1 < len(s.Ground); k += 2 {
+				a, b := scene.FromServer(s.Ground[k]), scene.FromServer(s.Ground[k+1])
+				l := segment(at(a, a.Z+groundLift), at(b, b.Z+groundLift), edge)
+				ground = append(ground, l[:]...)
+			}
 		} else {
 			for i := 1; i < len(client); i++ {
 				a, b := client[i-1], client[i]
@@ -244,8 +258,8 @@ func (o *zoneOverlay) set(shapes []ZoneShape) {
 			}
 		}
 	}
-	o.verts = append(append(append(o.verts[:0], tris...), lines...), points...)
-	o.tris, o.lines = len(tris), len(lines)
+	o.verts = append(append(append(append(o.verts[:0], tris...), lines...), ground...), points...)
+	o.tris, o.lines, o.ground = len(tris), len(lines), len(ground)
 	o.dirty = true
 }
 
@@ -275,15 +289,18 @@ func (o *zoneOverlay) draw(viewProj mat4, origin [3]float32, w, h int) {
 	// Faces: plain in front of the scene, faint stripes behind it.
 	o.pass(gles.TRIANGLES, 0, o.tris, gles.GEQUAL, modeVisible)
 	o.pass(gles.TRIANGLES, 0, o.tris, gles.LESS, modeBuriedFace)
-	// Lines: solid in front of the scene, dashed behind it. Another line
-	// run (a ground line per wall, say) draws the same 2 passes.
+	// Lines: solid in front of the scene, dashed behind it; the ground
+	// line along the walls the same way.
 	o.pass(gles.LINES, o.tris, o.lines, gles.GEQUAL, modeVisible)
 	o.pass(gles.LINES, o.tris, o.lines, gles.LESS, modeBuriedLine)
+	o.pass(gles.LINES, o.tris+o.lines, o.ground, gles.GEQUAL, modeVisible)
+	o.pass(gles.LINES, o.tris+o.lines, o.ground, gles.LESS, modeBuriedLine)
 
 	// Handles: over everything.
 	gles.Disable(gles.DEPTH_TEST)
 	gles.Uniform1i(o.mode, modeVisible)
-	gles.DrawArrays(gles.POINTS, o.tris+o.lines, len(o.verts)-o.tris-o.lines)
+	run := o.tris + o.lines + o.ground
+	gles.DrawArrays(gles.POINTS, run, len(o.verts)-run)
 
 	gles.Enable(gles.DEPTH_TEST)
 	gles.DepthFunc(gles.GREATER)
