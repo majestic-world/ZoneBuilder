@@ -422,6 +422,7 @@ func (c *floorCoverage) ruler(e *zoneEditor, w *scene.World, r coverage.Report, 
 	type part struct {
 		hist       coverage.Histogram
 		zmin, zmax float64
+		terrain    bool
 	}
 	var parts []part
 	zmin, zmax := math.Inf(1), math.Inf(-1)
@@ -431,7 +432,7 @@ func (c *floorCoverage) ruler(e *zoneEditor, w *scene.World, r coverage.Report, 
 			continue
 		}
 		lo, hi := e.shownZRange(z.ID, i, sh)
-		parts = append(parts, part{s.hist, float64(lo), float64(hi)})
+		parts = append(parts, part{s.hist, float64(lo), float64(hi), s.report.Terrain})
 		zmin, zmax = min(zmin, float64(lo)), max(zmax, float64(hi))
 	}
 	if len(parts) == 0 {
@@ -447,7 +448,7 @@ func (c *floorCoverage) ruler(e *zoneEditor, w *scene.World, r coverage.Report, 
 		b := &u.Bars[i]
 		z0 := u.Lo + float64(i)*step
 		for _, p := range parts {
-			in, above, below := p.hist.Split(z0, z0+step, p.zmin, p.zmax)
+			in, above, below := p.hist.Split(z0, z0+step, p.zmin, p.zmax, p.terrain)
 			b.Inside, b.Above, b.Below = b.Inside+in, b.Above+above, b.Below+below
 		}
 	}
