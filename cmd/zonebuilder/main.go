@@ -383,6 +383,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			if msg := zones.heightPanel(gtx, &shell.Height); msg != "" {
 				status = msg
 			}
+			shell.Height.Coverage = cover.heightWindow(zones, tiles.world)
 			shell.Arrow = zones.layoutArrow(tiles.world, &cam, shell.Viewport.Size(), gtx.Dp(90))
 			shell.EdgeLabels = nil
 			if shell.Ground.On && tiles.world != nil {
