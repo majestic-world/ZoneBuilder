@@ -76,15 +76,21 @@ type profileResult struct {
 	hist    coverage.Histogram
 }
 
-// floorCoverage keeps the floor profiles of the selected zone's shapes:
-// measured in the background, one at a time, each for its latest key;
-// classified by each shape's Z range on the event loop. Every method runs
-// on the event loop.
+// floorCoverage keeps the floor profiles of every zone's shapes, measured
+// lazily as they are asked for: in the background, one at a time, each
+// for its latest key; classified by each shape's Z range on the event
+// loop. Every method runs on the event loop.
 type floorCoverage struct {
 	win     *app.Window
 	results chan profileResult
 	running bool
 	shapes  map[shapeRef]*shapeCoverage
+	// received counts the profiles received, so the floor warnings are
+	// judged again when one comes in; warned are those warnings, judged
+	// for warnedAt.
+	received int
+	warned   []floorWarning
+	warnedAt warningsKey
 }
 
 // shapeCoverage is the latest profile of one shape and its report.
@@ -245,16 +251,18 @@ func (c *floorCoverage) start(key coverageKey, pts []zone.Point, bans []coverage
 }
 
 // receive takes the profile measured in the background, if it is in, and
-// forgets the profiles of shapes outside e's selected zone.
+// then forgets the profiles of shapes no longer in e's document.
 func (c *floorCoverage) receive(e *zoneEditor) {
 	select {
 	case r := <-c.results:
 		c.running = false
+		c.received++
 		c.shapes[r.key.shape] = &shapeCoverage{done: r.key, profile: r.profile, hist: r.hist}
 	default:
+		return
 	}
 	for ref := range c.shapes {
-		if ref.zone != e.zone {
+		if z, ok := e.doc.Zone(ref.zone); !ok || ref.shape >= len(z.Shapes) {
 			delete(c.shapes, ref)
 		}
 	}

@@ -53,9 +53,11 @@ type zoneEditor struct {
 	ghostMin, ghostMax int
 	// version counts changes to what the overlay shows.
 	version int
-	// problems are the problems the problem panel shows (problemRows),
-	// built for version problemsAt-1 (0: never built).
+	// problems and warnings are the problems and floor warnings the
+	// problem panel shows (problemRows), built for version problemsAt-1
+	// (0: never built).
 	problems   []zone.Problem
+	warnings   []floorWarning
 	problemsAt int
 	// left out are the zones unchecked for compilation; every other zone,
 	// new ones too, is in the compile selection.
