@@ -198,3 +198,54 @@ func TestZoneSumsShapesAndKeepsWorstExtremes(t *testing.T) {
 		}
 	}
 }
+
+// Under a square floored by a ramp z = x − 95, the floor spreads evenly
+// over Z from −95 to 105, 200 units² per unit of Z: the histogram's bins
+// of 16 start at −96 (bin −6) and end at 112 (bin 6), the first holding
+// the 15 units of −95..−80 (3 000), the last the 9 units of 96..105
+// (1 800) and every bin between 3 200. Catches a piece put whole in the
+// bin of its lowest (or average) Z, though it spans the whole ramp, and a
+// bin index truncated toward 0 below Z = 0.
+func TestHistogramSpreadsARampOverItsZ(t *testing.T) {
+	ramp := func(x, y float32) geom.Vec3 { return v(x, y, x-95) }
+	a, b, c, d := ramp(-50, -50), ramp(250, -50), ramp(250, 250), ramp(-50, 250)
+	h := coverage.Measure(floor{tri(a, b, c), tri(a, c, d)}, square(0, 0, 200, 200)).Histogram()
+	if h.First != -6 || len(h.Area) != 13 {
+		t.Fatalf("bins %d..%d, want -6..6", h.First, h.First+len(h.Area)-1)
+	}
+	for i, got := range h.Area {
+		want := 3200.0
+		switch i {
+		case 0:
+			want = 3000
+		case len(h.Area) - 1:
+			want = 1800
+		}
+		if !near(got, want) {
+			t.Errorf("bin %d: %v units², want %v", h.First+i, got, want)
+		}
+	}
+}
+
+// The same ramp z = x split by the range [30, 170] through the histogram
+// gives the floor of each state Classify gives: 28 000 inside and 6 000
+// above and below, though 30 and 170 cut bins 1 and 10 in their middle.
+// Catches the ruler colouring a cut bin all in one state, or the 2
+// states swapped.
+func TestHistogramSplitsCutBinsByTheRange(t *testing.T) {
+	ramp := func(x, y float32) geom.Vec3 { return v(x, y, x) }
+	a, b, c, d := ramp(-50, -50), ramp(250, -50), ramp(250, 250), ramp(-50, 250)
+	h := coverage.Measure(floor{tri(a, b, c), tri(a, c, d)}, square(0, 0, 200, 200)).Histogram()
+	in, above, below := h.Split(-1000, 1000, 30, 170)
+	for _, c := range []struct {
+		name      string
+		got, want float64
+	}{{"inside", in, 28000}, {"above", above, 6000}, {"below", below, 6000}} {
+		if !near(c.got, c.want) {
+			t.Errorf("%s %v, want %v", c.name, c.got, c.want)
+		}
+	}
+	if in, above, below := h.Split(32, 48, 30, 170); !near(in, 3200) || above != 0 || below != 0 {
+		t.Errorf("bin 2 split %v/%v/%v, want 3200 inside", in, above, below)
+	}
+}
