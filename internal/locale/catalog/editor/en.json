@@ -21,6 +21,7 @@
   "editor.count.vertices": {"one": "{count} vertex", "other": "{count} vertices"},
   "editor.count.files": {"one": "{count} file", "other": "{count} files"},
   "editor.source.ground": "from the ground under the area",
+  "editor.source.vertices": "by the clicked points",
   "editor.source.measuring": "from vertices, measuring the ground…",
   "editor.source.off_tiles": "from vertices: part of the area lies outside loaded tiles",
   "editor.source.no_ground": "from vertices: no ground measured under the area",

@@ -21,6 +21,7 @@
   "editor.count.vertices": {"one": "{count} vértice", "other": "{count} vértices"},
   "editor.count.files": {"one": "{count} arquivo", "other": "{count} arquivos"},
   "editor.source.ground": "pelo chão da área",
+  "editor.source.vertices": "pelos pontos clicados",
   "editor.source.measuring": "pelos vértices, medindo o chão…",
   "editor.source.off_tiles": "pelos vértices: parte da área fora dos tiles carregados",
   "editor.source.no_ground": "pelos vértices: nenhum chão medido na área",
