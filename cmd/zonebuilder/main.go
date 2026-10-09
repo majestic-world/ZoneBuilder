@@ -2,7 +2,13 @@
 //
 // Build with scripts/build.ps1, which also places ANGLE's libEGL.dll and
 // libGLESv2.dll next to the executable; the app loads them at run time.
+//
+// The executable's icon (assets/icon/zonebuilder.ico, resource #1, which
+// Gio puts on the window) is linked from rsrc_windows_amd64.syso; rebuild
+// it with go generate after changing the icon.
 package main
+
+//go:generate go run github.com/tc-hib/go-winres@v0.3.3 make --arch amd64
 
 import (
 	"cmp"

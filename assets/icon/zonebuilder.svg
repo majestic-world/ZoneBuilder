@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2DD4BF"/>
+      <stop offset="0.55" stop-color="#0D9488"/>
+      <stop offset="1" stop-color="#0E7490"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="left" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.78"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.40"/>
+    </linearGradient>
+    <linearGradient id="right" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#115E59" stop-opacity="0.80"/>
+      <stop offset="1" stop-color="#115E59" stop-opacity="0.45"/>
+    </linearGradient>
+  </defs>
+
+  <!-- tile -->
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#tile)"/>
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#sheen)"/>
+  <rect x="8.75" y="8.75" width="238.5" height="238.5" rx="53.25" fill="none" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="1.5"/>
+
+  <!-- ground plane -->
+  <path d="M32 160 L128 104.6 L224 160 L128 215.4 Z" fill="#042F2E" fill-opacity="0.22" stroke="#FFFFFF" stroke-opacity="0.85" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- zone prism: back edges seen through the glass -->
+  <path d="M102 152 L142 129 L182 152 M142 129 L142 63" fill="none" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="2" stroke-linejoin="round"/>
+  <!-- side faces -->
+  <path d="M102 152 L142 175 L142 109 L102 86 Z" fill="url(#left)"/>
+  <path d="M142 175 L182 152 L182 86 L142 109 Z" fill="url(#right)"/>
+  <!-- top face -->
+  <path d="M102 86 L142 63 L182 86 L142 109 Z" fill="#FFFFFF"/>
+  <!-- edges -->
+  <path d="M102 86 L142 63 L182 86 L182 152 L142 175 L102 152 Z M102 86 L142 109 L182 86 M142 109 L142 175" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- vertex handles -->
+  <g fill="#FFFFFF" stroke="#134E4A" stroke-width="2.5">
+    <rect x="96" y="80" width="12" height="12" rx="2"/>
+    <rect x="136" y="57" width="12" height="12" rx="2"/>
+    <rect x="176" y="80" width="12" height="12" rx="2"/>
+    <rect x="136" y="103" width="12" height="12" rx="2"/>
+  </g>
+
+  <!-- picked point: pin on the ground -->
+  <ellipse cx="80" cy="188" rx="10" ry="5.8" fill="#042F2E" fill-opacity="0.45"/>
+  <path d="M80 188 C76 180 67 173 67 163 A13 13 0 1 1 93 163 C93 173 84 180 80 188 Z" fill="#FFFFFF" stroke="#134E4A" stroke-width="2.5" stroke-linejoin="round"/>
+  <circle cx="80" cy="163" r="4.6" fill="#0D9488"/>
+</svg>
