@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"hash/maphash"
 	"image/color"
 	"log"
@@ -14,7 +13,7 @@ import (
 
 	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/geom"
-	"zonebuilder/internal/inflect"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
 	"zonebuilder/internal/zone"
@@ -322,20 +321,18 @@ func (c *floorCoverage) groundLine(e *zoneEditor, w *scene.World) ([]geom.Vec3, 
 	return s.ground, s.profile
 }
 
-// inspector is the inspector's coverage lines for e's current shape over
-// w, "" when there is none: the report, then the floor layers the range
-// rule leaves out (spec D5).
-func (c *floorCoverage) inspector(e *zoneEditor, w *scene.World) string {
+// inspector presents the current shape's measured ground without changing its profile.
+func (c *floorCoverage) inspector(e *zoneEditor, w *scene.World, lang locale.Language) string {
 	r, measuring, ok := c.current(e, w)
 	if !ok {
 		if measuring {
-			return "Cobertura do chão: medindo…"
+			return locale.Text(lang, "coverage.shape.measuring")
 		}
 		return ""
 	}
-	text := coverageText("Cobertura do chão", "Nenhum chão medido sob o shape", r, measuring)
+	text := coverageText(lang, "coverage.shape.title", "coverage.shape.none", r, measuring)
 	if len(r.Others) > 0 {
-		text += "\n" + othersText(r.Others)
+		text += "\n" + othersText(lang, r.Others)
 	}
 	return text
 }
@@ -343,70 +340,75 @@ func (c *floorCoverage) inspector(e *zoneEditor, w *scene.World) string {
 // othersShown is the most left-out layers the inspector lists by Z.
 const othersShown = 4
 
-// othersText names the floor layers the layer rule leaves out of a Z
-// range, with the Z of the first othersShown: "Outra camada: z 3256" or
-// "Outras camadas: 2 (z 3256; z 4000 … 4120)".
-func othersText(others []coverage.Layer) string {
-	var zs []string
+// othersText presents the excluded layers by their Z spans.
+func othersText(lang locale.Language, others []coverage.Layer) string {
+	zs := make([]string, 0, min(len(others), othersShown)+1)
 	for _, l := range others[:min(len(others), othersShown)] {
 		lo, hi := int(math.Floor(l.Low)), int(math.Ceil(l.High))
 		if hi == lo {
-			zs = append(zs, fmt.Sprintf("z %d", lo))
+			zs = append(zs, locale.Format(lang, "coverage.layer.point", map[string]string{"z": measureNumber(lang, lo)}))
 		} else {
-			zs = append(zs, fmt.Sprintf("z %d … %d", lo, hi))
+			zs = append(zs, locale.Format(lang, "coverage.layer.span", map[string]string{"low": measureNumber(lang, lo), "high": measureNumber(lang, hi)}))
 		}
-	}
-	if len(others) == 1 {
-		return "Outra camada: " + zs[0]
 	}
 	if len(others) > othersShown {
 		zs = append(zs, "…")
 	}
-	return fmt.Sprintf("Outras camadas: %d (%s)", len(others), strings.Join(zs, "; "))
+	return locale.Plural(lang, "coverage.other_layers", len(others), map[string]string{"layers": strings.Join(zs, "; ")})
 }
 
 // rulerRows is how many histogram bars the height window's ruler draws
 // over its Z span.
 const rulerRows = 48
 
-// heightWindow fills p's coverage of e's selected zone over w (spec D7):
-// the ruler and the text lines under it, both empty when there is none.
-func (c *floorCoverage) heightWindow(e *zoneEditor, w *scene.World, p *ui.HeightPanel) {
+// heightWindow presents the selected zone's report and ruler from stored measurements.
+func (c *floorCoverage) heightWindow(e *zoneEditor, w *scene.World, p *ui.HeightPanel, lang locale.Language) {
 	p.Coverage, p.Ruler = "", ui.Ruler{}
 	r, measuring, ok := c.zone(e, w)
 	if !ok {
 		if measuring {
-			p.Coverage = "Cobertura da zona: medindo…"
+			p.Coverage = locale.Text(lang, "coverage.zone.measuring")
 		}
 		return
 	}
-	title := "Cobertura da zona (soma dos shapes)"
-	if measuring {
-		title += ": medindo…"
-	}
-	lines := []string{title}
+	p.Coverage = heightSummary(lang, r, measuring)
 	if r.Measured {
-		lines = append(lines,
-			fmt.Sprintf("Chão sob a zona: %s … %s", units(roundF(r.GroundMin.Z)), units(roundF(r.GroundMax.Z))),
-			fmt.Sprintf("Folga do piso: %s · Folga do topo: %s", clearance(r.FloorClearance), clearance(r.TopClearance)),
-		)
-		p.Ruler = c.ruler(e, w, r)
-	} else {
-		lines = append(lines, noFloor("Nenhum chão medido sob a zona", r))
+		p.Ruler = c.ruler(e, w, r, lang)
 	}
-	total := r.Total()
-	lines = append(lines, fmt.Sprintf("Cobertura %s · acima %s · abaixo %s · sem chão %s",
-		share(r.Coverage()), percent(r.Above, total), percent(r.Below, total), percent(r.NoGround, total)))
-	p.Coverage = strings.Join(lines, "\n")
 }
 
-// clearance writes a clearance, marked "(fura)" when the floor pierces
-// that side of the range.
-func clearance(v float64) string {
-	if n := roundF(v); n < 0 {
-		return "−" + units(-n) + " (fura)"
+func heightSummary(lang locale.Language, r coverage.Report, measuring bool) string {
+	title := "coverage.zone.title"
+	if measuring {
+		title = "coverage.zone.title_measuring"
 	}
-	return units(roundF(v))
+	lines := []string{locale.Text(lang, title)}
+	if r.Measured {
+		lines = append(lines,
+			locale.Format(lang, "coverage.zone.range", map[string]string{
+				"low": measureNumber(lang, roundF(r.GroundMin.Z)), "high": measureNumber(lang, roundF(r.GroundMax.Z)),
+			}),
+			locale.Format(lang, "coverage.zone.clearances", map[string]string{
+				"floor": clearance(lang, r.FloorClearance), "top": clearance(lang, r.TopClearance),
+			}),
+		)
+	} else {
+		lines = append(lines, noFloor(lang, "coverage.zone.none", r))
+	}
+	total := r.Total()
+	lines = append(lines, locale.Format(lang, "coverage.zone.shares", map[string]string{
+		"coverage": share(lang, r.Coverage()), "above": percent(lang, r.Above, total),
+		"below": percent(lang, r.Below, total), "missing": percent(lang, r.NoGround, total),
+	}))
+	return strings.Join(lines, "\n")
+}
+
+// clearance marks ground that pierces a Z boundary while preserving the measured value.
+func clearance(lang locale.Language, v float64) string {
+	if n := roundF(v); n < 0 {
+		return locale.Format(lang, "coverage.clearance.pierces", map[string]string{"value": measureNumber(lang, n)})
+	}
+	return measureNumber(lang, roundF(v))
 }
 
 // ruler is the height window's ruler for e's selected zone over w, whose
@@ -415,7 +417,7 @@ func clearance(v float64) string {
 // each row's floor by state, every shape's histogram split by its own
 // range; and marks at the lowest and highest floor with their clearances.
 // Only the split depends on the range, so a Z drag redraws it every frame.
-func (c *floorCoverage) ruler(e *zoneEditor, w *scene.World, r coverage.Report) ui.Ruler {
+func (c *floorCoverage) ruler(e *zoneEditor, w *scene.World, r coverage.Report, lang locale.Language) ui.Ruler {
 	z, _ := e.doc.Zone(e.zone)
 	type part struct {
 		hist       coverage.Histogram
@@ -449,62 +451,85 @@ func (c *floorCoverage) ruler(e *zoneEditor, w *scene.World, r coverage.Report) 
 			b.Inside, b.Above, b.Below = b.Inside+in, b.Above+above, b.Below+below
 		}
 	}
-	u.Marks = []ui.RulerMark{
-		{Z: r.GroundMax.Z, Text: fmt.Sprintf("%s topo %s", units(roundF(r.GroundMax.Z)), clearance(r.TopClearance)), Alert: roundF(r.TopClearance) < 0},
-		{Z: r.GroundMin.Z, Text: fmt.Sprintf("%s piso %s", units(roundF(r.GroundMin.Z)), clearance(r.FloorClearance)), Alert: roundF(r.FloorClearance) < 0},
-	}
+	u.Marks = rulerMarks(lang, r)
 	return u
 }
 
-// coverageText writes report r under title, marked as still being
-// measured when measuring; none replaces the floor lines when r has no
-// floor.
-func coverageText(title, none string, r coverage.Report, measuring bool) string {
-	if measuring {
-		title += ": medindo…"
+func rulerMarks(lang locale.Language, r coverage.Report) []ui.RulerMark {
+	return []ui.RulerMark{
+		{Z: r.GroundMax.Z, Text: locale.Format(lang, "coverage.ruler.top", map[string]string{
+			"z": measureNumber(lang, roundF(r.GroundMax.Z)), "clearance": clearance(lang, r.TopClearance),
+		}), Alert: roundF(r.TopClearance) < 0},
+		{Z: r.GroundMin.Z, Text: locale.Format(lang, "coverage.ruler.floor", map[string]string{
+			"z": measureNumber(lang, roundF(r.GroundMin.Z)), "clearance": clearance(lang, r.FloorClearance),
+		}), Alert: roundF(r.FloorClearance) < 0},
 	}
-	lines := []string{title}
+}
+
+// coverageText presents a shape's report with localized numbers and complete messages.
+func coverageText(lang locale.Language, titleKey, noneKey string, r coverage.Report, measuring bool) string {
+	title := titleKey
+	if measuring {
+		title += "_measuring"
+	}
+	lines := []string{locale.Text(lang, title)}
 	if r.Measured {
 		lo, hi := r.GroundMin, r.GroundMax
 		lines = append(lines,
-			fmt.Sprintf("Chão mais baixo: %d %d %d", roundF(lo.X), roundF(lo.Y), roundF(lo.Z)),
-			fmt.Sprintf("Chão mais alto: %d %d %d", roundF(hi.X), roundF(hi.Y), roundF(hi.Z)),
-			fmt.Sprintf("Folga do piso: %s · folga do topo: %s", clearance(r.FloorClearance), clearance(r.TopClearance)),
-			"Chão em "+inflect.Count(r.Layers, "camada", "camadas"),
+			locale.Format(lang, "coverage.shape.low", map[string]string{
+				"x": measureNumber(lang, roundF(lo.X)), "y": measureNumber(lang, roundF(lo.Y)), "z": measureNumber(lang, roundF(lo.Z)),
+			}),
+			locale.Format(lang, "coverage.shape.high", map[string]string{
+				"x": measureNumber(lang, roundF(hi.X)), "y": measureNumber(lang, roundF(hi.Y)), "z": measureNumber(lang, roundF(hi.Z)),
+			}),
+			locale.Format(lang, "coverage.shape.clearances", map[string]string{
+				"floor": clearance(lang, r.FloorClearance), "top": clearance(lang, r.TopClearance),
+			}),
+			locale.Plural(lang, "coverage.shape.layers", r.Layers, nil),
 		)
 	} else {
-		lines = append(lines, noFloor(none, r))
+		lines = append(lines, noFloor(lang, noneKey, r))
 	}
 	total := r.Total()
 	for _, a := range []struct {
-		name string
+		key  string
 		area float64
-	}{{"Dentro da faixa", r.Inside}, {"Acima do topo", r.Above}, {"Abaixo do piso", r.Below}, {"Excluída", r.Excluded}, {"Em outras camadas", r.Other}, {"Sem chão", r.NoGround}} {
-		lines = append(lines, fmt.Sprintf("%s: %s u² (%s)", a.name, units(roundF(a.area)), percent(a.area, total)))
+	}{
+		{"coverage.area.inside", r.Inside}, {"coverage.area.above", r.Above},
+		{"coverage.area.below", r.Below}, {"coverage.area.excluded", r.Excluded},
+		{"coverage.area.other", r.Other}, {"coverage.area.missing", r.NoGround},
+	} {
+		lines = append(lines, locale.Format(lang, a.key, map[string]string{
+			"area": measureNumber(lang, roundF(a.area)), "share": percent(lang, a.area, total),
+		}))
 	}
 	return strings.Join(lines, "\n")
 }
 
-// noFloor is the line of a report r whose range has no floor: none, or,
-// when there is floor but all of it is excluded or in other layers, that.
-func noFloor(none string, r coverage.Report) string {
+func noFloor(lang locale.Language, noneKey string, r coverage.Report) string {
 	if r.Excluded > 0 || r.Other > 0 {
-		return "Todo o chão está excluído ou em outras camadas"
+		return locale.Text(lang, "coverage.no_included_ground")
 	}
-	return none
+	return locale.Text(lang, noneKey)
 }
 
-// percent is part of whole as a pt-BR percentage with 1 decimal.
-func percent(part, whole float64) string {
+func percent(lang locale.Language, part, whole float64) string {
 	if whole <= 0 {
-		return "0%"
+		return locale.Percent(lang, 0, 1)
 	}
-	return share(part / whole)
+	return share(lang, part/whole)
 }
 
-// share is fraction f as a pt-BR percentage with 1 decimal.
-func share(f float64) string {
-	return strings.Replace(fmt.Sprintf("%.1f%%", 100*f), ".", ",", 1)
+func share(lang locale.Language, fraction float64) string {
+	return locale.Percent(lang, fraction, 1)
+}
+
+// measureNumber is presentation-only; XML and numeric inputs remain untouched.
+func measureNumber(lang locale.Language, value int) string {
+	if value < 0 {
+		return "−" + locale.Number(lang, float64(-value), 0)
+	}
+	return locale.Number(lang, float64(value), 0)
 }
 
 // outlineKey is pts's X/Y as a comparable key: a hash, so the keys asked

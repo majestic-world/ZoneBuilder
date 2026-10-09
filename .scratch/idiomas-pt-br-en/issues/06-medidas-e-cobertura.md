@@ -4,10 +4,13 @@
 
 **Blocked by:** 01, 03, 04
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Valores que distinguem separadores e plural em pt-BR/en aparecem corretamente, inclusive área sem chão e folga negativa.
-- [ ] Avisos continuam não bloqueantes e mudam de idioma com a lista aberta.
-- [ ] Dados de medição e XML permanecem idênticos ao alternar.
+- [x] Valores que distinguem separadores e plural em pt-BR/en aparecem corretamente, inclusive área sem chão e folga negativa.
+- [x] Avisos continuam não bloqueantes e mudam de idioma com a lista aberta.
+- [x] Dados de medição e XML permanecem idênticos ao alternar.
 
 ## Comments
+
+- Apresentação de cobertura e régua recebe `locale.Language` em cada frame, reaproveita o relatório/perfil armazenado e traduz títulos, linhas, porcentagens, áreas, camadas, folgas e marcas; os números do eixo usam o mesmo idioma. Pinos/rótulos do viewport são responsabilidade do ticket 08; avisos não bloqueantes e lista reativa vieram do ticket 03.
+- Os testes de apresentação exercitam pt-BR → en no mesmo relatório com milhares, decimais, plural, área sem chão e folga negativa; o teste de avisos/compilação do ticket 03 cobre que avisos não entram nos problemas bloqueantes. Nenhuma entrada, dado de medição ou caminho de XML foi alterado. Verificações ficam para a integração.

@@ -4,13 +4,14 @@ import (
 	"image"
 	"image/color"
 	"math"
-	"strconv"
 
 	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
+
+	"zonebuilder/internal/locale"
 )
 
 // Ruler is the height window's vertical scale of the selected zone (spec
@@ -81,7 +82,7 @@ func (s *Shell) ruler(r Ruler) layout.Widget {
 		top, bottom := y(r.ZMax), y(r.ZMin)
 		fill(image.Rect(axis, top, axis+barW, max(bottom, top+1)), r.Color)
 		label := func(z float64, yy int, c color.NRGBA) {
-			call, size := measure(gtx, s.text(strconv.Itoa(int(math.Round(z))), captionSize, font.Medium, c, 1))
+			call, size := measure(gtx, s.text(locale.Number(s.Language, float64(int(math.Round(z))), 0), captionSize, font.Medium, c, 1))
 			place(gtx, image.Pt(axis-gtx.Dp(4)-size.X, yy-size.Y/2), call)
 		}
 		label(r.ZMax, top, textColor)
