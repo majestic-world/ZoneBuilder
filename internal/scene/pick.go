@@ -32,6 +32,9 @@ type Hit struct {
 	// Distance is how far along the ray the surface lies, in world units.
 	Distance float32
 	Surface  Surface
+	// Water is set when the surface hit draws in the Water pass: a water
+	// sheet, BSP or mesh.
+	Water bool
 }
 
 // Pick returns the nearest point where r meets the scene's geometry

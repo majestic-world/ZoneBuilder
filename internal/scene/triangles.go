@@ -59,7 +59,7 @@ func (s *Scene) pickTriangles(r Ray, best *Hit, noMeshes bool) {
 				b.Vertices[idx[k+1]].Pos.Sub(base),
 				b.Vertices[idx[k+2]].Pos.Sub(base))
 			if ok && d < best.Distance {
-				*best = Hit{Pos: ToServer(r.Origin.Add(r.Dir.Scale(d))), Distance: d, Surface: set.Surface}
+				*best = Hit{Pos: ToServer(r.Origin.Add(r.Dir.Scale(d))), Distance: d, Surface: set.Surface, Water: b.Mode == Water}
 			}
 		}
 	}
