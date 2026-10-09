@@ -6,14 +6,15 @@ import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 
+	"zonebuilder/internal/ui/icon"
 	"zonebuilder/internal/zone"
 )
 
-// ZonePanel holds the side panel's zone controls: the name and type of the
-// next zone and the button that creates it and arms the chosen shape tool,
-// the tool buttons, then the Compile button, which opens the compiled XML
-// in the XML window. It only collects input; the window loop turns the
-// requests into zone.Document commands.
+// ZonePanel holds the zone controls: in the inspector, the name and type
+// of the next zone and the button that creates it and arms the chosen
+// shape tool; the tool dock; and the command bar's Compile button, which
+// opens the compiled XML in the XML window. It only collects input; the
+// window loop turns the requests into zone.Document commands.
 type ZonePanel struct {
 	Name widget.Editor
 	// TypeIndex is the chosen type in zone.Types; PrevType and NextType
@@ -51,17 +52,12 @@ func (p *ZonePanel) CreateRequested(gtx layout.Context) bool {
 
 func (s *Shell) zonePanel() []layout.FlexChild {
 	p := &s.Zone
-	children := []layout.FlexChild{
-		layout.Rigid(s.label("Nova zona: nome")),
-		layout.Rigid(s.field(&p.Name, "[nome_da_zona]")),
-		layout.Rigid(s.label("Tipo")),
-		layout.Rigid(s.stepper(&p.PrevType, &p.NextType, nil, string(p.Type()), true)),
-		layout.Rigid(s.button(&p.Create, "Criar zona e desenhar")),
+	return []layout.FlexChild{
+		layout.Rigid(s.section(false, icon.Plus, "Nova zona", "")),
+		layout.Rigid(s.fieldLabel("Nome")),
+		layout.Rigid(s.field(&p.Name, "[nome_da_zona]", nil)),
+		layout.Rigid(s.fieldLabel("Tipo")),
+		layout.Rigid(s.stepper(&p.PrevType, &p.NextType, nil, string(p.Type()))),
+		layout.Rigid(s.fullButton(&p.Create, limeButton, icon.Pencil, "Criar zona e desenhar")),
 	}
-	children = append(children, s.toolPanel()...)
-	children = append(children, layout.Rigid(s.button(&p.Compile, "Compilar XML")))
-	for _, l := range p.Info {
-		children = append(children, layout.Rigid(s.label(l)))
-	}
-	return children
 }

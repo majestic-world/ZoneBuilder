@@ -1,12 +1,17 @@
 package ui
 
 import (
+	"image"
 	"image/color"
 
+	"gioui.org/font"
 	"gioui.org/layout"
+	"gioui.org/op/clip"
+	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
-	"gioui.org/widget/material"
+
+	"zonebuilder/internal/ui/icon"
 )
 
 // Tool is a viewport tool that turns clicks into zone elements.
@@ -80,56 +85,83 @@ func (p *ToolPanel) Requested(gtx layout.Context) (Tool, bool) {
 	return t, ok
 }
 
-var armedButton = color.NRGBA{R: 0xD0, G: 0x6A, B: 0x10, A: 0xFF}
+// icon is the tool's dock icon.
+func (t Tool) icon() *icon.Icon {
+	switch t {
+	case ToolPolygon:
+		return icon.Pentagon
+	case ToolRectangle:
+		return icon.Square
+	case ToolCircle:
+		return icon.Circle
+	case ToolRestart:
+		return icon.MapPin
+	}
+	return icon.Swords
+}
 
-func (s *Shell) toolButton(t Tool) layout.FlexChild {
+// dock is the tool card down the left edge: the shape tools and Tile
+// inteiro, the exclusion switch, then the restart point tools. The tools
+// work on the selected zone.
+func (s *Shell) dock(gtx layout.Context) layout.Dimensions {
 	p := &s.Zone.Tools
-	return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Right: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X = gtx.Constraints.Max.X
-			b := material.Button(s.Theme, &p.buttons[t], t.label())
-			b.TextSize = unit.Sp(13)
-			b.Inset = layout.UniformInset(unit.Dp(8))
-			if p.Active && p.Armed == t {
-				b.Background = armedButton
-			}
-			return b.Layout(gtx)
+	tool := func(t Tool) layout.FlexChild {
+		c := &p.buttons[t]
+		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return c.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return s.dockButton(gtx, t.icon(), t.label(), p.Active && p.Armed == t, false, c.Hovered())
+			})
 		})
+	}
+	children := []layout.FlexChild{tool(ToolPolygon), tool(ToolRectangle), tool(ToolCircle),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.WholeTile.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return s.dockButton(gtx, icon.Grid2x2, "Tile inteiro", false, false, p.WholeTile.Hovered())
+			})
+		}),
+		layout.Rigid(dockDivider),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.Banned.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return s.dockButton(gtx, icon.SquareDashed, "Exclusão", false, p.Banned.Value, p.Banned.Hovered())
+			})
+		}),
+		layout.Rigid(dockDivider),
+		tool(ToolRestart), tool(ToolPKRestart),
+	}
+	return card(gtx, &s.dockSink, layout.UniformInset(unit.Dp(6)), func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
 }
 
-// toolPanel lays out the tool buttons: the shape tools, the exclusion
-// switch, the restart point tools.
-func (s *Shell) toolPanel() []layout.FlexChild {
-	p := &s.Zone.Tools
-	row := func(ts ...Tool) layout.FlexChild {
-		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			children := make([]layout.FlexChild, len(ts))
-			for i, t := range ts {
-				children[i] = s.toolButton(t)
-			}
-			return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{}.Layout(gtx, children...)
-			})
-		})
+// dockButton is one dock tile: the icon over its name, solid violet while
+// armed, tinted while switched on.
+func (s *Shell) dockButton(gtx layout.Context, ic *icon.Icon, name string, armed, on, hovered bool) layout.Dimensions {
+	size := image.Pt(gtx.Dp(64), gtx.Dp(54))
+	bg, border, ink := color.NRGBA{}, color.NRGBA{}, dimText
+	switch {
+	case armed:
+		bg, ink = accent, white
+	case on:
+		bg, border, ink = accentSoft, accent, accentText
+	case hovered:
+		bg, ink = controlHover, textColor
 	}
-	return []layout.FlexChild{
-		layout.Rigid(s.label("Ferramentas (na zona selecionada)")),
-		row(shapeTools...),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				b := material.Button(s.Theme, &p.WholeTile, "Tile inteiro")
-				b.TextSize = unit.Sp(13)
-				b.Inset = layout.UniformInset(unit.Dp(8))
-				return b.Layout(gtx)
-			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			cb := material.CheckBox(s.Theme, &p.Banned, "Exclusão (banned_polygon)")
-			cb.Color, cb.IconColor = panelText, panelText
-			return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, cb.Layout)
-		}),
-		row(ToolRestart, ToolPKRestart),
-	}
+	fillRRect(gtx, size, unit.Dp(10), bg, border)
+	n := gtx.Dp(20)
+	at(gtx, image.Pt((size.X-n)/2, gtx.Dp(9)), func(gtx layout.Context) layout.Dimensions { return ic.Layout(gtx, 20, ink) })
+	call, txt := measure(gtx, s.text(name, captionSize, font.Medium, ink, 1))
+	place(gtx, image.Pt((size.X-txt.X)/2, gtx.Dp(34)), call)
+	pointerCursor(gtx, size)
+	return layout.Dimensions{Size: size}
+}
+
+// dockDivider is the hairline between the dock's groups.
+func dockDivider(gtx layout.Context) layout.Dimensions {
+	size := image.Pt(gtx.Dp(64), gtx.Dp(13))
+	at(gtx, image.Pt(gtx.Dp(14), gtx.Dp(6)), func(gtx layout.Context) layout.Dimensions {
+		line := image.Pt(size.X-gtx.Dp(28), gtx.Dp(1))
+		paint.FillShape(gtx.Ops, hairline, clip.Rect{Max: line}.Op())
+		return layout.Dimensions{Size: line}
+	})
+	return layout.Dimensions{Size: size}
 }

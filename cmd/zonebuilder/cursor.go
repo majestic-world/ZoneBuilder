@@ -55,22 +55,22 @@ func (c *cursorProbe) handle(e pointer.Event) bool {
 	return false
 }
 
-// status is the status bar text: the server position under the cursor and
-// at the last click, rounded to whole units as //pos prints them.
-func (c *cursorProbe) status(s *scene.World, cam *camera.Camera, viewport image.Point) string {
+// status is the status pill's text: the server position under the cursor
+// and at the last click ("" before the first), rounded to whole units as
+// //pos prints them.
+func (c *cursorProbe) status(s *scene.World, cam *camera.Camera, viewport image.Point) (cursor, click string) {
 	if s == nil {
-		return "Abra um mapa para ver as coordenadas sob o cursor"
+		return "Abra um mapa para ver as coordenadas sob o cursor", ""
 	}
-	cursor := "Cursor: fora do viewport"
+	cursor = "Cursor fora do viewport"
 	if c.inside {
 		h, ok := pickAt(s, cam, c.cursor, viewport)
 		cursor = "Cursor: " + describeHit(h, ok)
 	}
-	click := "Clique: nenhum"
 	if c.clicked {
 		click = "Clique: " + describeHit(c.click, c.clickHit)
 	}
-	return cursor + "    " + click
+	return cursor, click
 }
 
 // pickAt picks s through viewport pixel p.

@@ -10,7 +10,10 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/unit"
 	"gioui.org/widget"
+
+	"zonebuilder/internal/ui/icon"
 )
 
 // DefaultZStep is the starting Step of Up and Down.
@@ -37,7 +40,7 @@ type HeightPanel struct {
 	// floors and moves the tops.
 	Height    widget.Editor
 	SetHeight widget.Clickable
-	// Reopen, in the side panel, opens the window again after its × closed
+	// Reopen, in the inspector, opens the window again after its × closed
 	// it.
 	Reopen widget.Clickable
 }
@@ -47,7 +50,7 @@ func (p *HeightPanel) init() {
 		e.SingleLine, e.Submit = true, true
 	}
 	p.Step.SetText(strconv.Itoa(DefaultZStep))
-	p.Window.Width, p.Window.Height = 270, 440
+	p.Window.Width, p.Window.Height, p.Window.Left, p.Window.Top = 290, 400, 112, 84
 }
 
 // StepZ is Step as a positive number of units, DefaultZStep when the field
@@ -70,7 +73,7 @@ func (p *HeightPanel) HeightRequested(gtx layout.Context) bool {
 }
 
 // ReopenRequested reports a click on Reopen and opens the window again.
-// Call it before Shell.Layout: the side panel's button consumes the click
+// Call it before Shell.Layout: the inspector's button consumes the click
 // when it is laid out.
 func (p *HeightPanel) ReopenRequested(gtx layout.Context) bool {
 	if !p.Reopen.Clicked(gtx) {
@@ -87,23 +90,21 @@ func (s *Shell) heightWindow(gtx layout.Context) layout.Dimensions {
 	if p.Zone == "" {
 		return layout.Dimensions{}
 	}
-	return p.Window.Layout(gtx, s.Theme, "Altura da zona", func(gtx layout.Context) layout.Dimensions {
-		row := func(a, b layout.Widget) layout.FlexChild {
-			return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Spacing: layout.SpaceBetween}.Layout(gtx, layout.Rigid(a), layout.Rigid(b))
-			})
-		}
+	return p.Window.Layout(gtx, s, icon.ArrowUp, "Altura da zona", func(gtx layout.Context) layout.Dimensions {
+		apply := func(c *widget.Clickable) layout.Widget { return s.button(c, secondaryButton, nil, "Aplicar") }
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(s.label(p.Zone)),
-			layout.Rigid(s.label("Passo (PageUp/PageDown no viewport)")),
-			layout.Rigid(s.field(&p.Step, strconv.Itoa(DefaultZStep))),
-			row(s.button(&p.Up, "Subir"), s.button(&p.Down, "Descer")),
-			layout.Rigid(s.label("Base: z do piso")),
-			layout.Rigid(s.field(&p.Base, "z")),
-			layout.Rigid(s.button(&p.SetBase, "Aplicar base")),
-			layout.Rigid(s.label("Altura: topo = piso + altura")),
-			layout.Rigid(s.field(&p.Height, "altura")),
-			layout.Rigid(s.button(&p.SetHeight, "Aplicar altura")),
+			layout.Rigid(s.dimLabel(p.Zone)),
+			layout.Rigid(layout.Spacer{Height: unit.Dp(4)}.Layout),
+			layout.Rigid(s.fieldLabel("Passo (PageUp/PageDown no viewport)")),
+			layout.Rigid(s.field(&p.Step, strconv.Itoa(DefaultZStep), nil)),
+			layout.Rigid(buttonRow(
+				s.button(&p.Up, primaryButton, icon.ArrowUp, "Subir"),
+				s.button(&p.Down, secondaryButton, icon.ArrowDown, "Descer"),
+			)),
+			layout.Rigid(s.fieldLabel("Base: z do piso")),
+			layout.Rigid(s.fieldButton(&p.Base, "z", nil, apply(&p.SetBase))),
+			layout.Rigid(s.fieldLabel("Altura: topo = piso + altura")),
+			layout.Rigid(s.fieldButton(&p.Height, "altura", nil, apply(&p.SetHeight))),
 		)
 	})
 }

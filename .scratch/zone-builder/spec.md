@@ -175,7 +175,7 @@ As coordenadas do mapa são as mesmas do servidor, então o ponto clicado vai di
 - **Janela e contexto:**
   - janela Gio com renderizador customizado;
   - contexto EGL via ANGLE (`libEGL.dll` e `libGLESv2.dll` distribuídas junto do executável);
-  - a cena 3D é desenhada só na área do widget de viewport e os painéis do Gio por cima, no mesmo frame.
+  - a cena 3D é desenhada na área do widget de viewport, que ocupa a janela inteira, e os painéis do Gio flutuam por cima, no mesmo frame.
 - **Passes, na ordem do UE2-Studio:** Opaque, Masked (corte em alfa 0,5), TerrainLayer (blend alfa, profundidade `>=` sem escrita), Translucent, Brighten, Modulated, Additive, Water, Overlay.
 - **Overlay de zonas:** prisma translúcido entre `zmin` e `zmax`, arestas e alças de vértice desenhadas por cima da cena.
 - **Desempenho:** frustum culling por batch, com batches divididos por setor do tile.

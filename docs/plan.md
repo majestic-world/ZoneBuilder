@@ -33,7 +33,8 @@ O Gio não tem API 3D pública. O caminho oficial para misturar 3D próprio com 
 
 - No Windows, o Gio carrega OpenGL via ANGLE (`libEGL.dll`, `libGLESv2.dll`). O app distribui essas duas DLLs ao lado do executável; elas ficam versionadas em `third_party/angle` (licença BSD), com versão e hashes no README da pasta.
 - As chamadas EGL/GLES saem por `syscall.NewLazyDLL`, do mesmo jeito que o Gio faz internamente, sem cgo e sem precisar de toolchain C.
-- O viewport 3D desenha com `glViewport`/`glScissor` só na área do widget de viewport; os eventos de ponteiro dessa área chegam pelo `event.Op` do Gio.
+- O viewport 3D ocupa a janela inteira e desenha com `glViewport`/`glScissor` na área do widget de viewport; os eventos de ponteiro dessa área chegam pelo `event.Op` do Gio.
+- A interface flutua sobre a cena em cartões translúcidos: marca e dock de ferramentas à esquerda, barra de comandos no topo, inspetor à direita, barra de status embaixo e as janelas de altura e de XML. Cada cartão fica com os eventos de ponteiro sobre a própria área, então o clique só chega à cena fora deles. Os ícones são SVGs do Lucide (licença ISC) desenhados como caminhos do Gio por `internal/ui/icon`, e o texto usa Inter (licença SIL OFL), embutida em `internal/ui/fonts`.
 
 Alternativa descartada: renderizar num FBO e copiar para `paint.ImageOp` a cada frame. Funciona, mas copia cerca de 8 MB por frame a 1080p e soma um frame de latência ao arrastar vértices.
 

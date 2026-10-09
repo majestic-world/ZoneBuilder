@@ -22,14 +22,11 @@ import (
 	"time"
 
 	"gioui.org/app"
-	"gioui.org/font/gofont"
 	"gioui.org/gpu"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/op"
-	"gioui.org/text"
 	"gioui.org/unit"
-	"gioui.org/widget/material"
 
 	"zonebuilder/internal/camera"
 	"zonebuilder/internal/geom"
@@ -149,9 +146,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	th := material.NewTheme()
-	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
-	shell := ui.NewShell(th, fields.client, fields.tile)
+	shell := ui.NewShell(ui.NewTheme(), fields.client, fields.tile)
 	shell.Project.RecentMaps = sess.cfg.RecentMaps
 
 	var (
@@ -340,7 +335,8 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				tiles.world.HideMeshes = shell.Meshes.Hidden
 				tiles.follow(worldPosition(tiles.world, cam.Position))
 			}
-			shell.Status = probe.status(tiles.world, &cam, shell.Viewport.Size())
+			shell.Cursor, shell.Click = probe.status(tiles.world, &cam, shell.Viewport.Size())
+			shell.Tiles, shell.Warnings = loadedTiles(tiles)
 			shell.Zone.Info = zones.info()
 			sel, _ = zones.selectedZone()
 			shell.Zones.Rows, shell.Zones.Selected = zones.rows(), sel.ID
@@ -367,7 +363,8 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			}
 			shell.Loading, shell.Progress = tiles.progress(renderer)
 
-			rect := shell.Layout(gtx, panelLines(status, tiles))
+			shell.Message = status
+			rect := shell.Layout(gtx)
 			if e.Size != size || rect != vpRect {
 				log.Printf("frame: window %dx%d, viewport %v", e.Size.X, e.Size.Y, rect)
 				size, vpRect = e.Size, rect
@@ -466,23 +463,17 @@ func logScene(tile scene.Tile, r tileResult) {
 	}
 }
 
-// panelLines are the side panel's info lines: the status, the open tiles
-// and what failed to load in them. The counts and bounds of what loaded
-// go to the log (logScene).
-func panelLines(status string, tiles *tiles) []string {
-	var lines []string
-	if status != "" {
-		lines = append(lines, status)
+// loadedTiles names the open tiles and lists what failed to load in them.
+// The counts and bounds of what loaded go to the log (logScene).
+func loadedTiles(tiles *tiles) (names string, warnings []string) {
+	w := tiles.world
+	if w == nil {
+		return "", nil
 	}
-	if w := tiles.world; w != nil {
-		if names := tiles.shown(); len(names) > 0 {
-			lines = append(lines, "Tiles: "+strings.Join(names, ", "))
-		}
-		for _, s := range w.Scenes() {
-			lines = append(lines, s.Warnings...)
-		}
+	for _, s := range w.Scenes() {
+		warnings = append(warnings, s.Warnings...)
 	}
-	return lines
+	return strings.Join(tiles.shown(), ", "), warnings
 }
 
 // meshSummary is the static mesh actor and triangle counts of s.

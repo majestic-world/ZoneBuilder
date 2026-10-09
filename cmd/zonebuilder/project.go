@@ -73,17 +73,18 @@ func (s *session) mapOpened(client string, tiles []scene.Tile) {
 // no news) and, after opening a project, its tiles to load.
 func (s *session) update(gtx layout.Context, w *app.Window, shell *ui.Shell, zones *zoneEditor, tiles []scene.Tile, busy bool) (status string, load []scene.Tile) {
 	p := &shell.Project
-	if p.Save.Clicked(gtx) {
+	open, save, saveAs := p.Requests(gtx)
+	if save {
 		if s.path != "" {
 			status = s.save(w, shell, zones, tiles, s.path)
 		} else {
 			s.pick(w, true)
 		}
 	}
-	if p.SaveAs.Clicked(gtx) {
+	if saveAs {
 		s.pick(w, true)
 	}
-	if p.OpenProject.Clicked(gtx) {
+	if open {
 		s.pick(w, false)
 	}
 	select {
@@ -98,7 +99,7 @@ func (s *session) update(gtx layout.Context, w *app.Window, shell *ui.Shell, zon
 		}
 	default:
 	}
-	p.Title = s.title(zones.version)
+	p.Name, p.Unsaved = s.name(), zones.version != s.saved
 	return status, load
 }
 
@@ -171,16 +172,12 @@ func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, path s
 	return "Projeto aberto: " + path, tiles
 }
 
-// title is the project line of the side panel.
-func (s *session) title(version int) string {
-	name := "sem nome"
-	if s.path != "" {
-		name = filepath.Base(s.path)
+// name is the project file's name, "Projeto sem nome" before it has one.
+func (s *session) name() string {
+	if s.path == "" {
+		return "Projeto sem nome"
 	}
-	if version != s.saved {
-		return fmt.Sprintf("Projeto: %s (alterado)", name)
-	}
-	return "Projeto: " + name
+	return filepath.Base(s.path)
 }
 
 // windowTitle names the window after the project file at path.

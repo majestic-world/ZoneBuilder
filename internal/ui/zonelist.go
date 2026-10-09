@@ -5,20 +5,16 @@ import (
 	"image/color"
 	"strings"
 
+	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
-	"gioui.org/widget/material"
 
 	"zonebuilder/internal/inflect"
+	"zonebuilder/internal/ui/icon"
 	"zonebuilder/internal/zone"
-)
-
-var (
-	selectedRowBackground = color.NRGBA{R: 0x3A, G: 0x4A, B: 0x66, A: 0xFF}
-	hiddenRowText         = color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xFF}
 )
 
 // ZoneRow is one zone as the zone list shows it.
@@ -36,7 +32,7 @@ type ZoneRow struct {
 	Compile bool
 }
 
-// ZoneList is the side panel's zone list: every zone with its name, type
+// ZoneList is the inspector's zone list: every zone with its name, type
 // and problem count, narrowed by a name search and a type filter, with a
 // show/hide toggle per zone and per type, and the rename, delete,
 // duplicate and colour actions on the selected zone; plus the field that
@@ -244,10 +240,9 @@ func (l *ZoneList) shown() []ZoneRow {
 	return rows
 }
 
-func (s *Shell) zoneList() []layout.FlexChild {
-	l := &s.Zones
-	// Forget the widgets of deleted zones, and fill NewName when the
-	// selection changes.
+// sync forgets the widgets of deleted zones and fills NewName when the
+// selection changes; it returns the selected row, nil for none.
+func (l *ZoneList) sync() *ZoneRow {
 	for id := range l.rows {
 		if !l.has(id) {
 			delete(l.rows, id)
@@ -267,70 +262,79 @@ func (s *Shell) zoneList() []layout.FlexChild {
 			l.NewName.SetText("")
 		}
 	}
+	return selected
+}
 
+// zoneList is the inspector's zone section: the search, the type filter
+// and its show/hide switch, the compile selection shortcuts and a row per
+// shown zone.
+func (s *Shell) zoneList() []layout.FlexChild {
+	l := &s.Zones
 	filter := "Todos os tipos"
 	if t := l.filterType(); t != "" {
 		filter = string(t)
 	}
 	shown := l.shown()
 	children := []layout.FlexChild{
-		layout.Rigid(s.label("Ir para x y z (coordenadas do servidor)")),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Alignment: layout.Start}.Layout(gtx,
-				layout.Flexed(1, s.field(&l.GoTo, "83400 147943 -3400")),
-				layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-				layout.Rigid(material.Button(s.Theme, &l.Go, "Ir").Layout),
-			)
-		}),
-		layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
-		layout.Rigid(s.label(zoneListTitle(len(l.Rows), len(shown)))),
-		layout.Rigid(s.field(&l.Search, "buscar por nome")),
-		layout.Rigid(s.stepper(&l.PrevFilter, &l.NextFilter, nil, filter, true)),
+		layout.Rigid(s.section(false, icon.List, "Zonas", zoneListNote(len(l.Rows), len(shown)))),
+		layout.Rigid(s.field(&l.Search, "buscar por nome", icon.Search)),
+		layout.Rigid(s.stepper(&l.PrevFilter, &l.NextFilter, nil, filter)),
 	}
 	if l.TypeFilter >= 0 {
 		if ids, hide := l.typeToggle(); len(ids) > 0 {
-			text := "Mostrar o tipo " + filter
+			text, ic := "Mostrar o tipo "+filter, icon.Eye
 			if hide {
-				text = "Ocultar o tipo " + filter
+				text, ic = "Ocultar o tipo "+filter, icon.EyeOff
 			}
-			children = append(children, layout.Rigid(s.button(&l.ToggleType, text)))
+			children = append(children, layout.Rigid(s.spaced(s.fullButton(&l.ToggleType, secondaryButton, ic, text))))
 		}
 	}
 	if len(shown) > 0 {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-				layout.Flexed(1, s.label("Compilar")),
-				layout.Rigid(s.smallButton(&l.CompileAll, "todas")),
-				layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-				layout.Rigid(s.smallButton(&l.CompileNone, "nenhuma")),
-			)
+			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+					layout.Flexed(1, s.text("Compilar", smallSize, font.Medium, dimText, 1)),
+					layout.Rigid(s.chip(&l.CompileAll, "todas", false)),
+					layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
+					layout.Rigid(s.chip(&l.CompileNone, "nenhuma", false)),
+				)
+			})
 		}))
+	} else if len(l.Rows) == 0 {
+		children = append(children, layout.Rigid(s.dimLabel("Nenhuma zona ainda: crie uma em Nova zona.")))
 	}
 	for _, r := range shown {
 		children = append(children, layout.Rigid(s.zoneRow(r, l.widgets(r.ID), r.ID == l.Selected)))
 	}
-	if selected != nil {
-		children = append(children,
-			layout.Rigid(layout.Spacer{Height: unit.Dp(6)}.Layout),
-			layout.Rigid(s.label("Zona selecionada: "+selected.Name)),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Alignment: layout.Start}.Layout(gtx,
-					layout.Flexed(1, s.field(&l.NewName, "novo nome")),
-					layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-					layout.Rigid(material.Button(s.Theme, &l.Rename, "Renomear").Layout),
-				)
-			}),
-			layout.Rigid(layout.Spacer{Height: unit.Dp(6)}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Spacing: layout.SpaceBetween}.Layout(gtx,
-					layout.Rigid(s.button(&l.Duplicate, "Duplicar")),
-					layout.Rigid(s.button(&l.Color, "Cor")),
-					layout.Rigid(s.button(&l.Delete, "Apagar")),
-				)
-			}),
-		)
-	}
 	return children
+}
+
+// selectedZone is the inspector's section on the selected zone: its name,
+// the duplicate, colour and delete actions, the height window, and its
+// type and parameters.
+func (s *Shell) selectedZone() []layout.FlexChild {
+	l := &s.Zones
+	selected := l.sync()
+	if selected == nil {
+		return []layout.FlexChild{
+			layout.Rigid(s.section(false, icon.SlidersHorizontal, "Zona selecionada", "")),
+			layout.Rigid(s.dimLabel("Clique numa zona da lista ou do mapa.")),
+		}
+	}
+	children := []layout.FlexChild{
+		layout.Rigid(s.section(false, icon.SlidersHorizontal, "Zona selecionada", selected.Name)),
+		layout.Rigid(s.fieldLabel("Nome")),
+		layout.Rigid(s.fieldButton(&l.NewName, "novo nome", nil, s.button(&l.Rename, primaryButton, icon.Pencil, "Renomear"))),
+		layout.Rigid(buttonRow(
+			s.button(&l.Duplicate, secondaryButton, icon.Copy, "Duplicar"),
+			s.button(&l.Color, secondaryButton, icon.Palette, "Cor"),
+			s.button(&l.Delete, dangerButton, icon.Trash2, "Apagar"),
+		)),
+	}
+	if s.Height.Zone != "" && s.Height.Window.Closed {
+		children = append(children, layout.Rigid(s.spaced(s.fullButton(&s.Height.Reopen, secondaryButton, icon.ArrowUp, "Mostrar janela de altura"))))
+	}
+	return append(children, s.propertiesPanel()...)
 }
 
 func (l *ZoneList) has(id zone.ZoneID) bool {
@@ -342,110 +346,100 @@ func (l *ZoneList) has(id zone.ZoneID) bool {
 	return false
 }
 
-// zoneListTitle is the list's heading: the zone count, and how many pass
-// the search and filter when not all do.
-func zoneListTitle(total, shown int) string {
-	title := "Zonas: nenhuma"
-	if total > 0 {
-		title = "Zonas: " + inflect.Count(total, "zona", "zonas")
+// zoneListNote is the zone section's note: the zone count, and how many
+// pass the search and filter when not all do.
+func zoneListNote(total, shown int) string {
+	if total == 0 {
+		return "nenhuma"
 	}
+	note := inflect.Count(total, "zona", "zonas")
 	if shown == total {
-		return title
+		return note
 	}
-	return title + " (" + inflect.Count(shown, "exibida", "exibidas") + ")"
+	return note + " · " + inflect.Count(shown, "exibida", "exibidas")
 }
 
-// zoneRow is one list row: the colour swatch, name, and type with the
-// problem count, clickable to select, and the show/hide toggle.
+// zoneRow is one list row: the compile check box, then, clickable to
+// select, the colour swatch, the name over the type and problem count, and
+// the show/hide eye.
 func (s *Shell) zoneRow(r ZoneRow, w *rowWidgets, selected bool) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
-		text := panelText
+		name, detail := textColor, dimText
 		if r.Hidden {
-			text = hiddenRowText
+			name, detail = faintText, faintText
 		}
-		toggle := "Ocultar"
-		if r.Hidden {
-			toggle = "Mostrar"
-		}
-		detail := string(r.Type) + " · " + problemCount(r.Problems)
-		if r.Note != "" {
-			detail += " · " + r.Note
-		}
-		detailColor := text
+		problems := detail
 		if r.Problems > 0 && !r.Hidden {
-			detailColor = errorText
+			problems = errorText
 		}
-		return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		kind := string(r.Type)
+		if r.Note != "" {
+			kind += " · " + r.Note
+		}
+		eye := icon.Eye
+		if r.Hidden {
+			eye = icon.EyeOff
+		}
+		return layout.Inset{Bottom: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					c := material.CheckBox(s.Theme, &w.compile, "")
-					c.Color = text
-					c.IconColor = text
-					return c.Layout(gtx)
-				}),
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return material.Clickable(gtx, &w.pick, func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Min.X = gtx.Constraints.Max.X
-						return layout.Stack{}.Layout(gtx,
-							layout.Expanded(func(gtx layout.Context) layout.Dimensions {
-								if selected {
-									paint.FillShape(gtx.Ops, selectedRowBackground, clip.Rect{Max: gtx.Constraints.Min}.Op())
-								}
-								return layout.Dimensions{Size: gtx.Constraints.Min}
-							}),
-							layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-								return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-										layout.Rigid(swatch(r.Color, r.Hidden)),
-										layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
-										layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-											return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-													lbl := material.Body2(s.Theme, r.Name)
-													lbl.Color = text
-													lbl.MaxLines = 1
-													return lbl.Layout(gtx)
-												}),
-												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-													lbl := material.Caption(s.Theme, detail)
-													lbl.Color = detailColor
-													lbl.MaxLines = 1
-													return lbl.Layout(gtx)
-												}),
-											)
-										}),
-									)
-								})
-							}),
-						)
+					return w.compile.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return checkMark(gtx, w.compile.Value, w.compile.Hovered())
+						})
 					})
 				}),
-				layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-				layout.Rigid(s.smallButton(&w.toggle, toggle)),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return w.pick.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						call, content := measure(gtx, func(gtx layout.Context) layout.Dimensions {
+							gtx.Constraints.Min.X = gtx.Constraints.Max.X
+							return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+									layout.Rigid(swatch(r.Color, r.Hidden)),
+									layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
+									layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+										return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+											layout.Rigid(s.text(r.Name, bodySize, font.Medium, name, 1)),
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												return layout.Flex{}.Layout(gtx,
+													layout.Flexed(1, s.text(kind, captionSize, font.Normal, detail, 1)),
+													layout.Rigid(s.text(problemCount(r.Problems), captionSize, font.Medium, problems, 1)),
+												)
+											}),
+										)
+									}),
+								)
+							})
+						})
+						switch {
+						case selected:
+							fillRRect(gtx, content, controlRadius, accentSoft, color.NRGBA{})
+						case w.pick.Hovered():
+							fillRRect(gtx, content, controlRadius, controlFill, color.NRGBA{})
+						}
+						call.Add(gtx.Ops)
+						pointerCursor(gtx, content)
+						return layout.Dimensions{Size: content}
+					})
+				}),
+				layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
+				layout.Rigid(s.iconToggle(&w.toggle, eye, false)),
 			)
 		})
 	}
 }
 
-// smallButton is a compact button for list rows.
-func (s *Shell) smallButton(c *widget.Clickable, text string) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions {
-		b := material.Button(s.Theme, c, text)
-		b.TextSize = unit.Sp(12)
-		b.Inset = layout.UniformInset(unit.Dp(6))
-		return b.Layout(gtx)
-	}
-}
-
-// swatch is a small square of colour c, outlined only when hidden.
+// swatch is a small rounded square of colour c, outlined only when
+// hidden.
 func swatch(c color.NRGBA, hidden bool) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
-		n := gtx.Dp(unit.Dp(12))
+		n := gtx.Dp(unit.Dp(10))
 		sz := image.Point{X: n, Y: n}
+		rr := clip.UniformRRect(image.Rectangle{Max: sz}, gtx.Dp(3))
 		if hidden {
-			paint.FillShape(gtx.Ops, c, clip.Stroke{Path: clip.Rect{Max: sz}.Path(), Width: float32(gtx.Dp(unit.Dp(2)))}.Op())
+			paint.FillShape(gtx.Ops, c, clip.Stroke{Path: rr.Path(gtx.Ops), Width: float32(gtx.Dp(1.5))}.Op())
 		} else {
-			paint.FillShape(gtx.Ops, c, clip.Rect{Max: sz}.Op())
+			paint.FillShape(gtx.Ops, c, rr.Op(gtx.Ops))
 		}
 		return layout.Dimensions{Size: sz}
 	}

@@ -1,20 +1,24 @@
 package ui
 
 import (
+	"image/color"
 	"io"
 	"strings"
 
 	"gioui.org/font"
 	"gioui.org/io/clipboard"
 	"gioui.org/layout"
-	"gioui.org/op/clip"
-	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 
+	"zonebuilder/internal/ui/fonts"
+	"zonebuilder/internal/ui/icon"
 	"zonebuilder/internal/zonexml"
 )
+
+// codeSurface is the well the XML sits in.
+var codeSurface = color.NRGBA{R: 0x0B, G: 0x0B, B: 0x0E, A: 0xFF}
 
 // XMLWindow shows the last compilation in a window floating over the
 // viewport: each file's suggested name, its XML in a read-only field the
@@ -43,7 +47,7 @@ func (x *XMLWindow) Open(files []zonexml.File) {
 		x.files[i].editor.SetText(strings.ReplaceAll(x.files[i].text, "\t", "    "))
 	}
 	if x.Window.Width == 0 {
-		x.Window.Width, x.Window.Height, x.Window.Left, x.Window.Top = 560, 520, 300, 40
+		x.Window.Width, x.Window.Height, x.Window.Left, x.Window.Top = 560, 520, 420, 84
 	}
 	x.Window.Closed, x.Window.Collapsed = false, false
 }
@@ -68,8 +72,7 @@ func (s *Shell) xmlWindow(gtx layout.Context) layout.Dimensions {
 	if len(x.files) == 0 {
 		return layout.Dimensions{}
 	}
-	title := "XML compilado"
-	return x.Window.Layout(gtx, s.Theme, title, func(gtx layout.Context) layout.Dimensions {
+	return x.Window.Layout(gtx, s, icon.CodeXML, "XML compilado", func(gtx layout.Context) layout.Dimensions {
 		children := []layout.FlexChild{
 			layout.Rigid(s.dimLabel("Cole cada arquivo em data/zone/ do servidor, com o nome indicado.")),
 		}
@@ -77,10 +80,14 @@ func (s *Shell) xmlWindow(gtx layout.Context) layout.Dimensions {
 			f := &x.files[i]
 			children = append(children,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-						layout.Flexed(1, s.label(f.name)),
-						layout.Rigid(s.button(&f.copy, "Copiar")),
-					)
+					return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions { return icon.FileCode.Layout(gtx, iconSize, dimText) }),
+							layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
+							layout.Flexed(1, s.text(f.name, bodySize, font.Medium, textColor, 1)),
+							layout.Rigid(s.button(&f.copy, secondaryButton, icon.Copy, "Copiar")),
+						)
+					})
 				}),
 				layout.Rigid(s.code(&f.editor)),
 			)
@@ -89,25 +96,22 @@ func (s *Shell) xmlWindow(gtx layout.Context) layout.Dimensions {
 	})
 }
 
-// code is a read-only, selectable block of monospace text.
+// code is a read-only, selectable block of monospace text in a dark well.
 func (s *Shell) code(e *widget.Editor) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Bottom: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X = gtx.Constraints.Max.X
-			return layout.Stack{}.Layout(gtx,
-				layout.Expanded(func(gtx layout.Context) layout.Dimensions {
-					paint.FillShape(gtx.Ops, fieldBackground, clip.Rect{Max: gtx.Constraints.Min}.Op())
-					return layout.Dimensions{Size: gtx.Constraints.Min}
-				}),
-				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					gtx.Constraints.Min.X = gtx.Constraints.Max.X
-					ed := material.Editor(s.Theme, e, "")
-					ed.Color = panelText
-					ed.Font = font.Font{Typeface: "Go Mono"}
-					ed.TextSize = unit.Sp(12)
-					return layout.UniformInset(unit.Dp(8)).Layout(gtx, ed.Layout)
-				}),
-			)
+			call, content := measure(gtx, func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Constraints.Max.X
+				ed := material.Editor(s.Theme, e, "")
+				ed.Color = textColor
+				ed.SelectionColor = accentSoft
+				ed.Font = font.Font{Typeface: fonts.Mono}
+				ed.TextSize = smallSize
+				return layout.UniformInset(unit.Dp(12)).Layout(gtx, ed.Layout)
+			})
+			fillRRect(gtx, content, controlRadius, codeSurface, hairline)
+			call.Add(gtx.Ops)
+			return layout.Dimensions{Size: content}
 		})
 	}
 }

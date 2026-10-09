@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"image/color"
 	"slices"
 	"strings"
 
@@ -10,8 +9,8 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
-	"gioui.org/widget/material"
 
+	"zonebuilder/internal/ui/icon"
 	"zonebuilder/internal/zone"
 )
 
@@ -39,11 +38,6 @@ const (
 	typeTarget targetKind = iota
 	paramTarget
 	addTarget
-)
-
-var (
-	dimText   = color.NRGBA{R: 0x9A, G: 0x9E, B: 0xA6, A: 0xFF}
-	errorText = color.NRGBA{R: 0xFF, G: 0x80, B: 0x70, A: 0xFF}
 )
 
 // PropertiesPanel edits the selected zone's type, out of the server's 23
@@ -257,127 +251,57 @@ func committed(gtx layout.Context, e *widget.Editor, focused *bool) bool {
 	return commit
 }
 
+// propertiesPanel is the selected zone's type, with the whole list
+// unfolding under it, and its parameters, each removable, then the fields
+// that add one.
 func (s *Shell) propertiesPanel() []layout.FlexChild {
 	p := &s.Props
-	children := []layout.FlexChild{layout.Rigid(s.heading("Propriedades da zona"))}
 	if !p.shown {
-		return append(children, layout.Rigid(s.label("Nenhuma zona selecionada")))
+		return nil
 	}
-	children = append(children,
-		layout.Rigid(s.label("Zona "+p.name)),
-		layout.Rigid(s.label("Tipo")),
-		layout.Rigid(s.stepper(&p.prevType, &p.nextType, &p.listTypes, string(p.typ), true)),
-	)
+	children := []layout.FlexChild{
+		layout.Rigid(s.fieldLabel("Tipo")),
+		layout.Rigid(s.stepper(&p.prevType, &p.nextType, &p.listTypes, string(p.typ))),
+	}
 	if p.typeList {
 		for i, t := range zone.Types {
 			children = append(children, layout.Rigid(s.listItem(&p.typeItems[i], string(t), t == p.typ)))
 		}
+		children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout))
 	}
 
 	children = append(children,
-		layout.Rigid(s.heading("Parâmetros")),
-		layout.Rigid(s.dimLabel("Só os que o servidor exige: residence (SIEGE, HEADQUARTER), distribution_id e fishing_place_type (FISHING)")),
+		layout.Rigid(s.fieldLabel("Parâmetros")),
+		layout.Rigid(s.dimLabel("Só os que o servidor exige: residence (SIEGE, HEADQUARTER), distribution_id e fishing_place_type (FISHING).")),
 	)
 	for _, f := range p.params {
 		children = append(children,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-					layout.Flexed(1, s.label(f.name)),
-					layout.Rigid(s.button(&f.remove, "Remover")),
-				)
+				return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+						layout.Flexed(1, s.text(f.name, smallSize, font.Medium, textColor, 1)),
+						layout.Rigid(s.iconToggle(&f.remove, icon.Trash2, false)),
+					)
+				})
 			}),
-			layout.Rigid(s.field(&f.editor, "valor")),
+			layout.Rigid(s.field(&f.editor, "valor", nil)),
 		)
 		if f.err != "" {
 			children = append(children, layout.Rigid(s.errorLabel(f.err)))
 		}
 	}
 	children = append(children,
-		layout.Rigid(s.field(&p.newName, "nome (ex.: residence)")),
-		layout.Rigid(s.field(&p.newValue, "valor")),
-		layout.Rigid(s.button(&p.add, "Adicionar parâmetro")),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{}.Layout(gtx,
+				layout.Flexed(1, s.field(&p.newName, "nome (ex.: residence)", nil)),
+				layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
+				layout.Flexed(1, s.field(&p.newValue, "valor", nil)),
+			)
+		}),
+		layout.Rigid(s.spaced(s.fullButton(&p.add, secondaryButton, icon.Plus, "Adicionar parâmetro"))),
 	)
 	if p.addErr != "" {
 		children = append(children, layout.Rigid(s.errorLabel(p.addErr)))
 	}
 	return children
-}
-
-// stepper is "< text >": prev and next step through a closed list. With
-// toggle set, clicking text clicks it. Unset values (bright false) are
-// dimmed.
-func (s *Shell) stepper(prev, next, toggle *widget.Clickable, text string, bright bool) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(material.Button(s.Theme, prev, "<").Layout),
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					lbl := material.Body1(s.Theme, text)
-					lbl.Color = panelText
-					if !bright {
-						lbl.Color = dimText
-					}
-					w := func(gtx layout.Context) layout.Dimensions { return layout.Center.Layout(gtx, lbl.Layout) }
-					if toggle == nil {
-						return w(gtx)
-					}
-					gtx.Constraints.Min.X = gtx.Constraints.Max.X
-					return toggle.Layout(gtx, w)
-				}),
-				layout.Rigid(material.Button(s.Theme, next, ">").Layout),
-			)
-		})
-	}
-}
-
-// listItem is one clickable row of a closed list; the current one is
-// highlighted.
-func (s *Shell) listItem(c *widget.Clickable, text string, current bool) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		return c.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				lbl := material.Body2(s.Theme, text)
-				lbl.Color = dimText
-				if current {
-					lbl.Color = s.Theme.ContrastBg
-				}
-				return lbl.Layout(gtx)
-			})
-		})
-	}
-}
-
-func (s *Shell) checkBox(b *widget.Bool, text string) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions {
-		cb := material.CheckBox(s.Theme, b, text)
-		cb.Color, cb.IconColor = panelText, panelText
-		cb.Size = unit.Dp(20)
-		return cb.Layout(gtx)
-	}
-}
-
-func (s *Shell) heading(text string) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions {
-		lbl := material.Subtitle1(s.Theme, text)
-		lbl.Color = panelText
-		lbl.Font.Weight = font.Bold
-		return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(6)}.Layout(gtx, lbl.Layout)
-	}
-}
-
-func (s *Shell) dimLabel(text string) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions {
-		lbl := material.Body2(s.Theme, text)
-		lbl.Color = dimText
-		return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, lbl.Layout)
-	}
-}
-
-func (s *Shell) errorLabel(text string) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions {
-		lbl := material.Body2(s.Theme, text)
-		lbl.Color = errorText
-		return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, lbl.Layout)
-	}
 }

@@ -6,13 +6,15 @@ import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 
+	"zonebuilder/internal/ui/icon"
 	"zonebuilder/internal/zone"
 )
 
-// EditPanel holds the side panel's editing controls: Undo and Redo, the Z
-// margin, and the fields that edit the current shape and the selected
-// vertex by keyboard. Like ZonePanel it only collects input; the window
-// loop turns the requests into zone.Document commands and fills the fields.
+// EditPanel holds the editing controls: the command bar's Undo and Redo,
+// and in the inspector the Z margin and the fields that edit the current
+// shape and the selected vertex by keyboard. Like ZonePanel it only
+// collects input; the window loop turns the requests into zone.Document
+// commands and fills the fields.
 type EditPanel struct {
 	Undo, Redo widget.Clickable
 	// Margin is how far the suggested Z range reaches past the vertices
@@ -70,38 +72,33 @@ func requested(gtx layout.Context, e *widget.Editor, b *widget.Clickable) bool {
 	}
 }
 
+// editPanel is the inspector's last section: the Z margin, then the
+// current shape's Z range and move, then the selected vertex.
 func (s *Shell) editPanel() []layout.FlexChild {
 	p := &s.Edit
-	row := func(a, b layout.Widget) layout.FlexChild {
-		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Spacing: layout.SpaceBetween}.Layout(gtx, layout.Rigid(a), layout.Rigid(b))
-		})
-	}
 	children := []layout.FlexChild{
-		row(s.button(&p.Undo, "Desfazer"), s.button(&p.Redo, "Refazer")),
-		layout.Rigid(s.label("Folga Z da faixa sugerida")),
-		layout.Rigid(s.field(&p.Margin, strconv.Itoa(zone.DefaultZMargin))),
-	}
-	if s.Height.Zone != "" && s.Height.Window.Closed {
-		children = append(children, layout.Rigid(s.button(&s.Height.Reopen, "Mostrar janela de altura")))
+		layout.Rigid(s.section(false, icon.Ruler, "Edição", "")),
+		layout.Rigid(s.fieldLabel("Folga Z da faixa sugerida")),
+		layout.Rigid(s.field(&p.Margin, strconv.Itoa(zone.DefaultZMargin), nil)),
 	}
 	if p.Shape != "" {
 		children = append(children,
-			layout.Rigid(s.label(p.Shape)),
-			layout.Rigid(s.label("Faixa Z: zmin zmax")),
-			layout.Rigid(s.field(&p.ZRange, "zmin zmax")),
-			row(s.button(&p.SetZRange, "Aplicar faixa"), s.button(&p.GroundZ, "Recalcular pelo chão")),
-			layout.Rigid(s.label("Mover shape: dx dy dz")),
-			layout.Rigid(s.field(&p.Offset, "dx dy dz")),
-			layout.Rigid(s.button(&p.MoveShape, "Mover shape")),
+			layout.Rigid(s.dimLabel(p.Shape)),
+			layout.Rigid(s.fieldLabel("Faixa Z: zmin zmax")),
+			layout.Rigid(s.fieldButton(&p.ZRange, "zmin zmax", nil, s.button(&p.SetZRange, secondaryButton, nil, "Aplicar"))),
+			layout.Rigid(s.spaced(s.fullButton(&p.GroundZ, secondaryButton, icon.Mountain, "Recalcular pelo chão"))),
+			layout.Rigid(s.fieldLabel("Mover shape: dx dy dz")),
+			layout.Rigid(s.fieldButton(&p.Offset, "dx dy dz", nil, s.button(&p.MoveShape, secondaryButton, icon.Move, "Mover"))),
 		)
 	}
 	if p.Vertex != "" {
 		children = append(children,
-			layout.Rigid(s.label(p.Vertex)),
-			layout.Rigid(s.field(&p.Coords, "x y z")),
-			layout.Rigid(s.button(&p.SetCoords, "Aplicar coordenadas")),
-			row(s.button(&p.InsertAfter, "Inserir na aresta"), s.button(&p.RemoveVertex, "Apagar vértice")),
+			layout.Rigid(s.fieldLabel(p.Vertex)),
+			layout.Rigid(s.fieldButton(&p.Coords, "x y z", nil, s.button(&p.SetCoords, secondaryButton, nil, "Aplicar"))),
+			layout.Rigid(buttonRow(
+				s.button(&p.InsertAfter, secondaryButton, icon.Plus, "Inserir na aresta"),
+				s.button(&p.RemoveVertex, dangerButton, icon.Trash2, "Apagar vértice"),
+			)),
 		)
 	}
 	return children

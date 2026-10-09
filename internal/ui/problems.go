@@ -1,15 +1,18 @@
 package ui
 
 import (
+	"image/color"
+
+	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
-	"gioui.org/widget/material"
 
 	"zonebuilder/internal/inflect"
+	"zonebuilder/internal/ui/icon"
 )
 
-// ProblemList is the side panel's problem panel: every problem of the
+// ProblemList is the inspector's problem section: every problem of the
 // document, one clickable row each. The window loop sets Rows whenever the
 // document changes, and Clicked reports the row the user picked.
 type ProblemList struct {
@@ -41,8 +44,10 @@ func (s *Shell) problemList() []layout.FlexChild {
 		l.picks = append(l.picks, make([]widget.Clickable, len(l.Rows)-len(l.picks))...)
 	}
 	children := []layout.FlexChild{
-		layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
-		layout.Rigid(s.label(problemTitle(len(l.Rows)))),
+		layout.Rigid(s.section(false, icon.TriangleAlert, "Problemas", problemNote(len(l.Rows)))),
+	}
+	if len(l.Rows) == 0 {
+		children = append(children, layout.Rigid(s.dimLabel("Tudo certo para compilar.")))
 	}
 	for i, r := range l.Rows {
 		children = append(children, layout.Rigid(s.problemRow(r, &l.picks[i])))
@@ -50,34 +55,45 @@ func (s *Shell) problemList() []layout.FlexChild {
 	return children
 }
 
-func problemTitle(n int) string {
+func problemNote(n int) string {
 	if n == 0 {
-		return "Problemas: nenhum"
+		return "nenhum"
 	}
-	return "Problemas: " + inflect.Count(n, "problema", "problemas")
+	return inflect.Count(n, "problema", "problemas")
 }
 
-// problemRow is one problem, clickable: the zone's name over the message.
+// problemRow is one problem, clickable: a red mark, the zone's name over
+// the message.
 func (s *Shell) problemRow(r ProblemRow, pick *widget.Clickable) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return material.Clickable(gtx, pick, func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							lbl := material.Body2(s.Theme, r.Zone)
-							lbl.Color = panelText
-							lbl.MaxLines = 1
-							return lbl.Layout(gtx)
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							lbl := material.Caption(s.Theme, r.Message)
-							lbl.Color = errorText
-							return lbl.Layout(gtx)
-						}),
-					)
+			return pick.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				call, content := measure(gtx, func(gtx layout.Context) layout.Dimensions {
+					gtx.Constraints.Min.X = gtx.Constraints.Max.X
+					return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return layout.Inset{Top: unit.Dp(1), Right: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return icon.TriangleAlert.Layout(gtx, 14, errorText)
+								})
+							}),
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+									layout.Rigid(s.text(r.Zone, bodySize, font.Medium, textColor, 1)),
+									layout.Rigid(s.text(r.Message, smallSize, font.Normal, errorText, 0)),
+								)
+							}),
+						)
+					})
 				})
+				bg := errorSoft
+				if pick.Hovered() {
+					bg = errorSoftHover
+				}
+				fillRRect(gtx, content, controlRadius, bg, color.NRGBA{})
+				call.Add(gtx.Ops)
+				pointerCursor(gtx, content)
+				return layout.Dimensions{Size: content}
 			})
 		})
 	}
