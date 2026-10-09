@@ -57,6 +57,12 @@ type Shell struct {
 	Props PropertiesPanel
 	// Edit holds the undo and shape/vertex editing controls.
 	Edit EditPanel
+	// Height raises, lowers and sizes the selected zone from a window
+	// floating over the viewport.
+	Height HeightPanel
+	// Arrow is the viewport's handle that raises and lowers the selected
+	// zone.
+	Arrow ZArrow
 	// Status is the status bar's text.
 	Status string
 	list   widget.List
@@ -76,6 +82,7 @@ func NewShell(th *material.Theme, client, tile, output string) *Shell {
 	s.Zones.init()
 	s.Props.init()
 	s.Edit.init()
+	s.Height.init()
 	s.list.Axis = layout.Vertical
 	return s
 }
@@ -111,6 +118,10 @@ func (s *Shell) Layout(gtx layout.Context, lines []string) image.Rectangle {
 					gtx.Constraints.Min = gtx.Constraints.Max
 					dims := s.Viewport.Layout(gtx)
 					vp = image.Rectangle{Max: s.Viewport.Size()}
+					// Drawn over the 3D scene: the arrow only paints, the
+					// floating window takes the input over its bounds.
+					s.Arrow.Layout(gtx)
+					s.heightWindow(gtx)
 					return dims
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {

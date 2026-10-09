@@ -42,6 +42,12 @@ type editState struct {
 	// step is how far Subir/Descer and PageUp/PageDown move the zone.
 	step int
 	drag drag
+	// zdrag is a drag of the Z arrow, arrow where it was last laid out.
+	zdrag zDrag
+	arrow zArrow
+	// heightFilled is what the height window's fields were last filled
+	// for.
+	heightFilled heightKey
 	// filled is the selection and version the panel fields were last
 	// filled for.
 	filled panelKey
@@ -116,6 +122,7 @@ func (e *zoneEditor) sync() {
 		e.armed, e.anchored, e.hovering = false, false, false
 	}
 	e.drag = drag{}
+	e.zdrag = zDrag{}
 }
 
 func (e *zoneEditor) undo() string {
@@ -164,8 +171,14 @@ func (e *zoneEditor) viewportEvent(s *scene.World, cam *camera.Camera, ev event.
 		if s == nil || e.drawing || e.armed {
 			return "", false
 		}
+		if e.zdrag.active {
+			return e.arrowEvent(ev), true
+		}
 		if e.drag.kind != dragNone {
 			return e.dragEvent(s, cam, ev, vp), true
+		}
+		if e.grabArrow(ev) {
+			return "Arraste a seta para subir ou descer a zona", true
 		}
 		if ev.Kind == pointer.Press && ev.Buttons == pointer.ButtonPrimary {
 			return e.press(s, cam, ev, vp)
@@ -253,6 +266,13 @@ func (e *zoneEditor) dragEvent(s *scene.World, cam *camera.Camera, ev pointer.Ev
 // shownPoints is pts, shape number shape of zone id, as the overlay draws
 // it: moved by the drag in progress.
 func (e *zoneEditor) shownPoints(id zone.ZoneID, shape int, pts []zone.Point) []zone.Point {
+	if dz := e.zdrag.offset(id); dz != 0 {
+		out := append([]zone.Point(nil), pts...)
+		for i := range out {
+			out[i].Z += dz
+		}
+		return out
+	}
 	d := e.drag
 	if d.kind == dragNone || !d.moved || id != e.zone || shape != e.shape {
 		return pts
@@ -277,6 +297,9 @@ func (e *zoneEditor) shownPoints(id zone.ZoneID, shape int, pts []zone.Point) []
 // shownZRange is the Z range of the current shape as the overlay draws it
 // while a shape drag moves it.
 func (e *zoneEditor) shownZRange(id zone.ZoneID, shape int, s zone.Shape) (int, int) {
+	if dz := e.zdrag.offset(id); dz != 0 {
+		return s.ZMin + dz, s.ZMax + dz
+	}
 	d := e.drag
 	if d.kind != dragShape || !d.moved || id != e.zone || shape != e.shape {
 		return s.ZMin, s.ZMax
@@ -467,19 +490,6 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World) 
 	if m, err := strconv.Atoi(strings.TrimSpace(p.Margin.Text())); err == nil && m >= 0 {
 		e.margin = m
 	}
-	e.step = p.StepZ()
-	if p.Up.Clicked(gtx) {
-		msg = e.shiftZone(e.step)
-	}
-	if p.Down.Clicked(gtx) {
-		msg = e.shiftZone(-e.step)
-	}
-	if p.BaseRequested(gtx) {
-		msg = e.setZoneBase(p.Base.Text())
-	}
-	if p.HeightRequested(gtx) {
-		msg = e.setZoneHeight(p.Height.Text())
-	}
 	if p.ZRangeRequested(gtx) {
 		msg = e.setZRange(p.ZRange.Text())
 	}
@@ -512,11 +522,7 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World) 
 	z, sh, ok := e.currentShape()
 	ok = ok && !e.drawing
 	v, vok := e.selected()
-	p.Zone, p.Shape, p.Vertex = "", "", ""
-	zz, base, top, zok := e.zoneZ()
-	if zok {
-		p.Zone = fmt.Sprintf("Zona %s: piso z %d, topo z %d, altura %d", zz.Name, base, top, top-base)
-	}
+	p.Shape, p.Vertex = "", ""
 	if ok {
 		kind := shapeKind(sh)
 		if sh.Kind != zone.Rectangle {
@@ -535,10 +541,6 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World) 
 		e.filled = k
 		if ok {
 			p.ZRange.SetText(fmt.Sprintf("%d %d", sh.ZMin, sh.ZMax))
-		}
-		if zok {
-			p.Base.SetText(strconv.Itoa(base))
-			p.Height.SetText(strconv.Itoa(top - base))
 		}
 		if vok {
 			pt := e.shownPoints(e.zone, e.shape, sh.Points)[v]

@@ -343,6 +343,10 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			if msg := zones.panel(gtx, &shell.Edit, tiles.world); msg != "" {
 				status = msg
 			}
+			if msg := zones.heightPanel(gtx, &shell.Height); msg != "" {
+				status = msg
+			}
+			shell.Arrow = zones.layoutArrow(tiles.world, &cam, shell.Viewport.Size(), gtx.Dp(90))
 			if zones.anchored && tiles.world != nil && probe.inside {
 				h, ok := pickAt(tiles.world, &cam, probe.cursor, shell.Viewport.Size())
 				zones.hoverAt(tiles.world, h, ok)
