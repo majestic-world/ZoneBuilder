@@ -8,6 +8,7 @@ Editor desktop de zonas para servidores de Lineage II. O Zone Builder abre os ma
 - Cria zonas por polígono, retângulo, círculo ou o tile inteiro, inclusive exclusões (`banned_polygon`), e adiciona restart points e PK restart points.
 - Cada clique cai no ponto visível sob o cursor, em coordenadas do servidor.
 - Edita vértices, shapes, faixa Z, altura da zona, tipo e parâmetros `<set>`, com desfazer e refazer.
+- Com o botão **Chão** ligado, desenha a grade das células do terreno, uma linha forte a cada 8 células, e marca no chão o espaço que a zona selecionada ocupa. O chão dentro da faixa Z fica tingido com a cor da zona, o chão fora dela fica hachurado e o contorno é desenhado sobre o terreno. O comprimento de cada aresta aparece no viewport, e o tamanho, a área e o perímetro do shape aparecem no inspetor.
 - Mostra os problemas de cada zona enquanto você edita, como polígono que se cruza, nome repetido ou faixa Z invertida, e bloqueia a compilação até corrigir.
 - Compila as zonas selecionadas em um arquivo por tipo (`zonebuilder_<tipo>.xml`) e mostra o XML numa janela com botão de copiar.
 - Guarda o trabalho em projetos `.zbproj`, inclusive zonas ainda incompletas.

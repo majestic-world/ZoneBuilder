@@ -79,7 +79,7 @@ func (s *Shell) commandBar(gtx layout.Context) layout.Dimensions {
 		})
 	}
 	meshes := icon.Eye
-	if s.Meshes.Hidden {
+	if s.Meshes.On {
 		meshes = icon.EyeOff
 	}
 	return card(gtx, &p.sink, layout.UniformInset(unit.Dp(6)), func(gtx layout.Context) layout.Dimensions {
@@ -89,7 +89,8 @@ func (s *Shell) commandBar(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(s.iconToggle(&s.Edit.Undo, icon.Undo2, false)),
 			layout.Rigid(s.iconToggle(&s.Edit.Redo, icon.Redo2, false)),
 			layout.Rigid(divider),
-			layout.Rigid(s.toggleButton(&s.Meshes.button, meshes, "Static meshes", s.Meshes.Hidden)),
+			layout.Rigid(s.toggleButton(&s.Meshes.button, meshes, "Static meshes", s.Meshes.On)),
+			layout.Rigid(s.toggleButton(&s.Ground.button, icon.Grid3x3, "Chão", s.Ground.On)),
 			layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
 			layout.Rigid(s.button(&s.Zone.Compile, primaryButton, icon.CodeXML, "Compilar XML")),
 		)

@@ -522,13 +522,14 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World) 
 	z, sh, ok := e.currentShape()
 	ok = ok && !e.drawing
 	v, vok := e.selected()
-	p.Shape, p.Vertex = "", ""
+	p.Shape, p.Measure, p.Vertex = "", "", ""
 	if ok {
 		kind := shapeKind(sh)
 		if sh.Kind != zone.Rectangle {
 			kind += ", " + inflect.Count(len(sh.Points), "vértice", "vértices")
 		}
 		p.Shape = fmt.Sprintf("Shape %d de %s: %s, z %d … %d", e.shape+1, z.Name, kind, sh.ZMin, sh.ZMax)
+		p.Measure = measure(outline(sh.Kind, e.shownPoints(z.ID, e.shape, sh.Points)))
 	}
 	if vok {
 		p.Vertex = fmt.Sprintf("Vértice %d: x y z", v+1)

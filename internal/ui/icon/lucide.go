@@ -49,6 +49,7 @@ var (
 	Folder            = lucide("folder")
 	FolderOpen        = lucide("folder-open")
 	Grid2x2           = lucide("grid-2x2")
+	Grid3x3           = lucide("grid-3x3")
 	Info              = lucide("info")
 	Layers            = lucide("layers")
 	List              = lucide("list")

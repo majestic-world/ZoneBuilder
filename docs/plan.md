@@ -133,6 +133,8 @@ Ferramentas no viewport:
 
 Overlay: prisma translúcido entre `zmin` e `zmax`, arestas desenhadas por cima da cena e vértices com alça; cor por tipo de zona.
 
+Chão: o shader da cena desenha a grade das células do terreno nas superfícies voltadas para cima e marca a pegada da zona selecionada. O chão dentro do contorno e da faixa Z fica tingido; dentro do contorno e fora da faixa fica hachurado; as exclusões abrem buracos. O contorno é desenhado sobre o que ele cruza. O comprimento das arestas aparece em etiquetas no viewport.
+
 **Pronto quando:** uma zona com 1 polígono, 1 exclusão e 2 pontos de restart é criada só com o mouse; cada vértice cai no chão visível sob o cursor, inclusive em cima de telhados e dentro de interiores BSP; e desfazer volta cada passo.
 
 ### M6. Ver e gerenciar demarcações

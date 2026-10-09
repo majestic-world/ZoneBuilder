@@ -30,7 +30,8 @@ var (
 	pGenVertexArrays, pGetError, pGetIntegerv, pGetProgramInfoLog, pGetProgramiv,
 	pGetShaderInfoLog, pGetShaderiv, pGetString, pGetStringi, pGetUniformLocation,
 	pLinkProgram, pRenderbufferStorage, pShaderSource,
-	pTexImage2D, pTexParameteri, pUniform1i, pUniform3f, pUniformMatrix4fv, pUseProgram,
+	pTexImage2D, pTexParameteri, pUniform1i, pUniform2f, pUniform3f, pUniform2fv, pUniform4fv, pUniform4iv,
+	pUniformMatrix4fv, pUseProgram,
 	pVertexAttribPointer, pViewport uintptr
 
 	pBlendFuncSeparate uintptr
@@ -114,7 +115,11 @@ func load() error {
 		{"glTexImage2D", &pTexImage2D},
 		{"glTexParameteri", &pTexParameteri},
 		{"glUniform1i", &pUniform1i},
+		{"glUniform2f", &pUniform2f},
 		{"glUniform3f", &pUniform3f},
+		{"glUniform2fv", &pUniform2fv},
+		{"glUniform4fv", &pUniform4fv},
+		{"glUniform4iv", &pUniform4iv},
 		{"glUniformMatrix4fv", &pUniformMatrix4fv},
 		{"glUseProgram", &pUseProgram},
 		{"glVertexAttribPointer", &pVertexAttribPointer},
@@ -338,6 +343,31 @@ func TexParameteri(target, pname uint32, v int32) {
 
 func Uniform3f(loc int32, x, y, z float32) {
 	syscall.SyscallN(pUniform3f, uintptr(loc), f2u(x), f2u(y), f2u(z))
+}
+
+func Uniform2f(loc int32, x, y float32) {
+	syscall.SyscallN(pUniform2f, uintptr(loc), f2u(x), f2u(y))
+}
+
+// Uniform2fv sets the vec2 array at loc from v, 2 floats per element.
+func Uniform2fv(loc int32, v [][2]float32) {
+	if len(v) > 0 {
+		syscall.SyscallN(pUniform2fv, uintptr(loc), uintptr(len(v)), uintptr(unsafe.Pointer(&v[0])))
+	}
+}
+
+// Uniform4fv sets the vec4 array at loc from v, 4 floats per element.
+func Uniform4fv(loc int32, v [][4]float32) {
+	if len(v) > 0 {
+		syscall.SyscallN(pUniform4fv, uintptr(loc), uintptr(len(v)), uintptr(unsafe.Pointer(&v[0])))
+	}
+}
+
+// Uniform4iv sets the ivec4 array at loc from v, 4 ints per element.
+func Uniform4iv(loc int32, v [][4]int32) {
+	if len(v) > 0 {
+		syscall.SyscallN(pUniform4iv, uintptr(loc), uintptr(len(v)), uintptr(unsafe.Pointer(&v[0])))
+	}
 }
 
 func BlendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha uint32) {

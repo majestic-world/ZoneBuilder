@@ -70,8 +70,16 @@ type Shell struct {
 	// Arrow is the viewport's handle that raises and lowers the selected
 	// zone.
 	Arrow ZArrow
-	// Meshes is the command bar's switch that hides the static meshes.
-	Meshes MeshToggle
+	// Meshes is the command bar's switch that hides the static meshes
+	// while On.
+	Meshes Switch
+	// Ground is the command bar's switch that shows, while On, the
+	// terrain grid, the selected zone's footprint on the ground and
+	// EdgeLabels.
+	Ground Switch
+	// EdgeLabels are the lengths of the selected zone's edges, drawn on
+	// the viewport at their midpoints.
+	EdgeLabels []EdgeLabel
 	// XML shows the last compilation, to copy.
 	XML XMLWindow
 	// Message is the last outcome ("" for none), shown over the status
@@ -121,6 +129,7 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	// The arrow only paints; every card takes the pointer input over its
 	// bounds, so the viewport gets what lands between them.
 	s.Arrow.Layout(gtx)
+	s.edgeLabels(gtx)
 
 	m := gtx.Dp(floatMargin)
 	brand := at(gtx, image.Pt(m, m), s.brand)

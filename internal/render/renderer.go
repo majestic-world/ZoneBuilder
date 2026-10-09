@@ -147,6 +147,12 @@ func (r *Renderer) SetZones(shapes []ZoneShape) {
 	r.zones.set(shapes)
 }
 
+// SetGround replaces the ground marking: the grid and the selected zone's
+// footprint. g is only read during the call.
+func (r *Renderer) SetGround(g Ground) {
+	r.scene.ground.set(g)
+}
+
 // DrawViewport renders the scene seen by cam into rect (window pixels,
 // origin top-left) of the window framebuffer, which is window pixels in
 // size. The projection uses rect's own aspect ratio, so resizing never

@@ -173,8 +173,10 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		folders = make(chan string, 1)
 		probe   cursorProbe
 		zones   = newZoneEditor()
-		// zonesShown is the zones.version the renderer last got.
-		zonesShown = -1
+		// zonesShown is the zones.version the renderer last got;
+		// groundShown is what its ground marking was last built for.
+		zonesShown  = -1
+		groundShown = groundKey{version: -1}
 	)
 	defer func() { g.release() }()
 	if proj != "" {
@@ -201,7 +203,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 					return err
 				}
 				tiles.lostGPU()
-				zonesShown = -1
+				zonesShown, groundShown = -1, groundKey{version: -1}
 			}
 
 			for {
@@ -334,15 +336,21 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 
 			if shell.Meshes.Toggled(gtx) {
 				status = "Static meshes visíveis"
-				if shell.Meshes.Hidden {
+				if shell.Meshes.On {
 					status = "Static meshes ocultos: só terreno e BSP"
+				}
+			}
+			if shell.Ground.Toggled(gtx) {
+				status = "Chão oculto"
+				if shell.Ground.On {
+					status = fmt.Sprintf("Chão: grade das células do terreno, linha forte a cada %d, e a área da zona selecionada", render.GridMajor)
 				}
 			}
 			moving := fly.Step(&cam, gtx.Now)
 			if tiles.world != nil {
 				// Hidden meshes are not picked either: a vertex never lands
 				// on geometry the user cannot see.
-				tiles.world.HideMeshes = shell.Meshes.Hidden
+				tiles.world.HideMeshes = shell.Meshes.On
 				tiles.follow(worldPosition(tiles.world, cam.Position))
 			}
 			shell.Cursor, shell.Click = probe.status(tiles.world, &cam, shell.Viewport.Size())
@@ -360,6 +368,10 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				status = msg
 			}
 			shell.Arrow = zones.layoutArrow(tiles.world, &cam, shell.Viewport.Size(), gtx.Dp(90))
+			shell.EdgeLabels = nil
+			if shell.Ground.On && tiles.world != nil {
+				shell.EdgeLabels = zones.edgeLabels(tiles.world, &cam, shell.Viewport.Size())
+			}
 			if zones.anchored && tiles.world != nil && probe.inside {
 				h, ok := pickAt(tiles.world, &cam, probe.cursor, shell.Viewport.Size())
 				zones.hoverAt(tiles.world, h, ok)
@@ -383,11 +395,15 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				e.Frame(gtx.Ops)
 				continue
 			}
-			g.renderer.SetMeshesHidden(shell.Meshes.Hidden)
+			g.renderer.SetMeshesHidden(shell.Meshes.On)
 			uploading := tiles.sync(g.renderer, uploadBudget)
 			if zonesShown != zones.version {
 				g.renderer.SetZones(zones.overlay())
 				zonesShown = zones.version
+			}
+			if k := (groundKey{version: zones.version, zone: zones.zone, on: shell.Ground.On}); k != groundShown {
+				g.renderer.SetGround(zones.ground(shell.Ground.On))
+				groundShown = k
 			}
 
 			g.ctx.WaitClient() // lets ANGLE pick up a window resize

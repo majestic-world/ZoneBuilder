@@ -61,6 +61,7 @@ in highp vec2 vMaskUV;
 in highp vec3 vPos;
 in mediump float vAlpha;
 out vec4 oColor;
+` + groundGLSL + `
 void main() {
 	vec4 s = texture(uTexture, vUV);
 	if (uOpaque) {
@@ -87,12 +88,16 @@ void main() {
 		c = mix(c, vec3(0.12, 0.38, 0.62), 0.28 + fresnel * 0.32);
 		a = s.a * vAlpha;
 	}
+	if (uGround != 0 && (uMode == ` + modeOpaque + ` || uMode == ` + modeMasked + ` || uMode == ` + modeTerrainLayer + `)) {
+		c = ground(c);
+	}
 	oColor = vec4(c, a);
 }
 `
 
 // The render modes the fragment shader branches on.
 var (
+	modeOpaque       = fmt.Sprint(int(scene.Opaque))
 	modeMasked       = fmt.Sprint(int(scene.Masked))
 	modeTerrainLayer = fmt.Sprint(int(scene.TerrainLayer))
 	modeTranslucent  = fmt.Sprint(int(scene.Translucent))
@@ -172,6 +177,8 @@ type sceneRenderer struct {
 	stats  DrawStats
 	// hideMeshes leaves the static mesh batches out of draw.
 	hideMeshes bool
+	// ground marks the grid and the selected zone's footprint.
+	ground groundShader
 }
 
 func newSceneRenderer(anisotropic bool) (*sceneRenderer, error) {
@@ -191,7 +198,20 @@ func newSceneRenderer(anisotropic bool) (*sceneRenderer, error) {
 		opaque:   gles.GetUniformLocation(p, "uOpaque"),
 		eye:      gles.GetUniformLocation(p, "uEye"),
 		textures: newTextureCache(anisotropic),
+		ground:   newGroundShader(p),
 	}, nil
+}
+
+// gridTerrain is the terrain whose cells the ground grid follows: the
+// first uploaded scene's first terrain (the tiles' terrains share the
+// same cell lattice), nil when none is uploaded.
+func (sr *sceneRenderer) gridTerrain() *scene.Terrain {
+	for _, gs := range sr.scenes {
+		if gs.prep == nil && len(gs.scene.Terrains) > 0 {
+			return &gs.scene.Terrains[0]
+		}
+	}
+	return nil
 }
 
 // add queues p's scene for upload.
@@ -419,6 +439,7 @@ func (sr *sceneRenderer) draw(viewProj mat4, eye geom.Vec3) {
 	gles.UniformMatrix4fv(sr.viewProj, (*[16]float32)(&viewProj))
 	gles.Uniform3f(sr.origin, sr.rebase.X, sr.rebase.Y, sr.rebase.Z)
 	gles.Uniform3f(sr.eye, eye.X, eye.Y, eye.Z)
+	sr.ground.upload(sr.rebase, sr.gridTerrain())
 	// What is bound already, to skip the calls that would change nothing.
 	var texture, mask uint32
 	opaque := int32(-1)
