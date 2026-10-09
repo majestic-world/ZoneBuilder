@@ -4,10 +4,14 @@
 
 **Blocked by:** 01, 02
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Status produzido antes da troca muda de idioma; erro técnico mantém detalhe útil.
-- [ ] Alternar durante carga, desenho ou medição não reinicia trabalho nem modifica geometria.
-- [ ] Preservar estado e XML byte a byte; não traduzir logs ou protocolo.
+- [x] Status produzido antes da troca muda de idioma; erro técnico mantém detalhe útil.
+- [x] Alternar durante carga, desenho ou medição não reinicia trabalho nem modifica geometria.
+- [x] Preservar estado e XML byte a byte; não traduzir logs ou protocolo.
 
 ## Comments
+
+- 2026-10-09: Ticket assumido em `i18n/05-actions`, base `c918e4b`.
+- 2026-10-09: Ações/projeto/água/carga/cursor migrados ao catálogo `actions`; status guarda `locale.Message` com dados estruturados quando precisa recomposição. A troca reapresenta estado em memória, sem repetir operação, perfil ou carga. Erros mantêm detalhe técnico com contexto traduzido; logs e XML não mudam. Testes adicionados para alternância de resultados, carga, água e invariância do documento/XML; execução fica para a integração.
+- 2026-10-09: Integração consumirá `zoneEditor.Status(lang)` e mensagens editoriais (08), `cover.inspector(..., lang)`/`cover.heightWindow(..., lang)` (06), `pinMessage`/`pinStatus`/`pinLabels(..., lang)` (08), além dos contratos de problemas (03) e painéis (04) já incorporados.

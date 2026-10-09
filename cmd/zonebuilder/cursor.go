@@ -10,6 +10,7 @@ import (
 	"gioui.org/io/pointer"
 
 	"zonebuilder/internal/camera"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/scene"
 )
 
@@ -66,19 +67,38 @@ func (c *cursorProbe) handle(e pointer.Event) pointer.Buttons {
 // status is the status pill's text: the server position under the cursor
 // and at the last click ("" before the first), rounded to whole units as
 // //pos prints them.
-func (c *cursorProbe) status(s *scene.World, cam *camera.Camera, viewport image.Point) (cursor, click string) {
+func (c *cursorProbe) status(s *scene.World, cam *camera.Camera, viewport image.Point, lang locale.Language) (cursor, click string) {
 	if s == nil {
-		return "Abra um mapa para ver as coordenadas sob o cursor", ""
+		return locale.Text(lang, "actions.cursor.no_map"), ""
 	}
-	cursor = "Cursor fora do viewport"
+	cursor = locale.Text(lang, "actions.cursor.outside")
 	if c.inside {
 		h, ok := pickAt(s, cam, c.cursor, viewport)
-		cursor = "Cursor: " + describeHit(h, ok)
+		cursor = locale.Format(lang, "actions.cursor.current", map[string]string{"position": describeHitLang(h, ok, lang)})
 	}
 	if c.clicked {
-		click = "Clique: " + describeHit(c.click, c.clickHit)
+		click = locale.Format(lang, "actions.cursor.last_click", map[string]string{"position": describeHitLang(c.click, c.clickHit, lang)})
 	}
 	return cursor, click
+}
+
+func describeHitLang(h scene.Hit, ok bool, lang locale.Language) string {
+	if !ok {
+		return locale.Text(lang, "actions.cursor.empty")
+	}
+	surface := locale.Text(lang, "actions.cursor.unknown")
+	switch h.Surface {
+	case scene.SurfaceTerrain:
+		surface = locale.Text(lang, "actions.cursor.terrain")
+	case scene.SurfaceBSP:
+		surface = "BSP"
+	case scene.SurfaceMesh:
+		surface = locale.Text(lang, "actions.cursor.mesh")
+	}
+	return locale.Format(lang, "actions.cursor.position", map[string]string{
+		"x": fmt.Sprint(round(h.Pos.X)), "y": fmt.Sprint(round(h.Pos.Y)),
+		"z": fmt.Sprint(round(h.Pos.Z)), "surface": surface,
+	})
 }
 
 // pickAt picks s through viewport pixel p.
