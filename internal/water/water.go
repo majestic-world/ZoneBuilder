@@ -8,10 +8,8 @@ import (
 	"maps"
 	"math"
 	"slices"
-	"strings"
 
 	"zonebuilder/internal/geom"
-	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/zone"
 )
@@ -84,39 +82,6 @@ func (w Warning) String() string {
 		return w.Volume + ": o volume passa do próprio tile, e a zona entra no tile vizinho"
 	}
 	return fmt.Sprintf("%s: aviso desconhecido (tipo %d)", w.Volume, w.Kind)
-}
-
-// Status is the status line's sentence, in pt-BR, about ws: the warnings
-// of kind k, in the order Compile gave them. It names each volume once.
-func (k WarningKind) Status(ws []Warning) string {
-	var volumes []string
-	for _, w := range ws {
-		if !slices.Contains(volumes, w.Volume) {
-			volumes = append(volumes, w.Volume)
-		}
-	}
-	switch k {
-	case Overlap:
-		crossings := make([]string, len(volumes))
-		for i, v := range volumes {
-			// "25_25 WaterVolume7" crossing "25_25 WaterVolume9" reads as
-			// just WaterVolume9.
-			tile, _, _ := strings.Cut(v, " ")
-			var others []string
-			for _, w := range ws {
-				if w.Volume == v {
-					others = append(others, strings.TrimPrefix(w.Other, tile+" "))
-				}
-			}
-			crossings[i] = v + " cruza " + inflect.List(others)
-		}
-		return "Água sobreposta: " + strings.Join(crossings, "; ") + " (o servidor usa o maior topo)"
-	case Approximate:
-		return "Aproximada, parede ou topo inclinado: " + inflect.List(volumes)
-	case OutsideTile:
-		return "Passa do próprio tile: " + inflect.List(volumes)
-	}
-	return fmt.Sprintf("Aviso desconhecido (tipo %d): %s", k, inflect.List(volumes))
 }
 
 // prism is the server prism of a volume: its rounded convex XY footprint and

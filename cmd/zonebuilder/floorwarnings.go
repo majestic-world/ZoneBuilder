@@ -115,10 +115,8 @@ func (e *zoneEditor) goToWarning(i int, w floorWarning, s *scene.World, cam *cam
 	}
 	e.lastProblemClick, e.hasProblemClick = i, true
 	e.problemClickNoFrame, e.problemClickDrawing = false, e.drawing
-	msg := locale.Format(lang, "zone.problem.selected", map[string]string{"name": z.Name, "problem": warningText(w, lang)})
-	if e.drawing {
-		msg = locale.Text(lang, "zone.warning.select_drawing")
-	} else {
+	msg := e.problemClickText(lang, z.Name, warningText(w, lang), true)
+	if !e.drawing {
 		e.zone, e.shape = z.ID, w.shape
 		e.sel = vertexRef{zone: z.ID, shape: w.shape, index: -1}
 		e.version++
@@ -134,7 +132,7 @@ func (e *zoneEditor) goToWarning(i int, w floorWarning, s *scene.World, cam *cam
 		}
 		if b.Empty() {
 			e.problemClickNoFrame = true
-			return locale.Format(lang, "zone.problem.nothing_to_frame", map[string]string{"message": msg})
+			return e.problemClickText(lang, z.Name, warningText(w, lang), true)
 		}
 		cam.Frame(b)
 	} else {

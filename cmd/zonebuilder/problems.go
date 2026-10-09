@@ -69,10 +69,8 @@ func (e *zoneEditor) goToProblem(i int, s *scene.World, cam *camera.Camera, lang
 	}
 	e.lastProblemClick, e.hasProblemClick = i, true
 	e.problemClickNoFrame, e.problemClickDrawing = false, e.drawing
-	msg := locale.Format(lang, "zone.problem.selected", map[string]string{"name": z.Name, "problem": p.Text(lang)})
-	if e.drawing {
-		msg = locale.Text(lang, "zone.problem.select_drawing")
-	} else {
+	msg := e.problemClickText(lang, z.Name, p.Text(lang), false)
+	if !e.drawing {
 		shape := max(p.Shape, 0)
 		e.zone, e.shape = z.ID, shape
 		e.sel = vertexRef{zone: z.ID, shape: shape, index: p.Vertex}
@@ -116,7 +114,7 @@ func (e *zoneEditor) goToProblem(i int, s *scene.World, cam *camera.Camera, lang
 	}
 	if b.Empty() {
 		e.problemClickNoFrame = true
-		return locale.Format(lang, "zone.problem.nothing_to_frame", map[string]string{"message": msg})
+		return e.problemClickText(lang, z.Name, p.Text(lang), false)
 	}
 	cam.Frame(b)
 	log.Printf("zona: câmera no problema: %s", formatPose(cam, s))
@@ -143,6 +141,24 @@ func (e *zoneEditor) badVertices(id zone.ZoneID) map[int][]int {
 	return bad
 }
 
+// problemClickText renders the retained click result without selecting or framing again.
+func (e *zoneEditor) problemClickText(lang locale.Language, name, problem string, warning bool) string {
+	var msg string
+	if e.problemClickDrawing {
+		if warning {
+			msg = locale.Text(lang, "zone.warning.select_drawing")
+		} else {
+			msg = locale.Text(lang, "zone.problem.select_drawing")
+		}
+	} else {
+		msg = locale.Format(lang, "zone.problem.selected", map[string]string{"name": name, "problem": problem})
+	}
+	if e.problemClickNoFrame {
+		return locale.Format(lang, "zone.problem.nothing_to_frame", map[string]string{"message": msg})
+	}
+	return msg
+}
+
 // reformatProblemClick presents the last clicked row without selecting or
 // framing it again. The loop calls this only while that click owns the status.
 func (e *zoneEditor) reformatProblemClick(lang locale.Language) string {
@@ -150,39 +166,27 @@ func (e *zoneEditor) reformatProblemClick(lang locale.Language) string {
 		return ""
 	}
 	i := e.lastProblemClick
-	var msg string
 	if i >= len(e.problems) {
 		j := i - len(e.problems)
 		if j < 0 || j >= len(e.warnings) {
 			return ""
-		}
-		if e.problemClickDrawing {
-			return locale.Text(lang, "zone.warning.select_drawing")
 		}
 		w := e.warnings[j]
 		z, ok := e.doc.Zone(w.zone)
 		if !ok {
 			return ""
 		}
-		msg = locale.Format(lang, "zone.problem.selected", map[string]string{"name": z.Name, "problem": warningText(w, lang)})
-	} else {
-		if i < 0 {
-			return ""
-		}
-		if e.problemClickDrawing {
-			return locale.Text(lang, "zone.problem.select_drawing")
-		}
-		p := e.problems[i]
-		z, ok := e.doc.Zone(p.Zone)
-		if !ok {
-			return ""
-		}
-		msg = locale.Format(lang, "zone.problem.selected", map[string]string{"name": z.Name, "problem": p.Text(lang)})
+		return e.problemClickText(lang, z.Name, warningText(w, lang), true)
 	}
-	if e.problemClickNoFrame {
-		return locale.Format(lang, "zone.problem.nothing_to_frame", map[string]string{"message": msg})
+	if i < 0 || i >= len(e.problems) {
+		return ""
 	}
-	return msg
+	p := e.problems[i]
+	z, ok := e.doc.Zone(p.Zone)
+	if !ok {
+		return ""
+	}
+	return e.problemClickText(lang, z.Name, p.Text(lang), false)
 }
 
 // blockedStatus presents a blocked compilation; each problem goes to the log.

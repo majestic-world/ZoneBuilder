@@ -17,12 +17,12 @@ func TestCoveragePresentationChangesLanguageWithoutChangingReport(t *testing.T) 
 		Inside: 1234, Above: 245, Below: 123, Excluded: 45, Other: 55, NoGround: 298,
 		Layers: 2,
 	}
-	pt := coverageText(locale.PtBR, "coverage.shape.title", "coverage.shape.none", r, false)
-	en := coverageText(locale.En, "coverage.shape.title", "coverage.shape.none", r, false)
-	for _, expected := range []string{"Chão mais baixo: 1.234 2.345 −3.456", "Folga do piso: −1.234 (fura)", "2 camadas", "Dentro da faixa: 1.234 u² (61,7%)", "Sem chão: 298 u² (14,9%)"} {
+	pt := coverageText(locale.PtBR, r, false)
+	en := coverageText(locale.En, r, false)
+	for _, expected := range []string{"Chão mais baixo: 1234 2345 -3456", "Folga do piso: −1.234 (fura)", "2 camadas", "Dentro da faixa: 1.234 u² (61,7%)", "Sem chão: 298 u² (14,9%)"} {
 		if !strings.Contains(pt, expected) { t.Errorf("pt-BR lacks %q: %s", expected, pt) }
 	}
-	for _, expected := range []string{"Lowest ground: 1,234 2,345 −3,456", "Floor clearance: −1,234 (pierces)", "2 layers", "Inside range: 1,234 u² (61.7%)", "No ground: 298 u² (14.9%)"} {
+	for _, expected := range []string{"Lowest ground: 1234 2345 -3456", "Floor clearance: −1,234 (pierces)", "2 layers", "Inside range: 1,234 u² (61.7%)", "No ground: 298 u² (14.9%)"} {
 		if !strings.Contains(en, expected) { t.Errorf("en lacks %q: %s", expected, en) }
 	}
 	if r.Inside != 1234 || r.FloorClearance != -1234 || r.Layers != 2 { t.Fatalf("presentation changed report: %+v", r) }
@@ -37,7 +37,7 @@ func TestGroundLayerCountUsesSingularOnlyForOne(t *testing.T) {
 		{locale.En, "Ground in 0 layers", "Ground in 1 layer", "Ground in 2 layers"},
 	} {
 		for count, want := range []string{tc.zero, tc.one, tc.two} {
-			got := coverageText(tc.lang, "coverage.shape.title", "coverage.shape.none", coverage.Report{Measured: true, Layers: count}, false)
+			got := coverageText(tc.lang, coverage.Report{Measured: true, Layers: count}, false)
 			if !strings.Contains(got, want) {
 				t.Errorf("%s %d layers: %q lacks %q", tc.lang, count, got, want)
 			}
@@ -51,7 +51,7 @@ func TestCoverageNoGroundAndLayerPluralInBothLanguages(t *testing.T) {
 		{locale.PtBR, "Todo o chão está excluído ou em outras camadas", "Outra camada: 1 (z 1.234)", "Outras camadas: 2 (z 1.234; z 2.345 … 3.456)", "Sem chão: 1.234 u² (61,7%)"},
 		{locale.En, "All ground is excluded or in other layers", "Other layer: 1 (z 1,234)", "Other layers: 2 (z 1,234; z 2,345 … 3,456)", "No ground: 1,234 u² (61.7%)"},
 	} {
-		shown := coverageText(tc.lang, "coverage.shape.title", "coverage.shape.none", r, false)
+		shown := coverageText(tc.lang, r, false)
 		if !strings.Contains(shown, tc.none) || !strings.Contains(shown, tc.percent) { t.Errorf("%s no-ground presentation: %s", tc.lang, shown) }
 		one := othersText(tc.lang, []coverage.Layer{{Low: 1234, High: 1234}})
 		many := othersText(tc.lang, []coverage.Layer{{Low: 1234, High: 1234}, {Low: 2345, High: 3456}})
@@ -67,4 +67,14 @@ func TestHeightSummaryAndRulerLabelsFollowLanguage(t *testing.T) {
 	if !strings.Contains(en, "Ground under zone: −1,234 … 2,345") || !strings.Contains(en, "Coverage 61.7% · above 38.3%") { t.Fatalf("en height: %s", en) }
 	marks := rulerMarks(locale.En, r)
 	if len(marks) != 2 || marks[0].Text != "2,345 top clearance 1,234" || marks[1].Text != "−1,234 floor clearance −3,456 (pierces)" || !marks[1].Alert { t.Fatalf("English ruler marks: %+v", marks) }
+}
+
+func TestCoverageTitlesChangeWhileMeasurementsRemainAvailable(t *testing.T) {
+	r := coverage.Report{Measured: true}
+	if got := coverageText(locale.En, r, true); !strings.HasPrefix(got, "Ground coverage: measuring…") {
+		t.Errorf("measuring shape: %q", got)
+	}
+	if got := heightSummary(locale.En, r, true); !strings.HasPrefix(got, "Zone coverage (sum of shapes): measuring…") {
+		t.Errorf("measuring zone: %q", got)
+	}
 }

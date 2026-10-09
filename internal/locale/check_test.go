@@ -68,3 +68,29 @@ func TestCatalogCheckerRejectsIncompleteAreasAndMessages(t *testing.T) {
 		t.Errorf("untranslated code use = %v", err)
 	}
 }
+
+func TestCatalogCheckerRejectsDynamicKeysAndUntranslatedFutureArea(t *testing.T) {
+	catalogs := fstest.MapFS{
+		"app/pt-BR.json": {Data: []byte(`{"app.title":"Título"}`)},
+		"app/en.json": {Data: []byte(`{"app.title":"Title"}`)},
+	}
+	for _, tc := range []struct {
+		name, code, want string
+	}{
+		{"direct dynamic call", `locale.Text(locale.En, key)`, "dynamic key"},
+		{"computed key", `locale.Text(locale.En, "app." + suffix)`, "dynamic key"},
+		{"format helper", `locale.Format(locale.En, key, nil)`, "dynamic key"},
+		{"plural helper", `locale.Plural(locale.En, key, 2, nil)`, "dynamic key"},
+		{"message key", `locale.Message{Key: key}`, "dynamic key"},
+		{"nested message key", `locale.Message{Key: "app.title", Parts: map[string]locale.Message{"hint": {Key: key}}}`, "dynamic key"},
+		{"nested future message", `locale.Message{Key: "app.title", Parts: map[string]locale.Message{"hint": {Key: "future.hint"}}}`, "future.hint"},
+		{"missing future key", `locale.Text(locale.En, "future.title")`, "future.title"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := fstest.MapFS{"future/main.go": {Data: []byte("package future\nimport \"zonebuilder/internal/locale\"\nfunc show(key, suffix string) { _ = " + tc.code + " }")}}
+			if err := locale.Check(catalogs, source); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("Check() = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"image"
 	"log"
-	"strconv"
 	"strings"
 
 	"gioui.org/f32"
@@ -93,30 +92,14 @@ func (e *zoneEditor) Status(lang locale.Language) string {
 	if msg.Key == "" {
 		return ""
 	}
-	if len(msg.Args) != 0 && (msg.Args["__source"] != "" || msg.Args["__hint"] != "" || msg.Args["__side"] != "" || msg.Args["__vertices"] != "" || msg.Args["__files"] != "" || msg.Key == "editor.drag.drop" || msg.Key == "editor.ground.other_only" || msg.Key == "editor.ground.range_others") {
-		args := make(map[string]string, len(msg.Args))
-		for k, v := range msg.Args {
-			args[k] = v
-		}
-		for _, field := range []string{"source", "hint", "side"} {
-			if key := args["__"+field]; key != "" {
-				args[field] = locale.Text(lang, key)
-			}
-		}
-		for _, field := range []string{"vertices", "files"} {
-			if raw := args["__"+field]; raw != "" {
-				key := "editor.count.vertices"
-				if field == "files" {
-					key = "editor.count.files"
-				}
-				n, _ := strconv.Atoi(raw)
-				args[field] = locale.Plural(lang, key, n, nil)
-			}
+	if msg.Key == "editor.drag.drop" || msg.Key == "editor.ground.other_only" || msg.Key == "editor.ground.range_others" {
+		args := make(map[string]string, len(msg.Args)+1)
+		for name, value := range msg.Args {
+			args[name] = value
 		}
 		if msg.Key == "editor.drag.drop" {
 			args["surface"] = describeHitLang(e.lastHit, true, lang)
-		}
-		if msg.Key == "editor.ground.other_only" || msg.Key == "editor.ground.range_others" {
+		} else {
 			args["others"] = othersText(lang, e.lastOthers)
 		}
 		msg.Args = args
@@ -131,16 +114,12 @@ func (e *zoneEditor) vertexCount(n int) string {
 	return locale.Plural(e.Language, "editor.count.vertices", n, nil)
 }
 
-func (e *zoneEditor) fileCount(n int) string {
-	return locale.Plural(e.Language, "editor.count.files", n, nil)
-}
-
 func pointArgs(p zone.Point) map[string]string {
 	return map[string]string{"x": intArg(p.X), "y": intArg(p.Y), "z": intArg(p.Z)}
 }
 
-func shapeArgs(lang locale.Language, name string, a, b zone.Point, fit zSuggestion) map[string]string {
-	return map[string]string{"name": name, "x0": intArg(a.X), "y0": intArg(a.Y), "x1": intArg(b.X), "y1": intArg(b.Y), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(lang), "__source": fit.sourceKey()}
+func shapeArgs(name string, a, b zone.Point, fit zSuggestion) map[string]string {
+	return map[string]string{"name": name, "x0": intArg(a.X), "y0": intArg(a.Y), "x1": intArg(b.X), "y1": intArg(b.Y), "min": intArg(fit.zmin), "max": intArg(fit.zmax)}
 }
 
 // apply runs c on the document, logging a failure, and returns its error.
@@ -171,7 +150,7 @@ func (e *zoneEditor) create(name string, t zone.Type, tool ui.Tool) string {
 	e.zone = id
 	log.Printf("zona: criada %s (%s)", name, t)
 	e.arm(tool, false)
-	return e.present(locale.Message{Key: "editor.create.done", Args: map[string]string{"name": name, "hint": e.hint(), "__hint": e.hintKey()}})
+	return e.present(locale.Message{Key: "editor.create.done", Args: map[string]string{"name": name}, Parts: map[string]locale.Message{"hint": e.hintMessage()}})
 }
 
 // points is the polygon being drawn.
@@ -250,11 +229,15 @@ func (e *zoneEditor) close(s *scene.World, c *floorCoverage) string {
 		what = "Exclusão fechada"
 	}
 	log.Printf("zona: %s: %s com %s, z %d..%d %s", z.Name, strings.ToLower(what), inflect.Count(len(pts), "vértice", "vértices"), fit.zmin, fit.zmax, fit.note())
-	args := map[string]string{"name": z.Name, "vertices": e.vertexCount(len(pts)), "__vertices": intArg(len(pts)), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language), "__source": fit.sourceKey()}
-	if e.banned {
-		return e.present(locale.Message{Key: "editor.polygon.exclusion_closed", Args: args})
+	args := map[string]string{"name": z.Name, "min": intArg(fit.zmin), "max": intArg(fit.zmax)}
+	parts := map[string]locale.Message{
+		"vertices": {Key: "editor.count.vertices", Count: len(pts), Plural: true},
+		"source": fit.sourceMessage(),
 	}
-	return e.present(locale.Message{Key: "editor.polygon.closed", Args: args})
+	if e.banned {
+		return e.present(locale.Message{Key: "editor.polygon.exclusion_closed", Args: args, Parts: parts})
+	}
+	return e.present(locale.Message{Key: "editor.polygon.closed", Args: args, Parts: parts})
 }
 
 // selection is the zones checked for compilation, in creation order.
@@ -308,7 +291,7 @@ func (e *zoneEditor) compile() (string, []zonexml.File) {
 		return e.present(locale.Message{Key: "editor.compile.failed", Args: map[string]string{"detail": err.Error()}}), nil
 	}
 	log.Printf("zona: compiladas %s em %s", inflect.Count(len(sel), "zona", "zonas"), inflect.Count(len(files), "arquivo", "arquivos"))
-	return e.present(locale.Message{Key: "editor.compile.done", Count: len(sel), Plural: true, Args: map[string]string{"files": e.fileCount(len(files)), "__files": intArg(len(files))}}), files
+	return e.present(locale.Message{Key: "editor.compile.done", Count: len(sel), Plural: true, Parts: map[string]locale.Message{"files": {Key: "editor.count.files", Count: len(files), Plural: true}}}), files
 }
 
 // info is the zone panel's lines below its controls: the armed tool's

@@ -396,12 +396,10 @@ func (e *zoneEditor) setZoneHeight(text string) string {
 // upside down, keeps its range.
 func (e *zoneEditor) zoneToGround(c *floorCoverage, s *scene.World, top bool) string {
 	side, sides := "piso", coverage.FloorSide
-	sideKey := "editor.ground.floor_side"
-	name := locale.Text(e.Language, "editor.ground.floor_side")
+	sideMessage := locale.Message{Key: "editor.ground.floor_side"}
 	if top {
 		side, sides = "topo", coverage.TopSide
-		sideKey = "editor.ground.top_side"
-		name = locale.Text(e.Language, "editor.ground.top_side")
+		sideMessage = locale.Message{Key: "editor.ground.top_side"}
 	}
 	z, _, _, ok := e.zoneZ()
 	switch {
@@ -431,19 +429,20 @@ func (e *zoneEditor) zoneToGround(c *floorCoverage, s *scene.World, top bool) st
 		steps = append(steps, zone.SetZRange{Zone: z.ID, Shape: i, ZMin: zmin, ZMax: zmax})
 	}
 	if len(steps) == 0 {
-		return e.present(locale.Message{Key: "editor.ground.none", Args: map[string]string{"side": name, "__side": sideKey, "name": z.Name}})
+		return e.present(locale.Message{Key: "editor.ground.none", Args: map[string]string{"name": z.Name}, Parts: map[string]locale.Message{"side": sideMessage}})
 	}
 	if e.apply(steps) != nil {
 		return e.present(locale.Message{Key: "editor.ground.failed"})
 	}
-	args := map[string]string{"side": name, "__side": sideKey, "name": z.Name, "margin": intArg(e.margin), "kept": intArg(kept)}
+	args := map[string]string{"name": z.Name, "margin": intArg(e.margin), "kept": intArg(kept)}
+	parts := map[string]locale.Message{"side": sideMessage}
 	if kept == 1 {
-		return e.present(locale.Message{Key: "editor.ground.one_kept", Count: len(steps), Plural: true, Args: args})
+		return e.present(locale.Message{Key: "editor.ground.one_kept", Count: len(steps), Plural: true, Args: args, Parts: parts})
 	}
 	if kept > 1 {
-		return e.present(locale.Message{Key: "editor.ground.some_kept", Count: len(steps), Plural: true, Args: args})
+		return e.present(locale.Message{Key: "editor.ground.some_kept", Count: len(steps), Plural: true, Args: args, Parts: parts})
 	}
-	return e.present(locale.Message{Key: "editor.ground.done", Count: len(steps), Plural: true, Args: args})
+	return e.present(locale.Message{Key: "editor.ground.done", Count: len(steps), Plural: true, Args: args, Parts: parts})
 }
 
 // insertAfter inserts a vertex in the middle of the current shape's edge

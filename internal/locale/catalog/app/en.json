@@ -1,9 +1,0 @@
-{
-  "app.preference.unsaved": "Could not save the language preference; your choice applies only to this session.",
-  "app.action.failed": "Could not {action}: {detail}",
-  "app.action.save_failed": "Could not save: {detail}",
-  "app.status.zone_count": {
-    "one": "{count} zone selected",
-    "other": "{count} zones selected"
-  }
-}

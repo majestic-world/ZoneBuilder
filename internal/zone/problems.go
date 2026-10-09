@@ -99,7 +99,7 @@ func (p Problem) Text(lang locale.Language) string {
 			"first": n(p.Numbers[0]), "next": n(p.Numbers[1]), "other": n(p.Numbers[2]), "last": n(p.Numbers[3]),
 		})
 	case InvertedZRange:
-		text = locale.Format(lang, "zone.problem.inverted_z", map[string]string{"min": n(p.Numbers[0]), "max": n(p.Numbers[1])})
+		text = locale.Format(lang, "zone.problem.inverted_z", map[string]string{"min": strconv.Itoa(p.Numbers[0]), "max": strconv.Itoa(p.Numbers[1])})
 	case OutOfBounds:
 		// Coordinates are data, not locale-dependent measurements.
 		args := map[string]string{"index": n(p.Numbers[0]), "x": strconv.Itoa(p.Numbers[1]), "y": strconv.Itoa(p.Numbers[2])}

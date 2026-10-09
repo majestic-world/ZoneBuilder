@@ -330,7 +330,7 @@ func (c *floorCoverage) inspector(e *zoneEditor, w *scene.World, lang locale.Lan
 		}
 		return ""
 	}
-	text := coverageText(lang, "coverage.shape.title", "coverage.shape.none", r, measuring)
+	text := coverageText(lang, r, measuring)
 	if len(r.Others) > 0 {
 		text += "\n" + othersText(lang, r.Others)
 	}
@@ -378,11 +378,11 @@ func (c *floorCoverage) heightWindow(e *zoneEditor, w *scene.World, p *ui.Height
 }
 
 func heightSummary(lang locale.Language, r coverage.Report, measuring bool) string {
-	title := "coverage.zone.title"
+	title := locale.Text(lang, "coverage.zone.title")
 	if measuring {
-		title = "coverage.zone.title_measuring"
+		title = locale.Text(lang, "coverage.zone.title_measuring")
 	}
-	lines := []string{locale.Text(lang, title)}
+	lines := []string{title}
 	if r.Measured {
 		lines = append(lines,
 			locale.Format(lang, "coverage.zone.range", map[string]string{
@@ -393,7 +393,7 @@ func heightSummary(lang locale.Language, r coverage.Report, measuring bool) stri
 			}),
 		)
 	} else {
-		lines = append(lines, noFloor(lang, "coverage.zone.none", r))
+		lines = append(lines, noFloor(lang, r, true))
 	}
 	total := r.Total()
 	lines = append(lines, locale.Format(lang, "coverage.zone.shares", map[string]string{
@@ -466,21 +466,21 @@ func rulerMarks(lang locale.Language, r coverage.Report) []ui.RulerMark {
 	}
 }
 
-// coverageText presents a shape's report with localized numbers and complete messages.
-func coverageText(lang locale.Language, titleKey, noneKey string, r coverage.Report, measuring bool) string {
-	title := titleKey
+// coverageText presents a shape's report with localized measures and literal coordinates.
+func coverageText(lang locale.Language, r coverage.Report, measuring bool) string {
+	title := locale.Text(lang, "coverage.shape.title")
 	if measuring {
-		title += "_measuring"
+		title = locale.Text(lang, "coverage.shape.title_measuring")
 	}
-	lines := []string{locale.Text(lang, title)}
+	lines := []string{title}
 	if r.Measured {
 		lo, hi := r.GroundMin, r.GroundMax
 		lines = append(lines,
 			locale.Format(lang, "coverage.shape.low", map[string]string{
-				"x": measureNumber(lang, roundF(lo.X)), "y": measureNumber(lang, roundF(lo.Y)), "z": measureNumber(lang, roundF(lo.Z)),
+				"x": intArg(roundF(lo.X)), "y": intArg(roundF(lo.Y)), "z": intArg(roundF(lo.Z)),
 			}),
 			locale.Format(lang, "coverage.shape.high", map[string]string{
-				"x": measureNumber(lang, roundF(hi.X)), "y": measureNumber(lang, roundF(hi.Y)), "z": measureNumber(lang, roundF(hi.Z)),
+				"x": intArg(roundF(hi.X)), "y": intArg(roundF(hi.Y)), "z": intArg(roundF(hi.Z)),
 			}),
 			locale.Format(lang, "coverage.shape.clearances", map[string]string{
 				"floor": clearance(lang, r.FloorClearance), "top": clearance(lang, r.TopClearance),
@@ -488,29 +488,31 @@ func coverageText(lang locale.Language, titleKey, noneKey string, r coverage.Rep
 			locale.Plural(lang, "coverage.shape.layers", r.Layers, nil),
 		)
 	} else {
-		lines = append(lines, noFloor(lang, noneKey, r))
+		lines = append(lines, noFloor(lang, r, false))
 	}
 	total := r.Total()
-	for _, a := range []struct {
-		key  string
-		area float64
-	}{
-		{"coverage.area.inside", r.Inside}, {"coverage.area.above", r.Above},
-		{"coverage.area.below", r.Below}, {"coverage.area.excluded", r.Excluded},
-		{"coverage.area.other", r.Other}, {"coverage.area.missing", r.NoGround},
-	} {
-		lines = append(lines, locale.Format(lang, a.key, map[string]string{
-			"area": measureNumber(lang, roundF(a.area)), "share": percent(lang, a.area, total),
-		}))
+	areaArgs := func(area float64) map[string]string {
+		return map[string]string{"area": measureNumber(lang, roundF(area)), "share": percent(lang, area, total)}
 	}
+	lines = append(lines,
+		locale.Format(lang, "coverage.area.inside", areaArgs(r.Inside)),
+		locale.Format(lang, "coverage.area.above", areaArgs(r.Above)),
+		locale.Format(lang, "coverage.area.below", areaArgs(r.Below)),
+		locale.Format(lang, "coverage.area.excluded", areaArgs(r.Excluded)),
+		locale.Format(lang, "coverage.area.other", areaArgs(r.Other)),
+		locale.Format(lang, "coverage.area.missing", areaArgs(r.NoGround)),
+	)
 	return strings.Join(lines, "\n")
 }
 
-func noFloor(lang locale.Language, noneKey string, r coverage.Report) string {
+func noFloor(lang locale.Language, r coverage.Report, zoneSummary bool) string {
 	if r.Excluded > 0 || r.Other > 0 {
 		return locale.Text(lang, "coverage.no_included_ground")
 	}
-	return locale.Text(lang, noneKey)
+	if zoneSummary {
+		return locale.Text(lang, "coverage.zone.none")
+	}
+	return locale.Text(lang, "coverage.shape.none")
 }
 
 func percent(lang locale.Language, part, whole float64) string {

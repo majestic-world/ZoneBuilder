@@ -42,8 +42,8 @@ func TestProblemCountsAndValuesAreLocalizedWithoutChangingCompilation(t *testing
     problems := d.Problems()
     for _, p := range problems {
         if p.Rule == zone.InvertedZRange {
-            if !strings.Contains(p.Text(locale.PtBR), "1.200") || !strings.Contains(p.Text(locale.En), "1,200") {
-                t.Errorf("range values not localized: %q / %q", p.Text(locale.PtBR), p.Text(locale.En))
+            if !strings.Contains(p.Text(locale.PtBR), "1200") || !strings.Contains(p.Text(locale.En), "1200") {
+                t.Errorf("range data changed by presentation: %q / %q", p.Text(locale.PtBR), p.Text(locale.En))
             }
         }
     }
