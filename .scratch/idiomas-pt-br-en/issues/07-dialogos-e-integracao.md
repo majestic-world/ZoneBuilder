@@ -11,3 +11,5 @@ Status: claimed
 - [ ] Smoke visual na janela padrão comprova legibilidade/interação e preferência após reinício.
 
 ## Comments
+
+No ramo de integração, `go test ./...`, `go vet ./...` e `go build -o "bin/Zone Builder i18n reviewed.exe" ./cmd/zonebuilder` passaram após a revisão. No Windows, o binário isolado abriu o projeto de smoke e carregou o tile 22_22 em 1280×800; capturas mostraram PT-BR por padrão e EN ativo ao iniciar com preferência inglesa, com os controles superiores legíveis e sem sobrepor viewport ou inspetor. A troca interativa, os diálogos, janelas flutuantes, avisos e a comparação do XML copiado ainda dependem do controle da janela: a entrada de mouse em segundo plano não alterou a UI Gio e a solicitação de controle humano expirou sem aprovação. Não marcar o smoke como concluído até exercitar essas ações.
