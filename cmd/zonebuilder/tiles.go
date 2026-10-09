@@ -395,6 +395,21 @@ func (ts *tiles) shown() []string {
 	return names
 }
 
+// sceneAt is the shown tile whose square holds world point (x, y), with its
+// scene.
+func (ts *tiles) sceneAt(x, y float32) (scene.Tile, *scene.Scene, bool) {
+	for t, e := range ts.entries {
+		if e.state != tileShown {
+			continue
+		}
+		ox, oy := t.Origin()
+		if x >= ox && x < ox+scene.TileSpan && y >= oy && y < oy+scene.TileSpan {
+			return t, e.scene, true
+		}
+	}
+	return scene.Tile{}, nil, false
+}
+
 // resolveTile is the map of tile (x, y) to open, the Classic variant first
 // when classic: the other variant stands in when the client lacks it; false
 // when it has neither.

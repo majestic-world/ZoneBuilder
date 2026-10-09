@@ -270,6 +270,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			if t, ok := shell.Zone.Tools.Requested(gtx); ok {
 				status = zones.arm(t, shell.Zone.Tools.Banned.Value)
 			}
+			if shell.Zone.Tools.WholeTile.Clicked(gtx) {
+				status = wholeTile(zones, tiles, &cam, shell.Viewport.Size(), shell.Zone.Tools.Banned.Value)
+			}
 			if shell.Zone.Compile.Clicked(gtx) {
 				status = zones.compile(shell.Zone.Output.Text())
 				sess.outputUsed(shell.Zone.Output.Text())

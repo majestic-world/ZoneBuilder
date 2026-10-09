@@ -2,10 +2,14 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"log"
 	"math"
 	"slices"
 
+	"gioui.org/f32"
+
+	"zonebuilder/internal/camera"
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/render"
@@ -125,6 +129,59 @@ func (e *zoneEditor) rectangleClick(s *scene.World, v zone.Point) string {
 	}
 	log.Printf("zona: %s: %s %d %d … %d %d, z %d..%d", z.Name, what, a.X, a.Y, v.X, v.Y, zmin, zmax)
 	return fmt.Sprintf("%s em %s: %d %d … %d %d, z %d … %d", what, z.Name, a.X, a.Y, v.X, v.Y, zmin, zmax)
+}
+
+// wholeTile adds to the selected zone a polygon over tile t's whole square,
+// [origin, origin+TileSpan-1] on X and Y (the last unit stays inside the
+// tile, and inside the world bounds for the last tile), spanning on Z
+// everything the tile's scene s holds, terrain, BSP and meshes, plus the
+// margin. It is a polygon, not a rectangle, so its vertices can be moved
+// and more inserted to trim it. banned adds it as an exclusion.
+func (e *zoneEditor) wholeTile(t scene.Tile, s *scene.Scene, banned bool) string {
+	z, ok := e.doc.Zone(e.zone)
+	switch {
+	case e.drawing:
+		return "Feche o polígono atual antes de cobrir o tile"
+	case !ok:
+		return "Crie uma zona antes de cobrir o tile"
+	case s.Bounds.Empty():
+		return t.Name() + " não tem geometria para medir a faixa Z"
+	}
+	ox, oy := t.Origin()
+	x0, y0 := int(ox), int(oy)
+	x1, y1 := x0+scene.TileSpan-1, y0+scene.TileSpan-1
+	zmin := int(math.Floor(float64(s.Bounds.Min.Z+scene.ServerZOffset))) - e.margin
+	zmax := int(math.Ceil(float64(s.Bounds.Max.Z+scene.ServerZOffset))) + e.margin
+	floor := zmin + e.margin
+	pts := []zone.Point{{X: x0, Y: y0, Z: floor}, {X: x1, Y: y0, Z: floor}, {X: x1, Y: y1, Z: floor}, {X: x0, Y: y1, Z: floor}}
+	if e.apply(zone.AddShape{Zone: e.zone, Banned: banned, Points: pts, ZMin: zmin, ZMax: zmax}) != nil {
+		return "Não foi possível cobrir o tile"
+	}
+	e.armed, e.anchored, e.hovering = false, false, false
+	e.shape = len(z.Shapes)
+	what := "Tile inteiro"
+	if banned {
+		what = "Exclusão do tile inteiro"
+	}
+	log.Printf("zona: %s: %s %s: %d %d … %d %d, z %d..%d", z.Name, what, t.Name(), x0, y0, x1, y1, zmin, zmax)
+	return fmt.Sprintf("%s %s em %s: %d %d … %d %d, z %d … %d", what, t.Name(), z.Name, x0, y0, x1, y1, zmin, zmax)
+}
+
+// wholeTile covers, in the selected zone, the tile in view: the one under
+// the viewport's centre, or under the camera when the centre meets nothing.
+func wholeTile(e *zoneEditor, ts *tiles, cam *camera.Camera, vp image.Point, banned bool) string {
+	if ts.world == nil {
+		return "Abra um mapa antes de cobrir o tile"
+	}
+	at := worldPosition(ts.world, cam.Position)
+	if h, ok := pickAt(ts.world, cam, f32.Pt(float32(vp.X)/2, float32(vp.Y)/2), vp); ok {
+		at = h.Pos
+	}
+	t, s, ok := ts.sceneAt(at.X, at.Y)
+	if !ok {
+		return "Nenhum tile carregado no centro da vista"
+	}
+	return e.wholeTile(t, s, banned)
 }
 
 // circleClick takes the center, then a point on the circle: the circle

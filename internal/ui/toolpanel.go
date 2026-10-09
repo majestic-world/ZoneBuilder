@@ -54,6 +54,8 @@ type ToolPanel struct {
 	buttons [ToolPKRestart + 1]widget.Clickable
 	// Banned makes the shape tools draw exclusions (banned_polygon).
 	Banned widget.Bool
+	// WholeTile adds a polygon over the whole tile in view.
+	WholeTile widget.Clickable
 	// Shape is the shape tool a new zone starts with: the last one chosen.
 	Shape Tool
 	// Armed is the tool taking viewport clicks; Active tells whether one
@@ -114,6 +116,15 @@ func (s *Shell) toolPanel() []layout.FlexChild {
 	return []layout.FlexChild{
 		layout.Rigid(s.label("Ferramentas (na zona selecionada)")),
 		row(shapeTools...),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Constraints.Max.X
+				b := material.Button(s.Theme, &p.WholeTile, "Tile inteiro")
+				b.TextSize = unit.Sp(13)
+				b.Inset = layout.UniformInset(unit.Dp(8))
+				return b.Layout(gtx)
+			})
+		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			cb := material.CheckBox(s.Theme, &p.Banned, "Exclusão (banned_polygon)")
 			cb.Color, cb.IconColor = panelText, panelText
