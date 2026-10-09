@@ -11,7 +11,7 @@
 - [x] Teste do seam (morro): os cantos a 0 e um pico de terreno a 3000; `Fit` a partir de `[−256, 256]` ainda põe o topo acima do pico
 - [x] `TestPeakFarFromTheVerticesSetsTheTop` passa sem mudar a expectativa; o comentário dele cita o fallback
 - [x] Os testes de `coverage` de hoje continuam passando
-- [ ] `Classify` com `-fps` em 22_22 e em 23_18, arrastando a seta Z: p99 abaixo de 2 ms
+- [x] `Classify` com `-fps` em 22_22 e em 23_18, arrastando a seta Z: p99 abaixo de 2 ms
 - [x] No app, no 23_18: o polígono fechado no topo da torre nasce com o piso perto do topo, não a −5376
 
 ## Comments
@@ -23,3 +23,5 @@ Implementado na branch `zo/01-terreno-como-camada` e integrado em `zona-oca-e-fa
 Smoke no 23_18: um polígono de 6 vértices no topo (BSP z 10083) nasce com `z 8464..11666 pelo chão da área`, e não mais com −5376. O piso fica em 8464 por causa dos pisos internos da torre a menos de 1024 do topo, risco que a spec já aceita (a saída é o D2).
 
 Evidências: `C:/Workspace/zone-builder-notes/zona-oca-e-faixa-pelo-clique/01-evidence/`.
+
+Na verificação integrada do ticket 05, o p99 do tile inteiro do 23_18 ficou em 1,822 ms, com até 960 amostras. O valor de 2,04 ms medido acima foi variação entre sessões de medida.
