@@ -94,6 +94,40 @@ func (r Report) Coverage() float64 {
 	return 0
 }
 
+// Sum is the report of a zone made of the shapes reported in rs, each
+// classified by its own Z range (spec D3): their areas summed, so floor
+// under 2 overlapping shapes counts twice ("soma dos shapes"), the lowest
+// and highest floor under any of them and the worst clearance of each
+// side. Shapes with no floor measured add their area with no ground and
+// nothing else.
+func Sum(rs ...Report) Report {
+	var z Report
+	for _, r := range rs {
+		z.Inside += r.Inside
+		z.Above += r.Above
+		z.Below += r.Below
+		z.NoGround += r.NoGround
+		if !r.Measured {
+			continue
+		}
+		if !z.Measured {
+			z.Measured = true
+			z.GroundMin, z.GroundMax = r.GroundMin, r.GroundMax
+			z.FloorClearance, z.TopClearance = r.FloorClearance, r.TopClearance
+			continue
+		}
+		if r.GroundMin.Z < z.GroundMin.Z {
+			z.GroundMin = r.GroundMin
+		}
+		if r.GroundMax.Z > z.GroundMax.Z {
+			z.GroundMax = r.GroundMax
+		}
+		z.FloorClearance = min(z.FloorClearance, r.FloorClearance)
+		z.TopClearance = min(z.TopClearance, r.TopClearance)
+	}
+	return z
+}
+
 // Measure clips the floor under outline o into its Profile. An outline of
 // fewer than 3 points, or of no area, has an empty profile.
 func Measure(f Floor, o Outline) *Profile {

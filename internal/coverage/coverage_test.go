@@ -164,3 +164,37 @@ func TestNotchCornerIsNotGround(t *testing.T) {
 		t.Errorf("inside %v, no ground %v, want 1250 and 28750", r.Inside, r.NoGround)
 	}
 }
+
+// A zone of 3 shapes over a ramp z = x: A, square (0, 0)-(100, 100) in
+// [0, 200], is all inside; B, square (100, 0)-(200, 100) in [150, 300],
+// has its half x < 150 below its floor; C, off the floor, has no ground.
+// The zone sums their areas (15 000 inside, 5 000 below, 10 000 with no
+// ground), its floor spans A's lowest 0 to B's highest 200, and its
+// clearances are the worst shape's: B's floor −50, A's top 100. Catches a
+// zone that keeps one shape's numbers, or lets C's unmeasured zero
+// extremes pull the zone's lowest floor.
+func TestZoneSumsShapesAndKeepsWorstExtremes(t *testing.T) {
+	ramp := func(x, y float32) geom.Vec3 { return v(x, y, x) }
+	a, b, c, d := ramp(-50, -50), ramp(250, -50), ramp(250, 250), ramp(-50, 250)
+	f := floor{tri(a, b, c), tri(a, c, d)}
+	z := coverage.Sum(
+		coverage.Measure(f, square(1000, 1000, 1100, 1100)).Classify(-10, 10),
+		coverage.Measure(f, square(0, 0, 100, 100)).Classify(0, 200),
+		coverage.Measure(f, square(100, 0, 200, 100)).Classify(150, 300),
+	)
+	if !z.Measured {
+		t.Fatal("zone with floor under 2 shapes not measured")
+	}
+	for _, c := range []struct {
+		name      string
+		got, want float64
+	}{
+		{"inside", z.Inside, 15000}, {"above", z.Above, 0}, {"below", z.Below, 5000}, {"no ground", z.NoGround, 10000},
+		{"lowest floor", z.GroundMin.Z, 0}, {"highest floor", z.GroundMax.Z, 200},
+		{"floor clearance", z.FloorClearance, -50}, {"top clearance", z.TopClearance, 100},
+	} {
+		if !near(c.got, c.want) {
+			t.Errorf("%s %v, want %v", c.name, c.got, c.want)
+		}
+	}
+}
