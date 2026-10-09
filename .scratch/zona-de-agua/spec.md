@@ -1,5 +1,15 @@
 Status: ready-for-agent
 
+## Resolução
+
+Tickets 01–04 e 06 entregues; o 05 (verificação em jogo) fica aberto para o usuário.
+
+- **01:** `scene.WaterVolume` lido das faces BSP do brush, com `unreal.ReadBrush`/`BrushTransform` e `Scale` aninhado em `l2pkg`. 674 volumes vivos em 202 tiles (os 673 da sonda mais `17_13_classic`).
+- **02:** `World.PickWater` (raio × poliedro convexo) e `World.WaterBody`; seleção em `cmd/zonebuilder/water.go`, com prismas no overlay e status `Água: N volumes · topo T (servidor T') · exata|aproximada`.
+- **03:** `internal/water`. Desvio de D5: a assinatura é `water.Compile(selected, live []scene.WaterVolume, doc *zone.Document) []Plan`, porque o aviso de sobreposição precisa dos volumes fora da seleção e o plano precisa do ID da zona existente ou de um novo. ADR 0005 com `water.ServerZOffset = -30`, **pendente da medição em jogo** (ticket 05).
+- **04:** `ui.ContextMenu` (o menu do projeto passou a usá-lo) e o item **Compilar zona de água**: 1 passo de desfazer, compila só as zonas da água, abre a janela de XML; status com os avisos e a nota dos 62 abaixo da água.
+- **06:** `GLOSSARY.md` (seção Água), `README.md` (seção Zona de água) e `docs/plan.md` (fato do `WaterVolume`, `internal/water` no fluxo e na estrutura).
+
 # Zona de água a partir do WaterVolume
 
 ## Problem Statement
