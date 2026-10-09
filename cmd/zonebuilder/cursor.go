@@ -75,8 +75,13 @@ func (c *cursorProbe) status(s *scene.World, cam *camera.Camera, viewport image.
 
 // pickAt picks s through viewport pixel p.
 func pickAt(s *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point) (scene.Hit, bool) {
+	return s.Pick(rayAt(s, cam, p, viewport))
+}
+
+// rayAt is the world ray through viewport pixel p, with a unit Dir.
+func rayAt(s *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point) scene.Ray {
 	o, d := cam.Ray(p.X, p.Y, viewport.X, viewport.Y)
-	return s.Pick(scene.Ray{Origin: worldPosition(s, o), Dir: scene.ToRender(d)})
+	return scene.Ray{Origin: worldPosition(s, o), Dir: scene.ToRender(d)}
 }
 
 func describeHit(h scene.Hit, ok bool) string {

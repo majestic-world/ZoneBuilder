@@ -174,11 +174,14 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		folders = make(chan string, 1)
 		probe   cursorProbe
 		zones   = newZoneEditor()
+		water   waterSelection
 		cover   = newFloorCoverage(w)
 		// zonesShown is the zones.version the renderer last got;
 		// groundShown is what its ground marking was last built for;
 		// groundMark was last built for groundBuilt.
 		zonesShown = -1
+		// waterShown is the water.version the renderer last got.
+		waterShown = -1
 		// lineShown is the profile the ground line along the current
 		// shape's walls came from when the zones were last sent.
 		lineShown   *coverage.Profile
@@ -214,7 +217,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 					return err
 				}
 				tiles.lostGPU()
-				zonesShown, groundShown = -1, groundKey{version: -1}
+				zonesShown, waterShown, groundShown = -1, -1, groundKey{version: -1}
 			}
 
 			for {
@@ -222,7 +225,8 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				if !ok {
 					break
 				}
-				if msg, used := zones.viewportEvent(tiles.world, &cam, ev, shell.Viewport.Size()); used {
+				msg, used := zones.viewportEvent(tiles.world, &cam, ev, shell.Viewport.Size())
+				if used {
 					if msg != "" {
 						status = msg
 					}
@@ -231,11 +235,18 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				}
 				switch e := ev.(type) {
 				case pointer.Event:
+					if e.Kind == pointer.Press {
+						water.pressTaken = used
+					}
 					if probe.handle(e) && tiles.world != nil {
 						probe.click, probe.clickHit = pickAt(tiles.world, &cam, e.Position, shell.Viewport.Size())
 						logClick(probe.click, probe.clickHit)
 						if msg := zones.click(tiles.world, cover, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit); msg != "" {
 							status = msg
+						} else if !zones.armed && !water.pressTaken {
+							if msg := water.click(tiles.world, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit, e.Modifiers.Contain(key.ModCtrl)); msg != "" {
+								status = msg
+							}
 						}
 					}
 				case key.Event:
@@ -247,6 +258,8 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 					if e.Name == key.NameEscape && e.State == key.Press {
 						if msg := zones.escape(); msg != "" {
 							status = msg
+						} else if water.clear() {
+							status = "Seleção de água limpa"
 						}
 					}
 				}
@@ -367,6 +380,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				tiles.world.HideMeshes = shell.Meshes.On
 				tiles.follow(worldPosition(tiles.world, cam.Position))
 			}
+			water.prune(tiles.world)
 			shell.Cursor, shell.Click = probe.status(tiles.world, &cam, shell.Viewport.Size())
 			shell.Tiles, shell.Warnings = loadedTiles(tiles)
 			shell.Zone.Info = zones.info()
@@ -427,9 +441,10 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			}
 			g.renderer.SetMeshesHidden(shell.Meshes.On)
 			uploading := tiles.sync(g.renderer, uploadBudget)
-			if line, from := cover.groundLine(zones, tiles.world); zonesShown != zones.version || lineShown != from || !samePinShapes(pins, pinsShown) {
-				g.renderer.SetZones(append(zones.overlay(line), pinShapes(pins)...))
-				zonesShown, lineShown, pinsShown = zones.version, from, pins
+			if line, from := cover.groundLine(zones, tiles.world); zonesShown != zones.version || waterShown != water.version || lineShown != from || !samePinShapes(pins, pinsShown) {
+				shapes := append(zones.overlay(line), pinShapes(pins)...)
+				g.renderer.SetZones(append(shapes, water.overlay(tiles.world)...))
+				zonesShown, waterShown, lineShown, pinsShown = zones.version, water.version, from, pins
 			}
 			if groundShown != groundBuilt {
 				g.renderer.SetGround(groundMark)
