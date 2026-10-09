@@ -56,7 +56,7 @@ var (
 
 // The metrics, in dp: cards, controls and the gaps between them.
 const (
-	cardRadius    = unit.Dp(14)
+	cardRadius    = unit.Dp(6)
 	controlRadius = unit.Dp(4)
 	controlHeight = unit.Dp(32)
 	iconSize      = unit.Dp(16)
