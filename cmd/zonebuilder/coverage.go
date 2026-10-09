@@ -11,6 +11,8 @@ import (
 	"gioui.org/app"
 
 	"zonebuilder/internal/coverage"
+	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
 	"zonebuilder/internal/zone"
@@ -67,6 +69,9 @@ type shapeCoverage struct {
 	report     coverage.Report
 	zmin, zmax int
 	classified *coverage.Profile
+	// ground is the floor line along the walls of lined's outline.
+	ground []geom.Vec3
+	lined  *coverage.Profile
 }
 
 func newFloorCoverage(win *app.Window) *floorCoverage {
@@ -183,6 +188,31 @@ func (c *floorCoverage) receive(e *zoneEditor) {
 	}
 }
 
+// groundLine is the floor line along the walls of e's current shape over
+// w (spec D4d), as segments in server coordinates, and the profile it
+// comes from. Both are nil while the shape's outline or scene is being
+// measured, so the line leaves while the outline is dragged and comes
+// back with the new measure.
+func (c *floorCoverage) groundLine(e *zoneEditor, w *scene.World) ([]geom.Vec3, *coverage.Profile) {
+	r, measuring, ok := c.current(e, w)
+	if !ok || measuring {
+		return nil, nil
+	}
+	s := c.shapes[shapeRef{e.zone, e.shape}]
+	if s.lined != s.profile {
+		s.ground = nil
+		for _, sp := range r.Edges {
+			for _, g := range sp {
+				s.ground = append(s.ground,
+					geom.Vec3{X: float32(g.From.X), Y: float32(g.From.Y), Z: float32(g.From.Z)},
+					geom.Vec3{X: float32(g.To.X), Y: float32(g.To.Y), Z: float32(g.To.Z)})
+			}
+		}
+		s.lined = s.profile
+	}
+	return s.ground, s.profile
+}
+
 // inspector is the inspector's coverage lines for e's current shape over
 // w, "" when there is none.
 func (c *floorCoverage) inspector(e *zoneEditor, w *scene.World) string {
@@ -193,7 +223,7 @@ func (c *floorCoverage) inspector(e *zoneEditor, w *scene.World) string {
 		}
 		return ""
 	}
-	return coverageText("Cobertura do chão (terreno)", "Nenhum chão medido sob o shape", r, measuring)
+	return coverageText("Cobertura do chão", "Nenhum chão medido sob o shape", r, measuring)
 }
 
 // rulerRows is how many histogram bars the height window's ruler draws
@@ -302,6 +332,7 @@ func coverageText(title, none string, r coverage.Report, measuring bool) string 
 			fmt.Sprintf("Chão mais baixo: %d %d %d", roundF(lo.X), roundF(lo.Y), roundF(lo.Z)),
 			fmt.Sprintf("Chão mais alto: %d %d %d", roundF(hi.X), roundF(hi.Y), roundF(hi.Z)),
 			fmt.Sprintf("Folga do piso: %s · folga do topo: %s", units(roundF(r.FloorClearance)), units(roundF(r.TopClearance))),
+			"Chão em "+inflect.Count(r.Layers, "camada", "camadas"),
 		)
 	} else {
 		lines = append(lines, none)
