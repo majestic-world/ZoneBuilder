@@ -6,6 +6,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/ui/icon"
 	"zonebuilder/internal/zone"
 )
@@ -79,8 +80,8 @@ func requested(gtx layout.Context, e *widget.Editor, b *widget.Clickable) bool {
 func (s *Shell) editPanel() []layout.FlexChild {
 	p := &s.Edit
 	children := []layout.FlexChild{
-		layout.Rigid(s.section(false, icon.Ruler, "Edição", "")),
-		layout.Rigid(s.fieldLabel("Folga Z da faixa sugerida")),
+		layout.Rigid(s.section(false, icon.Ruler, locale.Text(s.Language, "ui.edit.title"), "")),
+		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.edit.margin"))),
 		layout.Rigid(s.field(&p.Margin, strconv.Itoa(zone.DefaultZMargin), nil)),
 	}
 	if p.Shape != "" {
@@ -88,20 +89,20 @@ func (s *Shell) editPanel() []layout.FlexChild {
 			layout.Rigid(s.dimLabel(p.Shape)),
 			layout.Rigid(s.dimLabel(p.Measure)),
 			layout.Rigid(s.dimLabel(p.Coverage)),
-			layout.Rigid(s.fieldLabel("Faixa Z: zmin zmax")),
-			layout.Rigid(s.fieldButton(&p.ZRange, "zmin zmax", nil, s.button(&p.SetZRange, secondaryButton, nil, "Aplicar"))),
-			layout.Rigid(s.spaced(s.fullButton(&p.GroundZ, secondaryButton, icon.Mountain, "Recalcular pelo chão"))),
-			layout.Rigid(s.fieldLabel("Mover shape: dx dy dz")),
-			layout.Rigid(s.fieldButton(&p.Offset, "dx dy dz", nil, s.button(&p.MoveShape, secondaryButton, icon.Move, "Mover"))),
+			layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.edit.z_range"))),
+			layout.Rigid(s.fieldButton(&p.ZRange, "zmin zmax", nil, s.button(&p.SetZRange, secondaryButton, nil, locale.Text(s.Language, "ui.edit.apply")))),
+			layout.Rigid(s.spaced(s.fullButton(&p.GroundZ, secondaryButton, icon.Mountain, locale.Text(s.Language, "ui.edit.ground")))),
+			layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.edit.move_label"))),
+			layout.Rigid(s.fieldButton(&p.Offset, "dx dy dz", nil, s.button(&p.MoveShape, secondaryButton, icon.Move, locale.Text(s.Language, "ui.edit.move")))),
 		)
 	}
 	if p.Vertex != "" {
 		children = append(children,
 			layout.Rigid(s.fieldLabel(p.Vertex)),
-			layout.Rigid(s.fieldButton(&p.Coords, "x y z", nil, s.button(&p.SetCoords, secondaryButton, nil, "Aplicar"))),
+			layout.Rigid(s.fieldButton(&p.Coords, "x y z", nil, s.button(&p.SetCoords, secondaryButton, nil, locale.Text(s.Language, "ui.edit.apply")))),
 			layout.Rigid(buttonRow(
-				s.button(&p.InsertAfter, secondaryButton, icon.Plus, "Inserir na aresta"),
-				s.button(&p.RemoveVertex, dangerButton, icon.Trash2, "Apagar vértice"),
+				s.button(&p.InsertAfter, secondaryButton, icon.Plus, locale.Text(s.Language, "ui.edit.insert")),
+				s.button(&p.RemoveVertex, dangerButton, icon.Trash2, locale.Text(s.Language, "ui.edit.remove_vertex")),
 			)),
 		)
 	}

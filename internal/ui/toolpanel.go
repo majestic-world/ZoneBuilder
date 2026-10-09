@@ -11,6 +11,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/ui/icon"
 )
 
@@ -37,18 +38,18 @@ var shapeTools = []Tool{ToolPolygon, ToolRectangle, ToolCircle}
 // IsShape reports whether t draws a shape (rather than placing points).
 func (t Tool) IsShape() bool { return t <= ToolCircle }
 
-func (t Tool) label() string {
+func (t Tool) label(language locale.Language) string {
 	switch t {
 	case ToolPolygon:
-		return "Polígono"
+		return locale.Text(language, "ui.tool.polygon")
 	case ToolRectangle:
-		return "Retângulo"
+		return locale.Text(language, "ui.tool.rectangle")
 	case ToolCircle:
-		return "Círculo"
+		return locale.Text(language, "ui.tool.circle")
 	case ToolRestart:
-		return "Restart"
+		return locale.Text(language, "ui.tool.restart")
 	case ToolPKRestart:
-		return "PK restart"
+		return locale.Text(language, "ui.tool.pk_restart")
 	}
 	return "?"
 }
@@ -109,20 +110,20 @@ func (s *Shell) dock(gtx layout.Context) layout.Dimensions {
 		c := &p.buttons[t]
 		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return c.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return s.dockButton(gtx, t.icon(), t.label(), p.Active && p.Armed == t, false, c.Hovered())
+				return s.dockButton(gtx, t.icon(), t.label(s.Language), p.Active && p.Armed == t, false, c.Hovered())
 			})
 		})
 	}
 	children := []layout.FlexChild{tool(ToolPolygon), tool(ToolRectangle), tool(ToolCircle),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.WholeTile.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return s.dockButton(gtx, icon.Grid2x2, "Tile inteiro", false, false, p.WholeTile.Hovered())
+				return s.dockButton(gtx, icon.Grid2x2, locale.Text(s.Language, "ui.tool.whole_tile"), false, false, p.WholeTile.Hovered())
 			})
 		}),
 		layout.Rigid(dockDivider),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.Banned.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return s.dockButton(gtx, icon.SquareDashed, "Exclusão", false, p.Banned.Value, p.Banned.Hovered())
+				return s.dockButton(gtx, icon.SquareDashed, locale.Text(s.Language, "ui.tool.exclusion"), false, p.Banned.Value, p.Banned.Hovered())
 			})
 		}),
 		layout.Rigid(dockDivider),
@@ -136,7 +137,7 @@ func (s *Shell) dock(gtx layout.Context) layout.Dimensions {
 // dockButton is one dock tile: the icon over its name, solid violet while
 // armed, tinted while switched on.
 func (s *Shell) dockButton(gtx layout.Context, ic *icon.Icon, name string, armed, on, hovered bool) layout.Dimensions {
-	size := image.Pt(gtx.Dp(64), gtx.Dp(54))
+	size := image.Pt(gtx.Dp(76), gtx.Dp(54))
 	bg, border, ink := color.NRGBA{}, color.NRGBA{}, dimText
 	switch {
 	case armed:
@@ -150,14 +151,14 @@ func (s *Shell) dockButton(gtx layout.Context, ic *icon.Icon, name string, armed
 	n := gtx.Dp(20)
 	at(gtx, image.Pt((size.X-n)/2, gtx.Dp(9)), func(gtx layout.Context) layout.Dimensions { return ic.Layout(gtx, 20, ink) })
 	call, txt := measure(gtx, s.text(name, captionSize, font.Medium, ink, 1))
-	place(gtx, image.Pt((size.X-txt.X)/2, gtx.Dp(34)), call)
+	place(gtx, image.Pt(max(0, (size.X-txt.X)/2), gtx.Dp(34)), call)
 	pointerCursor(gtx, size)
 	return layout.Dimensions{Size: size}
 }
 
 // dockDivider is the hairline between the dock's groups.
 func dockDivider(gtx layout.Context) layout.Dimensions {
-	size := image.Pt(gtx.Dp(64), gtx.Dp(13))
+	size := image.Pt(gtx.Dp(76), gtx.Dp(13))
 	at(gtx, image.Pt(gtx.Dp(14), gtx.Dp(6)), func(gtx layout.Context) layout.Dimensions {
 		line := image.Pt(size.X-gtx.Dp(28), gtx.Dp(1))
 		paint.FillShape(gtx.Ops, hairline, clip.Rect{Max: line}.Op())
