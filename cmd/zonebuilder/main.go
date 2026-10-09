@@ -181,7 +181,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		zonesShown = -1
 		// lineShown is the profile the ground line along the current
 		// shape's walls came from when the zones were last sent.
-		lineShown *coverage.Profile
+		lineShown   *coverage.Profile
 		groundShown = groundKey{version: -1}
 		groundBuilt = groundKey{version: -1}
 		groundMark  render.Ground
@@ -380,11 +380,11 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			if rows, ok := zones.problemRows(); ok {
 				shell.Problems.Rows = rows
 			}
-			if msg := zones.panel(gtx, &shell.Edit, tiles.world); msg != "" {
+			if msg := zones.panel(gtx, &shell.Edit, tiles.world, cover); msg != "" {
 				status = msg
 			}
 			shell.Edit.Coverage = cover.inspector(zones, tiles.world)
-			if msg := zones.heightPanel(gtx, &shell.Height); msg != "" {
+			if msg := zones.heightPanel(gtx, &shell.Height, tiles.world, cover); msg != "" {
 				status = msg
 			}
 			cover.heightWindow(zones, tiles.world, &shell.Height)

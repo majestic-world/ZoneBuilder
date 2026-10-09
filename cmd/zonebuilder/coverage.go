@@ -65,8 +65,10 @@ type shapeCoverage struct {
 	profile *coverage.Profile
 	// hist is profile's floor area by Z, for the height window's ruler.
 	hist coverage.Histogram
-	// report is profile classified by [zmin, zmax].
+	// report is profile classified by [zmin, zmax]; fit is the floor
+	// that range should span (coverage.Profile.Ground).
 	report     coverage.Report
+	fit        coverage.Ground
 	zmin, zmax int
 	classified *coverage.Profile
 	// ground is the floor line along the walls of lined's outline.
@@ -131,7 +133,7 @@ func (c *floorCoverage) shape(e *zoneEditor, w *scene.World, id zone.ZoneID, i i
 		return coverage.Report{}, false, false
 	}
 	ref := shapeRef{id, i}
-	key := coverageKey{shape: ref, outline: outlineKey(pts), world: w, scenes: scenesKey(w), hideMeshes: w.HideMeshes}
+	key := newCoverageKey(ref, pts, w)
 	s := c.shapes[ref]
 	if (s == nil || key != s.done) && !c.running {
 		c.start(key, pts, w)
@@ -142,8 +144,46 @@ func (c *floorCoverage) shape(e *zoneEditor, w *scene.World, id zone.ZoneID, i i
 	zmin, zmax := e.shownZRange(id, i, sh)
 	if s.classified != s.profile || zmin != s.zmin || zmax != s.zmax {
 		s.report, s.classified, s.zmin, s.zmax = s.profile.Classify(float64(zmin), float64(zmax)), s.profile, zmin, zmax
+		s.fit = s.profile.Ground(float64(zmin), float64(zmax))
 	}
 	return s.report, key != s.done, true
+}
+
+// newCoverageKey is the key of shape ref's profile for outline pts over w.
+func newCoverageKey(ref shapeRef, pts []zone.Point, w *scene.World) coverageKey {
+	return coverageKey{shape: ref, outline: outlineKey(pts), world: w, scenes: scenesKey(w), hideMeshes: w.HideMeshes}
+}
+
+// profileNow is the floor profile of shape i of zone id over w, for its
+// outline as shown: the one kept when it is up to date, else measured on
+// the spot and kept, so a click that fits a Z range to the floor never
+// reads a stale outline's profile (spec D5). nil for a shape with no
+// outline.
+func (c *floorCoverage) profileNow(e *zoneEditor, w *scene.World, id zone.ZoneID, i int, sh zone.Shape) *coverage.Profile {
+	c.receive(e)
+	pts := outline(sh.Kind, e.shownPoints(id, i, sh.Points))
+	if len(pts) < 3 {
+		return nil
+	}
+	ref := shapeRef{id, i}
+	key := newCoverageKey(ref, pts, w)
+	if s := c.shapes[ref]; s != nil && s.done == key {
+		return s.profile
+	}
+	began := time.Now()
+	p := coverage.Measure(w, coverageOutline(pts))
+	log.Printf("cobertura: perfil do shape %d medido na hora em %v", i+1, time.Since(began).Round(time.Millisecond))
+	c.shapes[ref] = &shapeCoverage{done: key, profile: p, hist: p.Histogram()}
+	return p
+}
+
+// coverageOutline is pts on the X/Y plane.
+func coverageOutline(pts []zone.Point) coverage.Outline {
+	o := make(coverage.Outline, len(pts))
+	for i, p := range pts {
+		o[i] = coverage.Point{X: float64(p.X), Y: float64(p.Y)}
+	}
+	return o
 }
 
 // start measures key's profile in the background, on a world of the same
@@ -155,10 +195,7 @@ func (c *floorCoverage) start(key coverageKey, pts []zone.Point, w *scene.World)
 		snap.Add(s)
 	}
 	snap.HideMeshes = w.HideMeshes
-	o := make(coverage.Outline, len(pts))
-	for i, p := range pts {
-		o[i] = coverage.Point{X: float64(p.X), Y: float64(p.Y)}
-	}
+	o := coverageOutline(pts)
 	c.running = true
 	go func() {
 		began := time.Now()
@@ -214,7 +251,8 @@ func (c *floorCoverage) groundLine(e *zoneEditor, w *scene.World) ([]geom.Vec3, 
 }
 
 // inspector is the inspector's coverage lines for e's current shape over
-// w, "" when there is none.
+// w, "" when there is none: the report, then the floor layers the range
+// rule leaves out (spec D5).
 func (c *floorCoverage) inspector(e *zoneEditor, w *scene.World) string {
 	r, measuring, ok := c.current(e, w)
 	if !ok {
@@ -223,7 +261,36 @@ func (c *floorCoverage) inspector(e *zoneEditor, w *scene.World) string {
 		}
 		return ""
 	}
-	return coverageText("Cobertura do chão", "Nenhum chão medido sob o shape", r, measuring)
+	text := coverageText("Cobertura do chão", "Nenhum chão medido sob o shape", r, measuring)
+	if others := c.shapes[shapeRef{e.zone, e.shape}].fit.Others; len(others) > 0 {
+		text += "\n" + othersText(others)
+	}
+	return text
+}
+
+// othersShown is the most left-out layers the inspector lists by Z.
+const othersShown = 4
+
+// othersText names the floor layers left out of a Z range's fit, with
+// the Z of the first othersShown: "Outra camada: z 3256" or "Outras
+// camadas: 2 (z 3256; z 4000 … 4120)".
+func othersText(others []coverage.Layer) string {
+	var zs []string
+	for _, l := range others[:min(len(others), othersShown)] {
+		lo, hi := int(math.Floor(l.Low)), int(math.Ceil(l.High))
+		if hi == lo {
+			zs = append(zs, fmt.Sprintf("z %d", lo))
+		} else {
+			zs = append(zs, fmt.Sprintf("z %d … %d", lo, hi))
+		}
+	}
+	if len(others) == 1 {
+		return "Outra camada: " + zs[0]
+	}
+	if len(others) > othersShown {
+		zs = append(zs, "…")
+	}
+	return fmt.Sprintf("Outras camadas: %d (%s)", len(others), strings.Join(zs, "; "))
 }
 
 // rulerRows is how many histogram bars the height window's ruler draws

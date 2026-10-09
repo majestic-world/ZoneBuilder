@@ -172,9 +172,9 @@ func (e *zoneEditor) grabArrow(ev pointer.Event) bool {
 }
 
 // heightPanel handles the floating height window's requests and fills its
-// fields for the selected zone. It returns the status line, "" to keep the
-// current one.
-func (e *zoneEditor) heightPanel(gtx layout.Context, p *ui.HeightPanel) string {
+// fields for the selected zone, fitting it to the floor of s by c's
+// profiles. It returns the status line, "" to keep the current one.
+func (e *zoneEditor) heightPanel(gtx layout.Context, p *ui.HeightPanel, s *scene.World, c *floorCoverage) string {
 	var msg string
 	p.ReopenRequested(gtx)
 	e.step = p.StepZ()
@@ -189,6 +189,12 @@ func (e *zoneEditor) heightPanel(gtx layout.Context, p *ui.HeightPanel) string {
 	}
 	if p.HeightRequested(gtx) {
 		msg = e.setZoneHeight(p.Height.Text())
+	}
+	if p.FloorToGround.Clicked(gtx) {
+		msg = e.zoneToGround(c, s, false)
+	}
+	if p.TopToGround.Clicked(gtx) {
+		msg = e.zoneToGround(c, s, true)
 	}
 	z, base, top, ok := e.zoneZ()
 	p.Zone = ""
