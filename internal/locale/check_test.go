@@ -87,7 +87,7 @@ func TestCatalogCheckerRejectsDynamicKeysAndUntranslatedFutureArea(t *testing.T)
 		{"missing future key", `locale.Text(locale.En, "future.title")`, "future.title"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			source := fstest.MapFS{"future/main.go": {Data: []byte("package future\nimport \"zonebuilder/internal/locale\"\nfunc show(key, suffix string) { " + tc.code + " }")}}
+			source := fstest.MapFS{"future/main.go": {Data: []byte("package future\nimport \"zonebuilder/internal/locale\"\nfunc show(key, suffix string) { _ = " + tc.code + " }")}}
 			if err := locale.Check(catalogs, source); err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Errorf("Check() = %v, want %q", err, tc.want)
 			}
