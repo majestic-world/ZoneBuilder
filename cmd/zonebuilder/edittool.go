@@ -36,6 +36,9 @@ type editState struct {
 	sel vertexRef
 	// margin is the Z margin of suggested ranges (the panel's Folga Z).
 	margin int
+	// fromVertices is the panel's Faixa nova: new polygons, rectangles
+	// and circles take their range from the clicked points alone.
+	fromVertices bool
 	// step is how far Subir/Descer and PageUp/PageDown move the zone.
 	step int
 	drag drag
@@ -530,6 +533,8 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World, 
 	if m, err := strconv.Atoi(strings.TrimSpace(p.Margin.Text())); err == nil && m >= 0 {
 		e.margin = m
 	}
+	p.ApplyFrom(gtx)
+	e.fromVertices = p.FromVertices
 	if p.ZRangeRequested(gtx) {
 		msg = e.setZRange(p.ZRange.Text())
 	}

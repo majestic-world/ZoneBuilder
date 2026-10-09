@@ -21,6 +21,12 @@ type EditPanel struct {
 	// Margin is how far the suggested Z range reaches past the vertices
 	// or the ground under them (zone.DefaultZMargin unless changed).
 	Margin widget.Editor
+	// FromVertices picks where a new polygon, rectangle or circle takes
+	// its Z range from: the clicked points alone (zone.SuggestZRange)
+	// instead of the floor under its area. PrevFrom and NextFrom step
+	// between the 2. The whole tile ignores it.
+	FromVertices       bool
+	PrevFrom, NextFrom widget.Clickable
 	// Shape titles the current shape's controls; empty hides them.
 	// Measure is the shape's size on the ground under it; Coverage, one
 	// line per row, is how its Z range covers the floor under it.
@@ -61,6 +67,17 @@ func (p *EditPanel) CoordsRequested(gtx layout.Context) bool {
 	return requested(gtx, &p.Coords, &p.SetCoords)
 }
 
+// ApplyFrom applies clicks on the new range source's arrows since the
+// last call.
+func (p *EditPanel) ApplyFrom(gtx layout.Context) {
+	for p.PrevFrom.Clicked(gtx) {
+		p.FromVertices = !p.FromVertices
+	}
+	for p.NextFrom.Clicked(gtx) {
+		p.FromVertices = !p.FromVertices
+	}
+}
+
 // requested reports a click on b or Enter in e since the last call.
 func requested(gtx layout.Context, e *widget.Editor, b *widget.Clickable) bool {
 	ok := b.Clicked(gtx)
@@ -75,14 +92,21 @@ func requested(gtx layout.Context, e *widget.Editor, b *widget.Clickable) bool {
 	}
 }
 
-// editPanel is the inspector's last section: the Z margin, then the
-// current shape's Z range and move, then the selected vertex.
+// editPanel is the inspector's last section: the Z margin and the new
+// range source, then the current shape's Z range and move, then the
+// selected vertex.
 func (s *Shell) editPanel() []layout.FlexChild {
 	p := &s.Edit
+	from := locale.Text(s.Language, "ui.edit.new_range.ground")
+	if p.FromVertices {
+		from = locale.Text(s.Language, "ui.edit.new_range.vertices")
+	}
 	children := []layout.FlexChild{
 		layout.Rigid(s.section(false, icon.Ruler, locale.Text(s.Language, "ui.edit.title"), "")),
 		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.edit.margin"))),
 		layout.Rigid(s.field(&p.Margin, strconv.Itoa(zone.DefaultZMargin), nil)),
+		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.edit.new_range"))),
+		layout.Rigid(s.stepper(&p.PrevFrom, &p.NextFrom, nil, from)),
 	}
 	if p.Shape != "" {
 		children = append(children,
