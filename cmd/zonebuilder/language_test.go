@@ -112,7 +112,7 @@ func TestSessionKeepsChoiceAndDisplaysLocalizedFailure(t *testing.T) {
 	shell := ui.NewShell(ui.NewTheme(), "", "")
 	warning := sess.chooseLanguage(shell, locale.En)
 	if sess.cfg.Language != locale.En || shell.Language != locale.En { t.Fatal("failed save reverted session language") }
-	if !strings.Contains(warning, locale.Text(locale.En, "app.preference.unsaved")) || !strings.Contains(warning, "occupied") {
+	if !strings.Contains(warning, "Could not save the language preference; your choice applies only to this session.") || !strings.Contains(warning, "occupied") {
 		t.Fatalf("warning does not include localized message and original error: %q", warning)
 	}
 }

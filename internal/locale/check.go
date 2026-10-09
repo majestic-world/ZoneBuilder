@@ -11,8 +11,8 @@ import (
 	"strings"
 )
 
-// Verify checks embedded catalogs and literal message keys used in Go source.
-// Run it from the package test against the repository root when adding areas.
+// Verify checks embedded catalogs and message keys used in Go source.
+// Dynamic keys are rejected so new areas cannot evade coverage.
 func Verify(source fs.FS) error {
 	catalogs, err := fs.Sub(bundled, "catalog")
 	if err != nil {
@@ -21,8 +21,8 @@ func Verify(source fs.FS) error {
 	return Check(catalogs, source)
 }
 
-// Check validates discovered area pairs and literal locale calls against a
-// source tree. Passing separate filesystems permits malformed-catalog tests.
+// Check validates discovered area pairs and locale calls against a source
+// tree. Passing separate filesystems permits malformed-catalog tests.
 func Check(catalogs, source fs.FS) error {
 	messages, err := loadCatalogs(catalogs)
 	if err != nil {
@@ -78,30 +78,22 @@ func Check(catalogs, source fs.FS) error {
 				}
 				invalid = checkLiteralKey(n.Args[1], kind == "Plural", messages, name)
 			case *ast.CompositeLit:
-				selector, ok := n.Type.(*ast.SelectorExpr)
-				if !ok || selector.Sel.Name != "Message" || !isLocaleSelector(selector, aliases) {
-					return true
-				}
-				plural := false
-				var key ast.Expr
-				for _, element := range n.Elts {
-					field, ok := element.(*ast.KeyValueExpr)
-					if !ok {
-						continue
+				if isMessageType(n.Type, aliases) {
+					invalid = checkMessageLiteral(n, messages, name)
+				} else if mapType, ok := n.Type.(*ast.MapType); ok && isMessageType(mapType.Value, aliases) {
+					for _, element := range n.Elts {
+						field, ok := element.(*ast.KeyValueExpr)
+						if !ok {
+							continue
+						}
+						value, ok := field.Value.(*ast.CompositeLit)
+						if ok && value.Type == nil {
+							invalid = checkMessageLiteral(value, messages, name)
+							if invalid != nil {
+								break
+							}
+						}
 					}
-					id, ok := field.Key.(*ast.Ident)
-					if !ok {
-						continue
-					}
-					if id.Name == "Key" {
-						key = field.Value
-					} else if id.Name == "Plural" {
-						literal, ok := field.Value.(*ast.Ident)
-						plural = ok && literal.Name == "true"
-					}
-				}
-				if key != nil {
-					invalid = checkLiteralKey(key, plural, messages, name)
 				}
 			}
 			return invalid == nil
@@ -115,10 +107,41 @@ func isLocaleSelector(selector *ast.SelectorExpr, aliases map[string]bool) bool 
 	return ok && aliases[id.Name]
 }
 
+func isMessageType(expr ast.Expr, aliases map[string]bool) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	return ok && selector.Sel.Name == "Message" && isLocaleSelector(selector, aliases)
+}
+
+func checkMessageLiteral(message *ast.CompositeLit, messages map[Language]map[string]entry, file string) error {
+	var key ast.Expr
+	plural := false
+	for _, element := range message.Elts {
+		field, ok := element.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		id, ok := field.Key.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		switch id.Name {
+		case "Key":
+			key = field.Value
+		case "Plural":
+			literal, ok := field.Value.(*ast.Ident)
+			plural = ok && literal.Name == "true"
+		}
+	}
+	if key != nil {
+		return checkLiteralKey(key, plural, messages, file)
+	}
+	return nil // A zero-value Message represents the absence of a status.
+}
+
 func checkLiteralKey(expr ast.Expr, plural bool, messages map[Language]map[string]entry, file string) error {
 	literal, ok := expr.(*ast.BasicLit)
 	if !ok || literal.Kind != token.STRING {
-		return nil
+		return fmt.Errorf("locale: %s: dynamic key; use a literal key in each call or Message", file)
 	}
 	key, err := strconv.Unquote(literal.Value)
 	if err != nil {

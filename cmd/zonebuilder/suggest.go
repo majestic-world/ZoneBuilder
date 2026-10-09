@@ -37,8 +37,6 @@ type zSuggestion struct {
 // note says, for the status line, where z's range came from.
 func (z zSuggestion) note() string { return z.noteFor(locale.PtBR) }
 
-func (z zSuggestion) sourceKey() string { return z.sourceMessage().Key }
-
 func (z zSuggestion) sourceMessage() locale.Message {
 	switch z.from {
 	case zByFloor:

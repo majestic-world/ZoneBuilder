@@ -83,17 +83,29 @@ func Plural(language Language, key string, count int, args map[string]string) st
 type Message struct {
 	Key    string
 	Args   map[string]string
+	// Parts are retained submessages interpolated into a complete message.
+	Parts  map[string]Message
 	Count  int
 	Plural bool
 }
 
 // Render presents a retained message in the selected language.
 func (message Message) Render(language Language) string {
-	if message.Plural {
-		return Plural(language, message.Key, message.Count, message.Args)
+	args := message.Args
+	if len(message.Parts) != 0 {
+		args = make(map[string]string, len(message.Args)+len(message.Parts))
+		for name, value := range message.Args {
+			args[name] = value
+		}
+		for name, part := range message.Parts {
+			args[name] = part.Render(language)
+		}
 	}
-	if len(message.Args) != 0 {
-		return Format(language, message.Key, message.Args)
+	if message.Plural {
+		return Plural(language, message.Key, message.Count, args)
+	}
+	if len(args) != 0 {
+		return Format(language, message.Key, args)
 	}
 	return Text(language, message.Key)
 }

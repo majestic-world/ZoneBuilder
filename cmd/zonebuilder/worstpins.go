@@ -39,14 +39,6 @@ func worstPins(r coverage.Report) []worstPin {
 	}
 }
 
-// signed writes n as units does, always with its sign.
-func signed(n int) string {
-	if n < 0 {
-		return "−" + units(-n)
-	}
-	return "+" + units(n)
-}
-
 func (p worstPin) label(lang locale.Language) string {
 	value := locale.Number(lang, float64(abs(p.clearance)), 0)
 	if p.clearance < 0 {
@@ -140,15 +132,12 @@ func pinLabels(pins []worstPin, s *scene.World, cam *camera.Camera, vp image.Poi
 	return labels
 }
 
-// goToPin frames pin p like a problem's vertex (pointBox); it returns the
-// status line.
-func goToPin(p worstPin, s *scene.World, cam *camera.Camera, lang locale.Language) string {
-	pt := p.point()
-	msg := pinStatus(p, lang)
+// goToPin frames pin p like a problem's vertex (pointBox).
+func goToPin(p worstPin, s *scene.World, cam *camera.Camera, lang locale.Language) {
 	if s == nil {
-		return msg
+		return
 	}
+	pt := p.point()
 	cam.Frame(pointBox(s, pt))
 	log.Printf("zona: câmera no pior ponto %d %d %d (%s): %s", pt.X, pt.Y, pt.Z, p.label(lang), formatPose(cam, s))
-	return msg
 }

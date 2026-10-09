@@ -2,9 +2,9 @@
 
 **What to build:** guardar `pt-BR`/`en` em configuração do usuário; ausência/inválido -> pt-BR. O loop da janela controla o idioma, oferece seletor PT-BR / EN compacto, acessível e sempre visível no alto fora do inspetor, com opção ativa evidente. Persistir imediatamente, preservar idioma da sessão e mostrar aviso localizado se escrita falhar. Nunca alterar projeto, XML, foco/editor, seleção, ferramenta, janelas, rolagem nem disparar trabalho ao alternar. Facilitar apresentação reativa no `Shell` sem recriar widgets. Contrato compartilhado com 01: `locale.Language` (`string`), constantes `locale.PtBR`/`locale.En`, função `locale.Normalize(string) Language`; o seletor pode avançar em paralelo.
 
-**Blocked by:** None (can start immediately; shared locale contract above)
+Blocked by: None
 
-**Status:** resolved
+Status: resolved
 
 - [x] Configuração antiga, escolha reaberta, inválido e falha de gravação cobertos com arquivos temporários.
 - [x] Troca pt-BR → en → pt-BR atualiza controle sem modificar estado de edição nem marcar documento como sujo.
@@ -14,4 +14,4 @@
 
 - Preferência exclusiva de `project.Config`, com restauração normalizada e gravação imediata; testes de arquivos temporários cobrem ausência, formato antigo, inválido, reabertura e erro de escrita.
 - `Shell.Language` altera a apresentação no mesmo Shell; o seletor PT-BR / EN é um cartão compacto sob a marca, fora da rolagem do inspetor, com botão ativo destacado e área de eventos restrita ao cartão. Teste de layout 1280×800 e preservação de campos/estado preparado.
-- O loop processa a escolha sem tocar documento, histórico ou renderer. Se a gravação falha, mantém a escolha em memória e exibe `locale.Text(lang, "app.preference.unsaved")` com o erro original. Verificações automatizadas e inspeção visual ficam para a integração, conforme coordenação.
+- O loop processa a escolha sem tocar documento, histórico ou renderer. Se a gravação falha, mantém a escolha em memória e exibe `actions.preference.unsaved` com o erro original. Verificações automatizadas e inspeção visual ficam para a integração, conforme coordenação.

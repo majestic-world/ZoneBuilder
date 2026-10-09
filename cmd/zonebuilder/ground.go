@@ -3,7 +3,6 @@ package main
 import (
 	"image"
 	"math"
-	"strconv"
 
 	"gioui.org/f32"
 
@@ -126,14 +125,3 @@ func measure(lang locale.Language, pts []zone.Point) string {
 	})
 }
 
-// units writes n with a dot between thousands, as pt-BR does.
-func units(n int) string {
-	s := strconv.Itoa(abs(n))
-	for i := len(s) - 3; i > 0; i -= 3 {
-		s = s[:i] + "." + s[i:]
-	}
-	if n < 0 {
-		return "-" + s
-	}
-	return s
-}

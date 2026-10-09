@@ -2,9 +2,9 @@
 
 **What to build:** localizar todos os textos exibidos produzidos pelo `zoneEditor` em `cmd/zonebuilder` (`shapetool.go`, `zonetool.go`, `edittool.go`, `suggest.go`, `ground.go`, `zonelist.go`, `zarrow.go`, `worstpins.go` e auxiliares correlatos): desenho, exclusões, seleção, ajuste ao chão, undo/redo, instrução da ferramenta e ações do viewport. Guardar mensagens como chave e dados até a apresentação no idioma corrente, sem alterar geometria nem o andamento de desenho/medição; dados de usuário e tokens do servidor literais. Evitar editar `main.go` e os arquivos do ticket 05; combine o contrato de apresentação com ele.
 
-**Blocked by:** 01, 02
+Blocked by: 01, 02
 
-**Status:** resolved
+Status: resolved
 
 - [x] Troca durante polígono ou medição preserva andamento e instrução muda imediatamente.
 - [x] Mensagens anteriores ainda visíveis reformatam; ações não são repetidas.

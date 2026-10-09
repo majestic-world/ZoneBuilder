@@ -64,10 +64,8 @@ func (e *zoneEditor) hint() string {
 	if !e.armed {
 		return ""
 	}
-	return locale.Text(e.Language, e.hintKey())
+	return e.hintMessage().Render(e.Language)
 }
-
-func (e *zoneEditor) hintKey() string { return e.hintMessage().Key }
 
 func (e *zoneEditor) hintMessage() locale.Message {
 	switch e.tool {
@@ -147,11 +145,11 @@ func (e *zoneEditor) rectangleClick(s *scene.World, c *floorCoverage, v zone.Poi
 		what = "Exclusão retangular"
 	}
 	log.Printf("zona: %s: %s %d %d … %d %d, z %d..%d %s", z.Name, what, a.X, a.Y, v.X, v.Y, fit.zmin, fit.zmax, fit.note())
-	args := shapeArgs(e.Language, z.Name, a, v, fit)
+	args := shapeArgs(z.Name, a, v, fit)
 	if e.banned {
-		return e.present(locale.Message{Key: "editor.rectangle.exclusion_done", Args: args})
+		return e.present(locale.Message{Key: "editor.rectangle.exclusion_done", Args: args, Parts: map[string]locale.Message{"source": fit.sourceMessage()}})
 	}
-	return e.present(locale.Message{Key: "editor.rectangle.done", Args: args})
+	return e.present(locale.Message{Key: "editor.rectangle.done", Args: args, Parts: map[string]locale.Message{"source": fit.sourceMessage()}})
 }
 
 // wholeTile adds to the selected zone a polygon over tile t's whole square,
@@ -190,12 +188,12 @@ func (e *zoneEditor) wholeTile(c *floorCoverage, w *scene.World, t scene.Tile, s
 		what = "Exclusão do tile inteiro"
 	}
 	log.Printf("zona: %s: %s %s: %d %d … %d %d, z %d..%d %s", z.Name, what, t.Name(), x0, y0, x1, y1, fit.zmin, fit.zmax, fit.note())
-	args := shapeArgs(e.Language, z.Name, pts[0], pts[2], fit)
+	args := shapeArgs(z.Name, pts[0], pts[2], fit)
 	args["tile"] = t.Name()
 	if banned {
-		return e.present(locale.Message{Key: "editor.tile.exclusion_done", Args: args})
+		return e.present(locale.Message{Key: "editor.tile.exclusion_done", Args: args, Parts: map[string]locale.Message{"source": fit.sourceMessage()}})
 	}
-	return e.present(locale.Message{Key: "editor.tile.done", Args: args})
+	return e.present(locale.Message{Key: "editor.tile.done", Args: args, Parts: map[string]locale.Message{"source": fit.sourceMessage()}})
 }
 
 // wholeTile covers, in the selected zone, the tile in view: the one under
@@ -242,11 +240,12 @@ func (e *zoneEditor) circleClick(s *scene.World, c *floorCoverage, v zone.Point)
 		what = "Exclusão circular"
 	}
 	log.Printf("zona: %s: %s centro %d %d raio %d → polígono de %s, z %d..%d %s", z.Name, what, a.X, a.Y, r, inflect.Count(len(pts), "vértice", "vértices"), fit.zmin, fit.zmax, fit.note())
-	args := map[string]string{"name": z.Name, "radius": intArg(r), "vertices": intArg(len(pts)), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language), "__source": fit.sourceKey()}
+	args := map[string]string{"name": z.Name, "radius": intArg(r), "vertices": intArg(len(pts)), "min": intArg(fit.zmin), "max": intArg(fit.zmax)}
+	parts := map[string]locale.Message{"source": fit.sourceMessage()}
 	if e.banned {
-		return e.present(locale.Message{Key: "editor.circle.exclusion_done", Args: args})
+		return e.present(locale.Message{Key: "editor.circle.exclusion_done", Count: len(pts), Plural: true, Args: args, Parts: parts})
 	}
-	return e.present(locale.Message{Key: "editor.circle.done", Args: args})
+	return e.present(locale.Message{Key: "editor.circle.done", Count: len(pts), Plural: true, Args: args, Parts: parts})
 }
 
 // restartClick adds v to the selected zone's restart points (player
@@ -336,7 +335,7 @@ func (e *zoneEditor) hoverAt(s *scene.World, c *floorCoverage, h scene.Hit, ok b
 	}
 	e.ghostZ = fit
 	e.version++
-	return e.present(locale.Message{Key: "editor.preview", Args: map[string]string{"hint": e.hint(), "__hint": e.hintKey(), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language), "__source": fit.sourceKey()}})
+	return e.present(locale.Message{Key: "editor.preview", Args: map[string]string{"min": intArg(fit.zmin), "max": intArg(fit.zmax)}, Parts: map[string]locale.Message{"hint": e.hintMessage(), "source": fit.sourceMessage()}})
 }
 
 // preview is the rectangle or circle being placed: from the anchor to the

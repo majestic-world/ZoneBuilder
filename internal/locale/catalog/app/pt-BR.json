@@ -1,9 +1,0 @@
-{
-  "app.preference.unsaved": "Não foi possível salvar a preferência de idioma; a escolha vale apenas nesta sessão.",
-  "app.action.failed": "Falha ao {action}: {detail}",
-  "app.action.save_failed": "Não foi possível salvar: {detail}",
-  "app.status.zone_count": {
-    "one": "{count} zona selecionada",
-    "other": "{count} zonas selecionadas"
-  }
-}
