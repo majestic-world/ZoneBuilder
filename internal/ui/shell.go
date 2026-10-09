@@ -77,7 +77,6 @@ func NewShell(th *material.Theme, client, tile, output string) *Shell {
 	s.Tile.SingleLine = true
 	s.Tile.Submit = true
 	s.Tile.SetText(tile)
-	s.Neighbours.Value = true
 	s.Zone.init(output)
 	s.Zones.init()
 	s.Props.init()
