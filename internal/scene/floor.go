@@ -14,10 +14,12 @@ type FloorTriangle struct {
 }
 
 // Floor calls fn once with every floor triangle of the world whose cell
-// meets the X/Y of box (server coordinates; box's Z is not looked at), so
-// a few triangles just outside box may come too. The floor is what is
-// drawn and picked: every visible terrain quad, as its 2 triangles split
-// on the EdgeTurn diagonal, and nothing of an invisible quad. Floor only
+// or set box meets the X/Y of box (server coordinates; box's Z is not
+// looked at), so a few triangles just outside box may come too. The floor
+// is what is drawn and picked: every visible terrain quad, as its 2
+// triangles split on the EdgeTurn diagonal, and nothing of an invisible
+// quad; plus every BSP or static mesh triangle facing up (normal.z ≥
+// floorNormalZ), the meshes left out while HideMeshes is set. Floor only
 // reads the scenes: it may run off the event loop on a World that the
 // loop does not Add to or Remove from meanwhile.
 func (w *World) Floor(box geom.Box, fn func(FloorTriangle)) {
@@ -25,8 +27,54 @@ func (w *World) Floor(box geom.Box, fn func(FloorTriangle)) {
 		for i := range s.Terrains {
 			s.Terrains[i].floor(box, fn)
 		}
+		s.floor(box, fn, w.HideMeshes)
 	}
 }
+
+// floorNormalZ is the least Z of a unit normal that a BSP or mesh face can
+// stand on (spec "Chão"): a slope up to 60°.
+const floorNormalZ = 0.5
+
+// floor is World.Floor over the scene's pickable sets: the upward faces
+// of the sets whose box meets box, the meshes' left out when noMeshes is
+// set. A BSP surface faces where its plane normal does, every triangle
+// alike (a sliver of its fan can wind either way); a mesh triangle where
+// its right-hand normal does (out of the geometry, the maps' winding), or
+// the opposite for a mirrored actor.
+func (s *Scene) floor(box geom.Box, fn func(FloorTriangle), noMeshes bool) {
+	for i := range s.pickables {
+		set := &s.pickables[i]
+		if noMeshes && set.Surface == SurfaceMesh {
+			continue
+		}
+		if set.Bounds.Empty() || set.Bounds.Max.X < box.Min.X || set.Bounds.Min.X > box.Max.X ||
+			set.Bounds.Max.Y < box.Min.Y || set.Bounds.Min.Y > box.Max.Y {
+			continue
+		}
+		shared := set.Normal != geom.Vec3{}
+		if shared && !upward(set.Normal) {
+			continue
+		}
+		b := &s.Batches[set.Batch]
+		idx := b.Indices[set.First : set.First+set.Count]
+		for k := 0; k+2 < len(idx); k += 3 {
+			p, q, r := b.Vertices[idx[k]].Pos, b.Vertices[idx[k+1]].Pos, b.Vertices[idx[k+2]].Pos
+			if !shared {
+				n := q.Sub(p).Cross(r.Sub(p))
+				if set.Mirrored {
+					n = n.Scale(-1)
+				}
+				if !upward(n) {
+					continue
+				}
+			}
+			fn(FloorTriangle{A: ToServer(p), B: ToServer(q), C: ToServer(r), Surface: set.Surface})
+		}
+	}
+}
+
+// upward reports a face of normal n (any length) as one to stand on.
+func upward(n geom.Vec3) bool { return n.Z > 0 && n.Z >= floorNormalZ*n.Length() }
 
 // floor is World.Floor over the terrain's grid: the cells under box.
 func (t *Terrain) floor(box geom.Box, fn func(FloorTriangle)) {

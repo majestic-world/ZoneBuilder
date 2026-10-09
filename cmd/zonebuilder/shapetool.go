@@ -10,6 +10,7 @@ import (
 	"gioui.org/f32"
 
 	"zonebuilder/internal/camera"
+	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/render"
@@ -37,9 +38,10 @@ const (
 	// generated vertex (a circle vertex, a rectangle's other corners) onto
 	// the surface under it: it starts groundAbove over the clicked height
 	// and takes a hit no further than groundReach from it, so a roof or a
-	// cave floor far from the drawing level is not picked.
+	// cave floor far from the drawing level is not picked (the reach of
+	// the range rule, spec D5).
 	groundAbove = zone.DefaultZMargin
-	groundReach = 1024
+	groundReach = coverage.GroundReach
 )
 
 // arm makes tool take the viewport clicks for the selected zone; a shape
@@ -314,37 +316,18 @@ func serverVec(p zone.Point) geom.Vec3 {
 	return geom.Vec3{X: float32(p.X), Y: float32(p.Y), Z: float32(p.Z)}
 }
 
-// groundZ is the server Z of the surface under x y near height ref (see
-// groundAbove and groundReach), or ref when nothing is there.
+// groundZ is the server Z of the surface under x y near height ref, or ref
+// when nothing is there: the first surface straight down from groundAbove
+// over ref, counted only within groundReach of ref, so a roof or a cave
+// floor far from the drawing level is not picked.
 func groundZ(s *scene.World, x, y, ref int) int {
-	if z, ok := ground(s, zone.Point{X: x, Y: y, Z: ref}, groundAbove, groundReach, false); ok {
+	o := scene.FromServer(serverVec(zone.Point{X: x, Y: y, Z: ref + groundAbove}))
+	h, ok := s.Pick(scene.Ray{Origin: o, Dir: geom.Vec3{Z: -1}})
+	if !ok {
+		return ref
+	}
+	if z := round(h.Pos.Z); z >= ref-groundReach && z <= ref+groundReach {
 		return z
 	}
 	return ref
-}
-
-// ground is the server Z of the surface at p, found by a vertical pick from
-// above over p.Z: the first surface straight down or, with up set and
-// nothing below (p buried under higher ground), the nearest surface
-// straight up, hit from beneath since picking is two-sided. With reach > 0,
-// a surface further than reach from p.Z counts as none, so a roof or a cave
-// floor far from the drawing level is not picked.
-func ground(s *scene.World, p zone.Point, above, reach int, up bool) (int, bool) {
-	o := scene.FromServer(serverVec(zone.Point{X: p.X, Y: p.Y, Z: p.Z + above}))
-	dirs := []float32{-1}
-	if up {
-		dirs = append(dirs, 1)
-	}
-	for _, dir := range dirs {
-		h, ok := s.Pick(scene.Ray{Origin: o, Dir: geom.Vec3{Z: dir}})
-		if !ok {
-			continue
-		}
-		z := round(h.Pos.Z)
-		if reach > 0 && (z < p.Z-reach || z > p.Z+reach) {
-			return 0, false
-		}
-		return z, true
-	}
-	return 0, false
 }

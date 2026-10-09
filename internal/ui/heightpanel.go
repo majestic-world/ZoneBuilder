@@ -28,6 +28,12 @@ type HeightPanel struct {
 	// Zone describes the selected zone's floor, top and height; empty
 	// hides the window.
 	Zone string
+	// Ruler is the zone's vertical scale over its floor, drawn above
+	// Coverage; a zero Ruler hides it.
+	Ruler Ruler
+	// Coverage, one line per row, is how the zone's Z ranges cover the
+	// floor under its included shapes; empty hides it.
+	Coverage string
 	// Step is how far Up and Down (and PageUp/PageDown in the viewport)
 	// raise or lower the whole zone.
 	Step     widget.Editor
@@ -40,6 +46,9 @@ type HeightPanel struct {
 	// floors and moves the tops.
 	Height    widget.Editor
 	SetHeight widget.Clickable
+	// FloorToGround and TopToGround move one side of every shape of the
+	// zone to the floor under it, with the inspector's margin.
+	FloorToGround, TopToGround widget.Clickable
 	// Reopen, in the inspector, opens the window again after its × closed
 	// it.
 	Reopen widget.Clickable
@@ -50,7 +59,7 @@ func (p *HeightPanel) init() {
 		e.SingleLine, e.Submit = true, true
 	}
 	p.Step.SetText(strconv.Itoa(DefaultZStep))
-	p.Window.Width, p.Window.Height, p.Window.Left, p.Window.Top = 290, 400, 112, 84
+	p.Window.Width, p.Window.Height, p.Window.Left, p.Window.Top = 350, 660, 112, 84
 }
 
 // StepZ is Step as a positive number of units, DefaultZStep when the field
@@ -94,6 +103,8 @@ func (s *Shell) heightWindow(gtx layout.Context) layout.Dimensions {
 		apply := func(c *widget.Clickable) layout.Widget { return s.button(c, secondaryButton, nil, "Aplicar") }
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(s.dimLabel(p.Zone)),
+			layout.Rigid(s.ruler(p.Ruler)),
+			layout.Rigid(s.dimLabel(p.Coverage)),
 			layout.Rigid(layout.Spacer{Height: unit.Dp(4)}.Layout),
 			layout.Rigid(s.fieldLabel("Passo (PageUp/PageDown no viewport)")),
 			layout.Rigid(s.field(&p.Step, strconv.Itoa(DefaultZStep), nil)),
@@ -105,6 +116,11 @@ func (s *Shell) heightWindow(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(s.fieldButton(&p.Base, "z", nil, apply(&p.SetBase))),
 			layout.Rigid(s.fieldLabel("Altura: topo = piso + altura")),
 			layout.Rigid(s.fieldButton(&p.Height, "altura", nil, apply(&p.SetHeight))),
+			layout.Rigid(s.fieldLabel("Ajustar ao chão, com a folga Z do inspetor")),
+			layout.Rigid(buttonRow(
+				s.button(&p.FloorToGround, secondaryButton, nil, "Piso ao chão"),
+				s.button(&p.TopToGround, secondaryButton, nil, "Topo ao chão"),
+			)),
 		)
 	})
 }

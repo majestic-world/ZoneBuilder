@@ -122,6 +122,62 @@ func TestInvisibleQuadIsNoGround(t *testing.T) {
 	}
 }
 
+// bspQuad is a flat BSP floor at height z over [x0, x1] × [y0, y1].
+func bspQuad(x0, y0, x1, y1, z float32) floor {
+	a, b, c, d := v(x0, y0, z), v(x1, y0, z), v(x1, y1, z), v(x0, y1, z)
+	return floor{
+		{A: a, B: b, C: c, Surface: scene.SurfaceBSP},
+		{A: a, B: c, C: d, Surface: scene.SurfaceBSP},
+	}
+}
+
+// A bridge at z 500 across a square of flat terrain at z 0 makes 2 layers
+// under the square, and with a top at 300 its 100 × 300 deck inside the
+// square is floor above the top while the terrain under it stays inside:
+// the areas add up to more than the square. Catches layers counted per
+// surface kind instead of per column, a bridge dropped from the extremes,
+// or the terrain under a bridge taken as hidden by it.
+func TestBridgeOverTerrainIsASecondLayerAboveTheTop(t *testing.T) {
+	f := append(grid(0), bspQuad(100, -50, 200, 350, 500)...)
+	r := coverage.Measure(f, square(0, 0, 300, 300), nil).Classify(-100, 300)
+	if r.Layers != 2 {
+		t.Errorf("%d layers, want 2", r.Layers)
+	}
+	if !near(r.Above, 100*300) {
+		t.Errorf("floor above the top %v, want 30000", r.Above)
+	}
+	if !near(r.Inside, 300*300) || r.Below != 0 || r.NoGround != 0 {
+		t.Errorf("inside %v, below %v, no ground %v; want 90000, 0, 0", r.Inside, r.Below, r.NoGround)
+	}
+	if r.GroundMax.Z != 500 || r.TopClearance != -200 {
+		t.Errorf("highest floor %v, top clearance %v; want z 500, -200", r.GroundMax, r.TopClearance)
+	}
+}
+
+// Flat terrain alone is 1 layer.
+func TestTerrainAloneIsOneLayer(t *testing.T) {
+	if n := coverage.Measure(grid(0), square(0, 0, 300, 300), nil).Classify(-100, 100).Layers; n != 1 {
+		t.Errorf("%d layers, want 1", n)
+	}
+}
+
+// A terrain hole elsewhere stays no ground when a bridge spans the square
+// (the bridge's area must not make up for it), and a building floor laid
+// over a hole, as the maps cut the terrain under a building, is floor and
+// 1 layer. Catches no ground taken as the outline's area minus all the
+// floor's area, which layers overcount.
+func TestHoleIsNoGroundUnlessAFloorCoversIt(t *testing.T) {
+	bridged := append(grid(0, [2]int{0, 0}), bspQuad(100, -50, 200, 350, 500)...)
+	if r := coverage.Measure(bridged, square(0, 0, 300, 300), nil).Classify(-100, 600); !near(r.NoGround, 100*100) {
+		t.Errorf("bridge elsewhere: no ground %v, want 10000", r.NoGround)
+	}
+	built := append(grid(0, [2]int{0, 0}), bspQuad(0, 0, 100, 100, 20)...)
+	r := coverage.Measure(built, square(0, 0, 300, 300), nil).Classify(-100, 100)
+	if r.NoGround != 0 || !near(r.Inside, 300*300) || r.Layers != 1 {
+		t.Errorf("floor over the hole: no ground %v, inside %v, %d layers; want 0, 90000, 1", r.NoGround, r.Inside, r.Layers)
+	}
+}
+
 // Under a square fully floored by a ramp z = x that both its top and its
 // floor cut, inside + above + below add up to the square's 40 000 units²,
 // and each is the strip its formula gives. Catches a piece counted in 2
@@ -212,5 +268,90 @@ func TestStatesAddUpWithABan(t *testing.T) {
 	}
 	if !near(r.Total(), 280*280) {
 		t.Errorf("total %v, want 78400", r.Total())
+	}
+}
+
+// A zone of 3 shapes over a ramp z = x: A, square (0, 0)-(100, 100) in
+// [0, 200], is all inside; B, square (100, 0)-(200, 100) in [150, 300],
+// has its half x < 150 below its floor; C, off the floor, has no ground.
+// The zone sums their areas (15 000 inside, 5 000 below, 10 000 with no
+// ground), its floor spans A's lowest 0 to B's highest 200, and its
+// clearances are the worst shape's: B's floor −50, A's top 100. Catches a
+// zone that keeps one shape's numbers, or lets C's unmeasured zero
+// extremes pull the zone's lowest floor.
+func TestZoneSumsShapesAndKeepsWorstExtremes(t *testing.T) {
+	ramp := func(x, y float32) geom.Vec3 { return v(x, y, x) }
+	a, b, c, d := ramp(-50, -50), ramp(250, -50), ramp(250, 250), ramp(-50, 250)
+	f := floor{tri(a, b, c), tri(a, c, d)}
+	z := coverage.Sum(
+		coverage.Measure(f, square(1000, 1000, 1100, 1100), nil).Classify(-10, 10),
+		coverage.Measure(f, square(0, 0, 100, 100), nil).Classify(0, 200),
+		coverage.Measure(f, square(100, 0, 200, 100), nil).Classify(150, 300),
+	)
+	if !z.Measured {
+		t.Fatal("zone with floor under 2 shapes not measured")
+	}
+	for _, c := range []struct {
+		name      string
+		got, want float64
+	}{
+		{"inside", z.Inside, 15000}, {"above", z.Above, 0}, {"below", z.Below, 5000}, {"no ground", z.NoGround, 10000},
+		{"lowest floor", z.GroundMin.Z, 0}, {"highest floor", z.GroundMax.Z, 200},
+		{"floor clearance", z.FloorClearance, -50}, {"top clearance", z.TopClearance, 100},
+	} {
+		if !near(c.got, c.want) {
+			t.Errorf("%s %v, want %v", c.name, c.got, c.want)
+		}
+	}
+}
+
+// Under a square floored by a ramp z = x − 95, the floor spreads evenly
+// over Z from −95 to 105, 200 units² per unit of Z: the histogram's bins
+// of 16 start at −96 (bin −6) and end at 112 (bin 6), the first holding
+// the 15 units of −95..−80 (3 000), the last the 9 units of 96..105
+// (1 800) and every bin between 3 200. Catches a piece put whole in the
+// bin of its lowest (or average) Z, though it spans the whole ramp, and a
+// bin index truncated toward 0 below Z = 0.
+func TestHistogramSpreadsARampOverItsZ(t *testing.T) {
+	ramp := func(x, y float32) geom.Vec3 { return v(x, y, x-95) }
+	a, b, c, d := ramp(-50, -50), ramp(250, -50), ramp(250, 250), ramp(-50, 250)
+	h := coverage.Measure(floor{tri(a, b, c), tri(a, c, d)}, square(0, 0, 200, 200), nil).Histogram()
+	if h.First != -6 || len(h.Area) != 13 {
+		t.Fatalf("bins %d..%d, want -6..6", h.First, h.First+len(h.Area)-1)
+	}
+	for i, got := range h.Area {
+		want := 3200.0
+		switch i {
+		case 0:
+			want = 3000
+		case len(h.Area) - 1:
+			want = 1800
+		}
+		if !near(got, want) {
+			t.Errorf("bin %d: %v units², want %v", h.First+i, got, want)
+		}
+	}
+}
+
+// The same ramp z = x split by the range [30, 170] through the histogram
+// gives the floor of each state Classify gives: 28 000 inside and 6 000
+// above and below, though 30 and 170 cut bins 1 and 10 in their middle.
+// Catches the ruler colouring a cut bin all in one state, or the 2
+// states swapped.
+func TestHistogramSplitsCutBinsByTheRange(t *testing.T) {
+	ramp := func(x, y float32) geom.Vec3 { return v(x, y, x) }
+	a, b, c, d := ramp(-50, -50), ramp(250, -50), ramp(250, 250), ramp(-50, 250)
+	h := coverage.Measure(floor{tri(a, b, c), tri(a, c, d)}, square(0, 0, 200, 200), nil).Histogram()
+	in, above, below := h.Split(-1000, 1000, 30, 170)
+	for _, c := range []struct {
+		name      string
+		got, want float64
+	}{{"inside", in, 28000}, {"above", above, 6000}, {"below", below, 6000}} {
+		if !near(c.got, c.want) {
+			t.Errorf("%s %v, want %v", c.name, c.got, c.want)
+		}
+	}
+	if in, above, below := h.Split(32, 48, 30, 170); !near(in, 3200) || above != 0 || below != 0 {
+		t.Errorf("bin 2 split %v/%v/%v, want 3200 inside", in, above, below)
 	}
 }

@@ -29,6 +29,7 @@ import (
 	"gioui.org/unit"
 
 	"zonebuilder/internal/camera"
+	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/project"
@@ -177,10 +178,16 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		// zonesShown is the zones.version the renderer last got;
 		// groundShown is what its ground marking was last built for;
 		// groundMark was last built for groundBuilt.
-		zonesShown  = -1
+		zonesShown = -1
+		// lineShown is the profile the ground line along the current
+		// shape's walls came from when the zones were last sent.
+		lineShown   *coverage.Profile
 		groundShown = groundKey{version: -1}
 		groundBuilt = groundKey{version: -1}
 		groundMark  render.Ground
+		// pins are the current shape's worst points (spec D4e), as last
+		// laid out; pinsShown are the ones the renderer's overlay has.
+		pins, pinsShown []worstPin
 	)
 	defer func() { g.release() }()
 	if proj != "" {
@@ -287,6 +294,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 					status = msg
 				}
 			}
+			if i, ok := shell.PinClicked(gtx); ok && i < len(pins) {
+				status = goToPin(pins[i], tiles.world, &cam)
+			}
 			sel, selOK := zones.selectedZone()
 			for _, req := range shell.Props.Update(gtx, sel, selOK) {
 				if msg := shell.Props.Applied(req, zones.apply(req.Command)); msg != "" {
@@ -370,17 +380,23 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			if rows, ok := zones.problemRows(); ok {
 				shell.Problems.Rows = rows
 			}
-			if msg := zones.panel(gtx, &shell.Edit, tiles.world); msg != "" {
+			if msg := zones.panel(gtx, &shell.Edit, tiles.world, cover); msg != "" {
 				status = msg
 			}
 			shell.Edit.Coverage = cover.inspector(zones, tiles.world)
-			if msg := zones.heightPanel(gtx, &shell.Height); msg != "" {
+			if msg := zones.heightPanel(gtx, &shell.Height, tiles.world, cover); msg != "" {
 				status = msg
 			}
+			cover.heightWindow(zones, tiles.world, &shell.Height)
 			shell.Arrow = zones.layoutArrow(tiles.world, &cam, shell.Viewport.Size(), gtx.Dp(90))
 			shell.EdgeLabels = nil
 			if shell.Ground.On && tiles.world != nil {
 				shell.EdgeLabels = zones.edgeLabels(tiles.world, &cam, shell.Viewport.Size())
+			}
+			pins = cover.pins(zones, tiles.world)
+			shell.Pins = nil
+			if tiles.world != nil {
+				shell.Pins = pinLabels(pins, tiles.world, &cam, shell.Viewport.Size())
 			}
 			if zones.anchored && tiles.world != nil && probe.inside {
 				h, ok := pickAt(tiles.world, &cam, probe.cursor, shell.Viewport.Size())
@@ -407,9 +423,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			}
 			g.renderer.SetMeshesHidden(shell.Meshes.On)
 			uploading := tiles.sync(g.renderer, uploadBudget)
-			if zonesShown != zones.version {
-				g.renderer.SetZones(zones.overlay())
-				zonesShown = zones.version
+			if line, from := cover.groundLine(zones, tiles.world); zonesShown != zones.version || lineShown != from || !samePinShapes(pins, pinsShown) {
+				g.renderer.SetZones(append(zones.overlay(line), pinShapes(pins)...))
+				zonesShown, lineShown, pinsShown = zones.version, from, pins
 			}
 			if groundShown != groundBuilt {
 				g.renderer.SetGround(groundMark)
