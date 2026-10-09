@@ -65,6 +65,11 @@ type zoneEditor struct {
 	problems   []zone.Problem
 	warnings   []floorWarning
 	problemsAt int
+	problemsLang string
+	lastProblemClick int
+	hasProblemClick bool
+	problemClickNoFrame bool
+	problemClickDrawing bool
 	// left out are the zones unchecked for compilation; every other zone,
 	// new ones too, is in the compile selection.
 	leftOut map[zone.ZoneID]bool

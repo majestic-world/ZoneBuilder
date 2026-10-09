@@ -12,6 +12,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/ui/fonts"
 	"zonebuilder/internal/ui/icon"
 	"zonebuilder/internal/zonexml"
@@ -72,9 +73,9 @@ func (s *Shell) xmlWindow(gtx layout.Context) layout.Dimensions {
 	if len(x.files) == 0 {
 		return layout.Dimensions{}
 	}
-	return x.Window.Layout(gtx, s, icon.CodeXML, "XML compilado", func(gtx layout.Context) layout.Dimensions {
+	return x.Window.Layout(gtx, s, icon.CodeXML, locale.Text(s.Language, "ui.xml.title"), func(gtx layout.Context) layout.Dimensions {
 		children := []layout.FlexChild{
-			layout.Rigid(s.dimLabel("Cole cada arquivo em data/zone/ do servidor, com o nome indicado.")),
+			layout.Rigid(s.dimLabel(locale.Text(s.Language, "ui.xml.hint"))),
 		}
 		for i := range x.files {
 			f := &x.files[i]
@@ -85,7 +86,7 @@ func (s *Shell) xmlWindow(gtx layout.Context) layout.Dimensions {
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions { return icon.FileCode.Layout(gtx, iconSize, dimText) }),
 							layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
 							layout.Flexed(1, s.text(f.name, bodySize, font.Medium, textColor, 1)),
-							layout.Rigid(s.button(&f.copy, secondaryButton, icon.Copy, "Copiar")),
+							layout.Rigid(s.button(&f.copy, secondaryButton, icon.Copy, locale.Text(s.Language, "ui.xml.copy"))),
 						)
 					})
 				}),

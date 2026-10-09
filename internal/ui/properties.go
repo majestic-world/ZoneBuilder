@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
@@ -10,6 +9,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/ui/icon"
 	"zonebuilder/internal/zone"
 )
@@ -21,7 +21,7 @@ type EditZone struct {
 	Command zone.Command
 	// status is the status line on success; target is what the outcome
 	// lands on.
-	status string
+	status locale.Message
 	target editTarget
 }
 
@@ -57,7 +57,7 @@ type PropertiesPanel struct {
 
 	newName, newValue widget.Editor
 	add               widget.Clickable
-	addErr            string
+	addErr            locale.Message
 }
 
 // paramField is the value field of one parameter; value is the zone's, as
@@ -67,7 +67,7 @@ type paramField struct {
 	editor      widget.Editor
 	focused     bool
 	remove      widget.Clickable
-	err         string
+	err         locale.Message
 }
 
 func (p *PropertiesPanel) init() {
@@ -91,33 +91,33 @@ func (p *PropertiesPanel) Update(gtx layout.Context, z zone.Zone, ok bool) []Edi
 // Applied takes the outcome err of applying r: it sets the error of the
 // control r came from, clears the new parameter fields once one is added,
 // and returns the status line ("" to keep the current one).
-func (p *PropertiesPanel) Applied(r EditZone, err error) string {
+func (p *PropertiesPanel) Applied(r EditZone, err error) locale.Message {
 	t := r.target
 	switch t.kind {
 	case typeTarget:
 		if err != nil {
-			return err.Error()
+			return locale.Message{Key: "ui.properties.type_error", Args: map[string]string{"detail": err.Error()}}
 		}
 	case paramTarget:
 		for _, f := range p.params {
 			if f.name == t.name {
-				f.err = ""
+				f.err = locale.Message{}
 				if err != nil {
-					f.err = err.Error()
+					f.err = locale.Message{Key: "ui.properties.param_error", Args: map[string]string{"detail": err.Error()}}
 				}
 			}
 		}
 	case addTarget:
-		p.addErr = ""
+		p.addErr = locale.Message{}
 		if err != nil {
-			p.addErr = err.Error()
+			p.addErr = locale.Message{Key: "ui.properties.param_error", Args: map[string]string{"detail": err.Error()}}
 			break
 		}
 		p.newName.SetText("")
 		p.newValue.SetText("")
 	}
 	if err != nil {
-		return ""
+		return locale.Message{}
 	}
 	return r.status
 }
@@ -129,7 +129,7 @@ func (p *PropertiesPanel) load(z zone.Zone, fresh bool) {
 	if fresh {
 		p.params = nil
 		p.typeList = false
-		p.addErr = ""
+		p.addErr = locale.Message{}
 		p.newName.SetText("")
 		p.newValue.SetText("")
 	}
@@ -146,7 +146,7 @@ func (p *PropertiesPanel) load(z zone.Zone, fresh bool) {
 		}
 		f := p.params[i]
 		if f.value != prm.Value {
-			f.value, f.err = prm.Value, ""
+			f.value, f.err = prm.Value, locale.Message{}
 			f.editor.SetText(prm.Value)
 		}
 		params = append(params, f)
@@ -160,7 +160,7 @@ func (p *PropertiesPanel) input(gtx layout.Context) []EditZone {
 	setType := func(t zone.Type) {
 		reqs = append(reqs, EditZone{
 			Command: zone.SetType{Zone: p.zone, Type: t},
-			status:  fmt.Sprintf("%s: tipo %s", p.name, t),
+			status:  locale.Message{Key: "ui.properties.type_changed", Args: map[string]string{"name": p.name, "type": string(t)}},
 		})
 	}
 	n := len(zone.Types)
@@ -186,7 +186,7 @@ func (p *PropertiesPanel) input(gtx layout.Context) []EditZone {
 		for f.remove.Clicked(gtx) {
 			reqs = append(reqs, EditZone{
 				Command: zone.RemoveParam{Zone: p.zone, Name: f.name},
-				status:  fmt.Sprintf("%s: %s removido", p.name, f.name),
+				status:  locale.Message{Key: "ui.properties.param_removed", Args: map[string]string{"name": p.name, "param": f.name}},
 				target:  t,
 			})
 		}
@@ -194,7 +194,7 @@ func (p *PropertiesPanel) input(gtx layout.Context) []EditZone {
 			v := f.editor.Text()
 			reqs = append(reqs, EditZone{
 				Command: zone.SetParam{Zone: p.zone, Name: f.name, Value: v},
-				status:  fmt.Sprintf("%s: %s = %s", p.name, f.name, v),
+				status:  locale.Message{Key: "ui.properties.param_set", Args: map[string]string{"name": p.name, "param": f.name, "value": v}},
 				target:  t,
 			})
 		}
@@ -216,13 +216,13 @@ func (p *PropertiesPanel) input(gtx layout.Context) []EditZone {
 		name, v := strings.TrimSpace(p.newName.Text()), p.newValue.Text()
 		switch {
 		case name == "":
-			p.addErr = "Digite o nome do parâmetro"
+			p.addErr = locale.Message{Key: "ui.properties.required"}
 		case slices.ContainsFunc(p.params, func(f *paramField) bool { return f.name == name }):
-			p.addErr = name + " já está definido"
+			p.addErr = locale.Message{Key: "ui.properties.duplicate", Args: map[string]string{"name": name}}
 		default:
 			reqs = append(reqs, EditZone{
 				Command: zone.SetParam{Zone: p.zone, Name: name, Value: v},
-				status:  fmt.Sprintf("%s: %s = %s", p.name, name, v),
+				status:  locale.Message{Key: "ui.properties.param_set", Args: map[string]string{"name": p.name, "param": name, "value": v}},
 				target:  editTarget{kind: addTarget, name: name},
 			})
 		}
@@ -260,7 +260,7 @@ func (s *Shell) propertiesPanel() []layout.FlexChild {
 		return nil
 	}
 	children := []layout.FlexChild{
-		layout.Rigid(s.fieldLabel("Tipo")),
+		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.zone.type"))),
 		layout.Rigid(s.stepper(&p.prevType, &p.nextType, &p.listTypes, string(p.typ))),
 	}
 	if p.typeList {
@@ -271,8 +271,8 @@ func (s *Shell) propertiesPanel() []layout.FlexChild {
 	}
 
 	children = append(children,
-		layout.Rigid(s.fieldLabel("Parâmetros")),
-		layout.Rigid(s.dimLabel("Só os que o servidor exige: residence (SIEGE, HEADQUARTER), distribution_id e fishing_place_type (FISHING).")),
+		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.properties.parameters"))),
+		layout.Rigid(s.dimLabel(locale.Text(s.Language, "ui.properties.description"))),
 	)
 	for _, f := range p.params {
 		children = append(children,
@@ -284,24 +284,24 @@ func (s *Shell) propertiesPanel() []layout.FlexChild {
 					)
 				})
 			}),
-			layout.Rigid(s.field(&f.editor, "valor", nil)),
+			layout.Rigid(s.field(&f.editor, locale.Text(s.Language, "ui.properties.value"), nil)),
 		)
-		if f.err != "" {
-			children = append(children, layout.Rigid(s.errorLabel(f.err)))
+		if f.err.Key != "" {
+			children = append(children, layout.Rigid(s.errorLabel(f.err.Render(s.Language))))
 		}
 	}
 	children = append(children,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{}.Layout(gtx,
-				layout.Flexed(1, s.field(&p.newName, "nome (ex.: residence)", nil)),
+				layout.Flexed(1, s.field(&p.newName, locale.Text(s.Language, "ui.properties.name_hint"), nil)),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
-				layout.Flexed(1, s.field(&p.newValue, "valor", nil)),
+				layout.Flexed(1, s.field(&p.newValue, locale.Text(s.Language, "ui.properties.value"), nil)),
 			)
 		}),
-		layout.Rigid(s.spaced(s.fullButton(&p.add, secondaryButton, icon.Plus, "Adicionar parâmetro"))),
+		layout.Rigid(s.spaced(s.fullButton(&p.add, secondaryButton, icon.Plus, locale.Text(s.Language, "ui.properties.add")))),
 	)
-	if p.addErr != "" {
-		children = append(children, layout.Rigid(s.errorLabel(p.addErr)))
+	if p.addErr.Key != "" {
+		children = append(children, layout.Rigid(s.errorLabel(p.addErr.Render(s.Language))))
 	}
 	return children
 }

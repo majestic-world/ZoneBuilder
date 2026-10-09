@@ -4,6 +4,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/ui/icon"
 )
 
@@ -33,5 +34,5 @@ func (w *WaterMenu) CompileRequested(gtx layout.Context) bool {
 // waterMenu lays the water menu out while it is open.
 func (s *Shell) waterMenu(gtx layout.Context) {
 	w := &s.WaterMenu
-	s.contextMenu(gtx, &w.Menu, MenuItem{Click: &w.Compile, Icon: icon.Droplets, Text: "Compilar zona de água", Disabled: w.Disabled})
+	s.contextMenu(gtx, &w.Menu, MenuItem{Click: &w.Compile, Icon: icon.Droplets, Text: locale.Text(s.Language, "ui.water.compile"), Disabled: w.Disabled})
 }

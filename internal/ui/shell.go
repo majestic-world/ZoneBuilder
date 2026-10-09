@@ -171,6 +171,7 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	left := m + dock.X + gtx.Dp(16)
 	call, bar := measure(gtx, s.commandBar)
 	barAt := image.Pt(max(m+brand.X+gtx.Dp(16), (ix-bar.X)/2), m)
+	barAt.X = min(barAt.X, max(m, ix-bar.X-gtx.Dp(8)))
 	place(gtx, barAt, call)
 	s.Project.anchor = barAt.Add(image.Pt(gtx.Dp(6), bar.Y+gtx.Dp(6)))
 
@@ -204,7 +205,7 @@ func (s *Shell) brand(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(s.text("Zone Builder", titleSize, font.SemiBold, textColor, 1)),
-					layout.Rigid(s.text("Editor de zonas · Lineage II", captionSize, font.Normal, dimText, 1)),
+					layout.Rigid(s.text(locale.Text(s.Language, "ui.brand.subtitle"), captionSize, font.Normal, dimText, 1)),
 				)
 			}),
 		)
@@ -259,17 +260,17 @@ func (s *Shell) inspectorCard(gtx layout.Context) layout.Dimensions {
 func (s *Shell) mapSection() []layout.FlexChild {
 	l := &s.Zones
 	children := []layout.FlexChild{
-		layout.Rigid(s.section(true, icon.Map, "Mapa", s.Tiles)),
-		layout.Rigid(s.fieldLabel("Pasta do cliente")),
-		layout.Rigid(s.fieldButton(&s.Client, "pasta acima de Maps", icon.Folder, s.button(&s.Browse, secondaryButton, icon.FolderOpen, ""))),
-		layout.Rigid(s.fieldLabel("Tile (X_Y ou X_Y_Classic)")),
-		layout.Rigid(s.fieldButton(&s.Tile, "22_22", icon.Grid2x2, s.button(&s.Open, primaryButton, nil, "Abrir"))),
-		layout.Rigid(s.spaced(s.checkBox(&s.Neighbours, "Abrir com os vizinhos (até 3×3)"))),
+		layout.Rigid(s.section(true, icon.Map, locale.Text(s.Language, "ui.map.title"), s.Tiles)),
+		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.map.client"))),
+		layout.Rigid(s.fieldButton(&s.Client, locale.Text(s.Language, "ui.map.client_hint"), icon.Folder, s.button(&s.Browse, secondaryButton, icon.FolderOpen, ""))),
+		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.map.tile"))),
+		layout.Rigid(s.fieldButton(&s.Tile, "22_22", icon.Grid2x2, s.button(&s.Open, primaryButton, nil, locale.Text(s.Language, "ui.map.open")))),
+		layout.Rigid(s.spaced(s.checkBox(&s.Neighbours, locale.Text(s.Language, "ui.map.neighbours")))),
 		layout.Rigid(s.loading),
 	}
 	children = append(children, s.recentMaps()...)
 	children = append(children,
-		layout.Rigid(s.fieldLabel("Ir para x y z (coordenadas do servidor)")),
+		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.map.go_to"))),
 		layout.Rigid(s.fieldButton(&l.GoTo, "83400 147943 -3400", icon.Crosshair, s.button(&l.Go, secondaryButton, icon.Navigation, ""))),
 	)
 	for _, w := range s.Warnings {

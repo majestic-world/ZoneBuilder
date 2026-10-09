@@ -8,7 +8,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
-	"zonebuilder/internal/inflect"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/ui/icon"
 )
 
@@ -54,10 +54,10 @@ func (s *Shell) problemList() []layout.FlexChild {
 		}
 	}
 	children := []layout.FlexChild{
-		layout.Rigid(s.section(false, icon.TriangleAlert, "Problemas", problemNote(errors, len(l.Rows)-errors))),
+		layout.Rigid(s.section(false, icon.TriangleAlert, locale.Text(s.Language, "ui.problems.title"), problemNote(s.Language, errors, len(l.Rows)-errors))),
 	}
 	if errors == 0 {
-		children = append(children, layout.Rigid(s.dimLabel("Tudo certo para compilar.")))
+		children = append(children, layout.Rigid(s.dimLabel(locale.Text(s.Language, "ui.problems.ready"))))
 	}
 	for i, r := range l.Rows {
 		children = append(children, layout.Rigid(s.problemRow(r, &l.picks[i])))
@@ -67,16 +67,19 @@ func (s *Shell) problemList() []layout.FlexChild {
 
 // problemNote counts the problems and the warnings for the section's
 // header.
-func problemNote(errors, warnings int) string {
+func problemNote(lang locale.Language, errors, warnings int) string {
 	switch {
 	case errors == 0 && warnings == 0:
-		return "nenhum"
+		return locale.Text(lang, "ui.problems.zero")
 	case warnings == 0:
-		return inflect.Count(errors, "problema", "problemas")
+		return locale.Plural(lang, "ui.problems.count", errors, nil)
 	case errors == 0:
-		return inflect.Count(warnings, "aviso", "avisos")
+		return locale.Plural(lang, "ui.problems.warning_count", warnings, nil)
 	}
-	return inflect.Count(errors, "problema", "problemas") + ", " + inflect.Count(warnings, "aviso", "avisos")
+	return locale.Format(lang, "ui.problems.mixed", map[string]string{
+		"problems": locale.Plural(lang, "ui.problems.count", errors, nil),
+		"warnings": locale.Plural(lang, "ui.problems.warning_count", warnings, nil),
+	})
 }
 
 // problemRow is one problem, clickable: a red mark (a yellow one for a
@@ -134,9 +137,9 @@ func messageInk(r ProblemRow) color.NRGBA {
 }
 
 // problemCount is a zone's problem count as the zone list shows it.
-func problemCount(n int) string {
+func problemCount(lang locale.Language, n int) string {
 	if n == 0 {
-		return "sem problemas"
+		return locale.Text(lang, "ui.zone.no_problems")
 	}
-	return inflect.Count(n, "problema", "problemas")
+	return locale.Plural(lang, "ui.zone.problem_count", n, nil)
 }

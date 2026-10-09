@@ -6,6 +6,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/ui/icon"
 	"zonebuilder/internal/zone"
 )
@@ -53,11 +54,11 @@ func (p *ZonePanel) CreateRequested(gtx layout.Context) bool {
 func (s *Shell) zonePanel() []layout.FlexChild {
 	p := &s.Zone
 	return []layout.FlexChild{
-		layout.Rigid(s.section(false, icon.Plus, "Nova zona", "")),
-		layout.Rigid(s.fieldLabel("Nome")),
-		layout.Rigid(s.field(&p.Name, "[nome_da_zona]", nil)),
-		layout.Rigid(s.fieldLabel("Tipo")),
+		layout.Rigid(s.section(false, icon.Plus, locale.Text(s.Language, "ui.zone.new"), "")),
+		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.zone.name"))),
+		layout.Rigid(s.field(&p.Name, locale.Text(s.Language, "ui.zone.name_hint"), nil)),
+		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.zone.type"))),
 		layout.Rigid(s.stepper(&p.PrevType, &p.NextType, nil, string(p.Type()))),
-		layout.Rigid(s.fullButton(&p.Create, limeButton, icon.Pencil, "Criar zona e desenhar")),
+		layout.Rigid(s.fullButton(&p.Create, limeButton, icon.Pencil, locale.Text(s.Language, "ui.zone.create"))),
 	}
 }

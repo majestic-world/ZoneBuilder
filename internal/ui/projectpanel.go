@@ -11,12 +11,15 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/project"
 	"zonebuilder/internal/ui/icon"
 )
 
-// ProjectFile is the file type of the project dialogs.
-var ProjectFile = FileType{Name: "Projeto do Zone Builder", Ext: project.Ext}
+// ProjectFileFor is the localized project file type for a newly opened dialog.
+func ProjectFileFor(lang locale.Language) FileType {
+	return FileType{Name: locale.Text(lang, "ui.project.file_type"), Ext: project.Ext}
+}
 
 // ProjectPanel holds the project menu, opened from the project's name in
 // the command bar (open, save, save as), and the recent maps in the map
@@ -82,10 +85,10 @@ func (s *Shell) commandBar(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(s.iconToggle(&s.Edit.Undo, icon.Undo2, false)),
 			layout.Rigid(s.iconToggle(&s.Edit.Redo, icon.Redo2, false)),
 			layout.Rigid(divider),
-			layout.Rigid(s.toggleButton(&s.Meshes.button, meshes, "Static meshes", s.Meshes.On)),
-			layout.Rigid(s.toggleButton(&s.Ground.button, icon.Grid3x3, "Chão", s.Ground.On)),
+			layout.Rigid(s.toggleButton(&s.Meshes.button, meshes, locale.Text(s.Language, "ui.command.meshes"), s.Meshes.On)),
+			layout.Rigid(s.toggleButton(&s.Ground.button, icon.Grid3x3, locale.Text(s.Language, "ui.command.ground"), s.Ground.On)),
 			layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-			layout.Rigid(s.button(&s.Zone.Compile, primaryButton, icon.CodeXML, "Compilar XML")),
+			layout.Rigid(s.button(&s.Zone.Compile, primaryButton, icon.CodeXML, locale.Text(s.Language, "ui.command.compile"))),
 		)
 	})
 }
@@ -103,7 +106,7 @@ func (s *Shell) projectButton(gtx layout.Context) layout.Dimensions {
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return icon.Folder.Layout(gtx, iconSize, dimText) }),
 					layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(220))
+						gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(140))
 						return s.text(p.Name, bodySize, font.Medium, textColor, 1)(gtx)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -160,9 +163,9 @@ func (s *Shell) toggleButton(c *widget.Clickable, ic *icon.Icon, txt string, on 
 func (s *Shell) projectMenu(gtx layout.Context) {
 	p := &s.Project
 	s.contextMenu(gtx, &p.popup,
-		MenuItem{Click: &p.OpenProject, Icon: icon.FolderOpen, Text: "Abrir projeto…"},
-		MenuItem{Click: &p.Save, Icon: icon.Save, Text: "Salvar"},
-		MenuItem{Click: &p.SaveAs, Icon: icon.SaveAll, Text: "Salvar como…"},
+		MenuItem{Click: &p.OpenProject, Icon: icon.FolderOpen, Text: locale.Text(s.Language, "ui.project.open")},
+		MenuItem{Click: &p.Save, Icon: icon.Save, Text: locale.Text(s.Language, "ui.project.save")},
+		MenuItem{Click: &p.SaveAs, Icon: icon.SaveAll, Text: locale.Text(s.Language, "ui.project.save_as")},
 	)
 }
 
@@ -178,7 +181,7 @@ func (s *Shell) recentMaps() []layout.FlexChild {
 	}
 	current := s.Tile.Text()
 	return []layout.FlexChild{
-		layout.Rigid(s.fieldLabel("Mapas recentes")),
+		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.map.recent"))),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gap := gtx.Dp(6)
 			x, y, rowH := 0, 0, 0

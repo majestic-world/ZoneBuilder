@@ -13,6 +13,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/ui/icon"
 )
 
@@ -99,27 +100,27 @@ func (s *Shell) heightWindow(gtx layout.Context) layout.Dimensions {
 	if p.Zone == "" {
 		return layout.Dimensions{}
 	}
-	return p.Window.Layout(gtx, s, icon.ArrowUp, "Altura da zona", func(gtx layout.Context) layout.Dimensions {
-		apply := func(c *widget.Clickable) layout.Widget { return s.button(c, secondaryButton, nil, "Aplicar") }
+	return p.Window.Layout(gtx, s, icon.ArrowUp, locale.Text(s.Language, "ui.height.title"), func(gtx layout.Context) layout.Dimensions {
+		apply := func(c *widget.Clickable) layout.Widget { return s.button(c, secondaryButton, nil, locale.Text(s.Language, "ui.edit.apply")) }
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(s.dimLabel(p.Zone)),
 			layout.Rigid(s.ruler(p.Ruler)),
 			layout.Rigid(s.dimLabel(p.Coverage)),
 			layout.Rigid(layout.Spacer{Height: unit.Dp(4)}.Layout),
-			layout.Rigid(s.fieldLabel("Passo (PageUp/PageDown no viewport)")),
+			layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.height.step"))),
 			layout.Rigid(s.field(&p.Step, strconv.Itoa(DefaultZStep), nil)),
 			layout.Rigid(buttonRow(
-				s.button(&p.Up, primaryButton, icon.ArrowUp, "Subir"),
-				s.button(&p.Down, secondaryButton, icon.ArrowDown, "Descer"),
+				s.button(&p.Up, primaryButton, icon.ArrowUp, locale.Text(s.Language, "ui.height.up")),
+				s.button(&p.Down, secondaryButton, icon.ArrowDown, locale.Text(s.Language, "ui.height.down")),
 			)),
-			layout.Rigid(s.fieldLabel("Base: z do piso")),
+			layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.height.base"))),
 			layout.Rigid(s.fieldButton(&p.Base, "z", nil, apply(&p.SetBase))),
-			layout.Rigid(s.fieldLabel("Altura: topo = piso + altura")),
-			layout.Rigid(s.fieldButton(&p.Height, "altura", nil, apply(&p.SetHeight))),
-			layout.Rigid(s.fieldLabel("Ajustar ao chão, com a folga Z do inspetor")),
+			layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.height.height"))),
+			layout.Rigid(s.fieldButton(&p.Height, locale.Text(s.Language, "ui.height.height_placeholder"), nil, apply(&p.SetHeight))),
+			layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.height.hint"))),
 			layout.Rigid(buttonRow(
-				s.button(&p.FloorToGround, secondaryButton, nil, "Piso ao chão"),
-				s.button(&p.TopToGround, secondaryButton, nil, "Topo ao chão"),
+				s.button(&p.FloorToGround, secondaryButton, nil, locale.Text(s.Language, "ui.height.floor")),
+				s.button(&p.TopToGround, secondaryButton, nil, locale.Text(s.Language, "ui.height.top")),
 			)),
 		)
 	})

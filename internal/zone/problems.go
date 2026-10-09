@@ -1,11 +1,11 @@
 package zone
 
 import (
-	"fmt"
 	"regexp"
 	"strconv"
 
 	"zonebuilder/internal/inflect"
+	"zonebuilder/internal/locale"
 )
 
 // Rule is a validation rule a zone can break.
@@ -50,21 +50,72 @@ const (
 	WorldMaxY = 294911
 )
 
-// Problem is one rule a zone breaks, where it breaks it and the message
-// the problem panel shows.
+// Problem is one rule a zone breaks, its target, and language-independent
+// values used to present the rule. The document owns the problem slice.
 type Problem struct {
 	Rule Rule
 	Zone ZoneID
-	// Shape is the shape the problem is in, -1 when it is the zone's.
+	// Shape is -1 for a whole-zone problem.
 	Shape int
-	// Vertex is the vertex of Shape the problem is at, -1 when it is the
-	// whole shape's.
+	// Vertex is -1 for a whole-shape problem.
 	Vertex int
-	// Restart is the restart point the problem is at, -1 for none; PK
-	// tells it is one of the player-killer restart points.
+	// Restart is -1 when this is not a restart point; PK distinguishes kinds.
 	Restart int
 	PK      bool
-	Message string
+	Variant string
+	Name, Value string
+	Count int
+	Numbers [4]int
+}
+
+// Text presents this problem without changing the validation result or target.
+func (p Problem) Text(lang locale.Language) string {
+	n := func(value int) string { return locale.Number(lang, float64(value), 0) }
+	var text string
+	switch p.Rule {
+	case UnknownType:
+		text = locale.Format(lang, "zone.problem.unknown_type", map[string]string{"type": p.Value})
+	case DuplicateName:
+		text = locale.Plural(lang, "zone.problem.duplicate_name", p.Count, map[string]string{"name": p.Name})
+	case NoIncludedShape:
+		text = locale.Text(lang, "zone.problem.no_included_shape")
+	case MissingParam:
+		switch p.Variant {
+		case "absent":
+			text = locale.Format(lang, "zone.problem.missing_param", map[string]string{"name": p.Name, "type": p.Value})
+		case "not_integer":
+			text = locale.Format(lang, "zone.problem.invalid_param", map[string]string{"name": p.Name})
+		case "residence_name":
+			text = locale.Text(lang, "zone.problem.residence_name")
+		}
+	case CornerCount:
+		text = locale.Plural(lang, "zone.problem.corner_count", p.Numbers[0], nil)
+	case TooFewVertices:
+		text = locale.Plural(lang, "zone.problem.vertex_count", p.Numbers[0], nil)
+	case RepeatedVertex:
+		text = locale.Format(lang, "zone.problem.repeated_vertex", map[string]string{"first": n(p.Numbers[0]), "second": n(p.Numbers[1])})
+	case SelfIntersection:
+		text = locale.Format(lang, "zone.problem.self_intersection", map[string]string{
+			"first": n(p.Numbers[0]), "next": n(p.Numbers[1]), "other": n(p.Numbers[2]), "last": n(p.Numbers[3]),
+		})
+	case InvertedZRange:
+		text = locale.Format(lang, "zone.problem.inverted_z", map[string]string{"min": n(p.Numbers[0]), "max": n(p.Numbers[1])})
+	case OutOfBounds:
+		// Coordinates are data, not locale-dependent measurements.
+		args := map[string]string{"index": n(p.Numbers[0]), "x": strconv.Itoa(p.Numbers[1]), "y": strconv.Itoa(p.Numbers[2])}
+		switch {
+		case p.Restart >= 0 && p.PK:
+			text = locale.Format(lang, "zone.problem.pk_restart_outside", args)
+		case p.Restart >= 0:
+			text = locale.Format(lang, "zone.problem.restart_outside", args)
+		default:
+			text = locale.Format(lang, "zone.problem.vertex_outside", args)
+		}
+	}
+	if p.Shape >= 0 {
+		return locale.Format(lang, "zone.problem.shape", map[string]string{"index": n(p.Shape + 1), "problem": text})
+	}
+	return text
 }
 
 // requiredParams are the parameters the server reads with getInteger and
@@ -125,47 +176,48 @@ func (d *Document) validate() []Problem {
 	}
 	var out []Problem
 	for _, z := range d.zones {
-		zoneProblem := func(r Rule, format string, args ...any) {
-			out = append(out, Problem{Rule: r, Zone: z.ID, Shape: -1, Vertex: -1, Restart: -1, Message: fmt.Sprintf(format, args...)})
+		zoneProblem := func(r Rule, variant, name, value string, count int) {
+			out = append(out, Problem{Rule: r, Zone: z.ID, Shape: -1, Vertex: -1, Restart: -1,
+				Variant: variant, Name: name, Value: value, Count: count})
 		}
 		if !z.Type.Valid() {
-			zoneProblem(UnknownType, "tipo %q não existe no servidor", z.Type)
+			zoneProblem(UnknownType, "", "", string(z.Type), 0)
 		}
 		if n := names[z.Name]; n > 1 {
-			zoneProblem(DuplicateName, "nome %s usado por %s", z.Name, inflect.Count(n, "zona", "zonas"))
+			zoneProblem(DuplicateName, "", z.Name, "", n)
 		}
 		included := false
 		for _, s := range z.Shapes {
 			included = included || !s.Banned
 		}
 		if !included {
-			zoneProblem(NoIncludedShape, "nenhum shape incluído")
+			zoneProblem(NoIncludedShape, "", "", "", 0)
 		}
 		for _, name := range requiredParams[z.Type] {
 			v, ok := z.param(name)
 			switch {
 			case !ok:
-				zoneProblem(MissingParam, "falta o parâmetro %s, obrigatório em %s", name, z.Type)
+				zoneProblem(MissingParam, "absent", name, string(z.Type), 0)
 			case !isInt(v):
-				zoneProblem(MissingParam, "o parâmetro %s precisa ser um número inteiro", name)
+				zoneProblem(MissingParam, "not_integer", name, "", 0)
 			}
 		}
 		if z.Type == Residence && !residenceName.MatchString(z.Name) {
-			zoneProblem(MissingParam, "zona RESIDENCE precisa do nome residence_<id>")
+			zoneProblem(MissingParam, "residence_name", "", "", 0)
 		}
 		for i, s := range z.Shapes {
 			out = append(out, shapeProblems(z.ID, i, s)...)
 		}
 		for _, pk := range []bool{false, true} {
-			pts, what := z.RestartPoints, "restart_point"
+			pts := z.RestartPoints
 			if pk {
-				pts, what = z.PKRestartPoints, "PKrestart_point"
+				pts = z.PKRestartPoints
 			}
 			for i, p := range pts {
 				if !inWorld(p) {
 					out = append(out, Problem{
 						Rule: OutOfBounds, Zone: z.ID, Shape: -1, Vertex: -1, Restart: i, PK: pk,
-						Message: fmt.Sprintf("%s %d (%d %d) fora do mundo", what, i+1, p.X, p.Y),
+						Numbers: [4]int{i + 1, p.X, p.Y},
 					})
 				}
 			}
@@ -177,39 +229,37 @@ func (d *Document) validate() []Problem {
 // shapeProblems is the problems of shape i of zone id.
 func shapeProblems(id ZoneID, i int, s Shape) []Problem {
 	var out []Problem
-	add := func(r Rule, vertex int, format string, args ...any) {
-		out = append(out, Problem{
-			Rule: r, Zone: id, Shape: i, Vertex: vertex, Restart: -1,
-			Message: fmt.Sprintf("shape %d: ", i+1) + fmt.Sprintf(format, args...),
-		})
+	add := func(r Rule, vertex int, numbers ...int) {
+		p := Problem{Rule: r, Zone: id, Shape: i, Vertex: vertex, Restart: -1}
+		copy(p.Numbers[:], numbers)
+		out = append(out, p)
 	}
 	pts := s.Points
 	switch s.Kind {
 	case Rectangle:
 		if len(pts) != 2 {
-			add(CornerCount, -1, "retângulo com %s; são precisos 2", inflect.Count(len(pts), "canto", "cantos"))
+			add(CornerCount, -1, len(pts))
 		}
 	case Polygon:
 		if len(pts) < 3 {
-			add(TooFewVertices, -1, "polígono com %s; são precisos 3 ou mais", inflect.Count(len(pts), "vértice", "vértices"))
+			add(TooFewVertices, -1, len(pts))
 			break
 		}
 		for k := range pts {
 			if next := (k + 1) % len(pts); sameXY(pts[k], pts[next]) {
-				add(RepeatedVertex, next, "vértices %d e %d iguais", k+1, next+1)
+				add(RepeatedVertex, next, k+1, next+1)
 			}
 		}
 		for _, x := range crossings(pts) {
-			add(SelfIntersection, x[0], "arestas %d→%d e %d→%d se cruzam",
-				x[0]+1, (x[0]+1)%len(pts)+1, x[1]+1, (x[1]+1)%len(pts)+1)
+			add(SelfIntersection, x[0], x[0]+1, (x[0]+1)%len(pts)+1, x[1]+1, (x[1]+1)%len(pts)+1)
 		}
 	}
 	if s.ZMin > s.ZMax {
-		add(InvertedZRange, -1, "zmin %d acima de zmax %d", s.ZMin, s.ZMax)
+		add(InvertedZRange, -1, s.ZMin, s.ZMax)
 	}
 	for k, p := range pts {
 		if !inWorld(p) {
-			add(OutOfBounds, k, "vértice %d (%d %d) fora do mundo", k+1, p.X, p.Y)
+			add(OutOfBounds, k, k+1, p.X, p.Y)
 		}
 	}
 	return out

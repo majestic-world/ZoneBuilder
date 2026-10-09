@@ -12,7 +12,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
-	"zonebuilder/internal/inflect"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/ui/icon"
 	"zonebuilder/internal/zone"
 )
@@ -273,21 +273,21 @@ func (l *ZoneList) sync() *ZoneRow {
 // shown zone.
 func (s *Shell) zoneList() []layout.FlexChild {
 	l := &s.Zones
-	filter := "Todos os tipos"
+	filter := locale.Text(s.Language, "ui.zone.all_types")
 	if t := l.filterType(); t != "" {
 		filter = string(t)
 	}
 	shown := l.shown()
 	children := []layout.FlexChild{
-		layout.Rigid(s.section(false, icon.List, "Zonas", zoneListNote(len(l.Rows), len(shown)))),
-		layout.Rigid(s.field(&l.Search, "buscar por nome", icon.Search)),
+		layout.Rigid(s.section(false, icon.List, locale.Text(s.Language, "ui.zone.title"), zoneListNote(s.Language, len(l.Rows), len(shown)))),
+		layout.Rigid(s.field(&l.Search, locale.Text(s.Language, "ui.zone.search"), icon.Search)),
 		layout.Rigid(s.stepper(&l.PrevFilter, &l.NextFilter, nil, filter)),
 	}
 	if l.TypeFilter >= 0 {
 		if ids, hide := l.typeToggle(); len(ids) > 0 {
-			text, ic := "Mostrar o tipo "+filter, icon.Eye
+			text, ic := locale.Format(s.Language, "ui.zone.show_type", map[string]string{"type": filter}), icon.Eye
 			if hide {
-				text, ic = "Ocultar o tipo "+filter, icon.EyeOff
+				text, ic = locale.Format(s.Language, "ui.zone.hide_type", map[string]string{"type": filter}), icon.EyeOff
 			}
 			children = append(children, layout.Rigid(s.spaced(s.fullButton(&l.ToggleType, secondaryButton, ic, text))))
 		}
@@ -296,15 +296,15 @@ func (s *Shell) zoneList() []layout.FlexChild {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-					layout.Flexed(1, s.text("Compilar", smallSize, font.Medium, dimText, 1)),
-					layout.Rigid(s.chip(&l.CompileAll, "todas", false)),
+					layout.Flexed(1, s.text(locale.Text(s.Language, "ui.zone.compile"), smallSize, font.Medium, dimText, 1)),
+					layout.Rigid(s.chip(&l.CompileAll, locale.Text(s.Language, "ui.zone.all"), false)),
 					layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-					layout.Rigid(s.chip(&l.CompileNone, "nenhuma", false)),
+					layout.Rigid(s.chip(&l.CompileNone, locale.Text(s.Language, "ui.zone.none"), false)),
 				)
 			})
 		}))
 	} else if len(l.Rows) == 0 {
-		children = append(children, layout.Rigid(s.dimLabel("Nenhuma zona ainda: crie uma em Nova zona.")))
+		children = append(children, layout.Rigid(s.dimLabel(locale.Text(s.Language, "ui.zone.empty"))))
 	}
 	for _, r := range shown {
 		children = append(children, layout.Rigid(s.zoneRow(r, l.widgets(r.ID), r.ID == l.Selected)))
@@ -320,25 +320,25 @@ func (s *Shell) selectedZone() []layout.FlexChild {
 	selected := l.sync()
 	if selected == nil {
 		return []layout.FlexChild{
-			layout.Rigid(s.section(false, icon.SlidersHorizontal, "Zona selecionada", "")),
-			layout.Rigid(s.dimLabel("Clique numa zona da lista ou do mapa.")),
+			layout.Rigid(s.section(false, icon.SlidersHorizontal, locale.Text(s.Language, "ui.zone.selected"), "")),
+			layout.Rigid(s.dimLabel(locale.Text(s.Language, "ui.zone.select_hint"))),
 		}
 	}
 	children := []layout.FlexChild{
-		layout.Rigid(s.section(false, icon.SlidersHorizontal, "Zona selecionada", selected.Name)),
-		layout.Rigid(s.fieldLabel("Nome")),
-		layout.Rigid(s.fieldButton(&l.NewName, "novo nome", nil, s.button(&l.Rename, primaryButton, icon.Pencil, "Renomear"))),
+		layout.Rigid(s.section(false, icon.SlidersHorizontal, locale.Text(s.Language, "ui.zone.selected"), selected.Name)),
+		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.zone.name"))),
+		layout.Rigid(s.fieldButton(&l.NewName, locale.Text(s.Language, "ui.zone.new_name"), nil, s.button(&l.Rename, primaryButton, icon.Pencil, locale.Text(s.Language, "ui.zone.rename")))),
 		layout.Rigid(buttonRow(
-			s.button(&l.Duplicate, secondaryButton, icon.Copy, "Duplicar"),
-			s.button(&l.Color, secondaryButton, icon.Palette, "Cor"),
-			s.button(&l.Delete, dangerButton, icon.Trash2, "Apagar"),
+			s.button(&l.Duplicate, secondaryButton, icon.Copy, locale.Text(s.Language, "ui.zone.duplicate")),
+			s.button(&l.Color, secondaryButton, icon.Palette, locale.Text(s.Language, "ui.zone.color")),
+			s.button(&l.Delete, dangerButton, icon.Trash2, locale.Text(s.Language, "ui.zone.delete")),
 		)),
 	}
 	if l.LeftOut > 0 {
-		children = append(children, layout.Rigid(s.errorLabel("Pegada parcial: "+inflect.Count(l.LeftOut, "shape fora", "shapes fora")+" do desenho")))
+		children = append(children, layout.Rigid(s.errorLabel(locale.Plural(s.Language, "ui.zone.partial", l.LeftOut, nil))))
 	}
 	if s.Height.Zone != "" && s.Height.Window.Closed {
-		children = append(children, layout.Rigid(s.spaced(s.fullButton(&s.Height.Reopen, secondaryButton, icon.ArrowUp, "Mostrar janela de altura"))))
+		children = append(children, layout.Rigid(s.spaced(s.fullButton(&s.Height.Reopen, secondaryButton, icon.ArrowUp, locale.Text(s.Language, "ui.zone.reopen_height")))))
 	}
 	return append(children, s.propertiesPanel()...)
 }
@@ -354,15 +354,15 @@ func (l *ZoneList) has(id zone.ZoneID) bool {
 
 // zoneListNote is the zone section's note: the zone count, and how many
 // pass the search and filter when not all do.
-func zoneListNote(total, shown int) string {
+func zoneListNote(lang locale.Language, total, shown int) string {
 	if total == 0 {
-		return "nenhuma"
+		return locale.Text(lang, "ui.zone.zero")
 	}
-	note := inflect.Count(total, "zona", "zonas")
+	note := locale.Plural(lang, "ui.zone.count", total, nil)
 	if shown == total {
 		return note
 	}
-	return note + " · " + inflect.Count(shown, "exibida", "exibidas")
+	return locale.Plural(lang, "ui.zone.filtered", shown, map[string]string{"total": note})
 }
 
 // zoneRow is one list row: the compile check box, then, clickable to
@@ -409,7 +409,7 @@ func (s *Shell) zoneRow(r ZoneRow, w *rowWidgets, selected bool) layout.Widget {
 											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 												return layout.Flex{}.Layout(gtx,
 													layout.Flexed(1, s.text(kind, captionSize, font.Normal, detail, 1)),
-													layout.Rigid(s.text(problemCount(r.Problems), captionSize, font.Medium, problems, 1)),
+													layout.Rigid(s.text(problemCount(s.Language, r.Problems), captionSize, font.Medium, problems, 1)),
 												)
 											}),
 										)
