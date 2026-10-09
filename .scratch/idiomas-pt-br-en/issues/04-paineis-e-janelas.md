@@ -4,10 +4,13 @@
 
 **Blocked by:** 01, 02
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Todos os rótulos e dicas expostos pelo UI refletem o idioma atual na próxima apresentação.
-- [ ] Valores de usuário, tokens do servidor, campos e XML ficam literais.
-- [ ] Troca com editor focado e janelas abertas preserva foco e layout; texto inglês não cobre outras áreas.
+- [x] Todos os rótulos e dicas expostos pelo UI refletem o idioma atual na próxima apresentação.
+- [x] Valores de usuário, tokens do servidor, campos e XML ficam literais.
+- [x] Troca com editor focado e janelas abertas preserva foco e layout; texto inglês não cobre outras áreas.
 
 ## Comments
+
+- 2026-10-09: Assumido no ramo `i18n/04-ui`, baseado em `c918e4b`.
+- 2026-10-09: Catálogos `ui` nos dois idiomas, textos consultados durante cada apresentação; estado dos widgets e XML preservado, cabeçalhos/contagens localizados, descrição do filtro nativo por idioma e largura da barra limitada para caber ao lado do inspetor. Testes de apresentação sem GPU adicionados; execução e smoke visual em 1280×800 ficam para a integração.
