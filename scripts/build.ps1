@@ -52,7 +52,14 @@ try {
 } finally {
     Pop-Location
 }
+# Skip DLLs already in place: a running zonebuilder.exe keeps them locked,
+# and an identical copy is all a rebuild needs.
 foreach ($dll in $dlls) {
-    Copy-Item -Force (Join-Path $AngleDir $dll) $bin
+    $src = Join-Path $AngleDir $dll
+    $dst = Join-Path $bin $dll
+    if ((Test-Path $dst) -and (Get-FileHash $src).Hash -eq (Get-FileHash $dst).Hash) {
+        continue
+    }
+    Copy-Item -Force $src $bin
 }
 Write-Host "Built $bin\zonebuilder.exe with ANGLE from $AngleDir"
