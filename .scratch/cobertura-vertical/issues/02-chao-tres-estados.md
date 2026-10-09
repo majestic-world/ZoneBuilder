@@ -4,9 +4,15 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Captura de tela do app com a zona da captura: o morro que fura o topo aparece com a hachura quente e com a linha do topo contornando o morro
-- [ ] Captura de tela com a faixa erguida acima do chão: o chão aparece com a hachura fria, diferente da quente
-- [ ] Com o botão Chão desligado, a pegada continua visível e só a grade some
-- [ ] Uma zona com mais shapes do que o shader comporta mostra o aviso de pegada parcial no inspetor
+- [x] Captura de tela do app com a zona da captura: o morro que fura o topo aparece com a hachura quente e com a linha do topo contornando o morro
+- [x] Captura de tela com a faixa erguida acima do chão: o chão aparece com a hachura fria, diferente da quente
+- [x] Com o botão Chão desligado, a pegada continua visível e só a grade some
+- [x] Uma zona com mais shapes do que o shader comporta mostra o aviso de pegada parcial no inspetor
+
+## Comments
+
+Implementado na branch `cv/02-chao-tres-estados` e integrado em `cobertura-vertical`. Smoke com capturas: hachura quente e linha do topo contornando o morro; hachura fria com a faixa erguida; aviso "Pegada parcial: 2 shapes fora do desenho" com 10 retângulos. O clique no botão Chão foi conferido no smoke final.
+
+Evidências: `C:/Workspace/zone-builder-notes/cobertura-vertical/02-evidence/, C:/Workspace/zone-builder-notes/cobertura-vertical/final-evidence/`.

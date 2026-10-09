@@ -29,6 +29,7 @@ import (
 	"gioui.org/unit"
 
 	"zonebuilder/internal/camera"
+	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/project"
@@ -173,10 +174,20 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		folders = make(chan string, 1)
 		probe   cursorProbe
 		zones   = newZoneEditor()
+		cover   = newFloorCoverage(w)
 		// zonesShown is the zones.version the renderer last got;
-		// groundShown is what its ground marking was last built for.
-		zonesShown  = -1
+		// groundShown is what its ground marking was last built for;
+		// groundMark was last built for groundBuilt.
+		zonesShown = -1
+		// lineShown is the profile the ground line along the current
+		// shape's walls came from when the zones were last sent.
+		lineShown   *coverage.Profile
 		groundShown = groundKey{version: -1}
+		groundBuilt = groundKey{version: -1}
+		groundMark  render.Ground
+		// pins are the current shape's worst points (spec D4e), as last
+		// laid out; pinsShown are the ones the renderer's overlay has.
+		pins, pinsShown []worstPin
 	)
 	defer func() { g.release() }()
 	if proj != "" {
@@ -223,13 +234,13 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 					if probe.handle(e) && tiles.world != nil {
 						probe.click, probe.clickHit = pickAt(tiles.world, &cam, e.Position, shell.Viewport.Size())
 						logClick(probe.click, probe.clickHit)
-						if msg := zones.click(tiles.world, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit); msg != "" {
+						if msg := zones.click(tiles.world, cover, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit); msg != "" {
 							status = msg
 						}
 					}
 				case key.Event:
 					if (e.Name == key.NameReturn || e.Name == key.NameEnter) && e.State == key.Press {
-						if msg := zones.close(); msg != "" {
+						if msg := zones.close(tiles.world, cover); msg != "" {
 							status = msg
 						}
 					}
@@ -261,7 +272,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				status = zones.arm(t, shell.Zone.Tools.Banned.Value)
 			}
 			if shell.Zone.Tools.WholeTile.Clicked(gtx) {
-				status = wholeTile(zones, tiles, &cam, shell.Viewport.Size(), shell.Zone.Tools.Banned.Value)
+				status = wholeTile(zones, cover, tiles, &cam, shell.Viewport.Size(), shell.Zone.Tools.Banned.Value)
 			}
 			if shell.Zone.Compile.Clicked(gtx) {
 				var files []zonexml.File
@@ -282,6 +293,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				if msg := zones.goToProblem(i, tiles.world, &cam); msg != "" {
 					status = msg
 				}
+			}
+			if i, ok := shell.PinClicked(gtx); ok && i < len(pins) {
+				status = goToPin(pins[i], tiles.world, &cam)
 			}
 			sel, selOK := zones.selectedZone()
 			for _, req := range shell.Props.Update(gtx, sel, selOK) {
@@ -341,9 +355,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				}
 			}
 			if shell.Ground.Toggled(gtx) {
-				status = "Chão oculto"
+				status = "Grade do chão oculta"
 				if shell.Ground.On {
-					status = fmt.Sprintf("Chão: grade das células do terreno, linha forte a cada %d, e a área da zona selecionada", render.GridMajor)
+					status = fmt.Sprintf("Chão: grade das células do terreno, linha forte a cada %d", render.GridMajor)
 				}
 			}
 			moving := fly.Step(&cam, gtx.Now)
@@ -358,25 +372,41 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			shell.Zone.Info = zones.info()
 			sel, _ = zones.selectedZone()
 			shell.Zones.Rows, shell.Zones.Selected = zones.rows(), sel.ID
-			if rows, ok := zones.problemRows(); ok {
-				shell.Problems.Rows = rows
+			if k := (groundKey{version: zones.version, zone: zones.zone, on: shell.Ground.On}); k != groundBuilt {
+				groundMark = zones.ground(shell.Ground.On)
+				shell.Zones.LeftOut = render.GroundLeftOut(groundMark)
+				groundBuilt = k
 			}
-			if msg := zones.panel(gtx, &shell.Edit, tiles.world); msg != "" {
+			if msg := zones.panel(gtx, &shell.Edit, tiles.world, cover); msg != "" {
 				status = msg
 			}
-			if msg := zones.heightPanel(gtx, &shell.Height); msg != "" {
+			shell.Edit.Coverage = cover.inspector(zones, tiles.world)
+			if msg := zones.heightPanel(gtx, &shell.Height, tiles.world, cover); msg != "" {
 				status = msg
 			}
+			cover.heightWindow(zones, tiles.world, &shell.Height)
 			shell.Arrow = zones.layoutArrow(tiles.world, &cam, shell.Viewport.Size(), gtx.Dp(90))
 			shell.EdgeLabels = nil
 			if shell.Ground.On && tiles.world != nil {
 				shell.EdgeLabels = zones.edgeLabels(tiles.world, &cam, shell.Viewport.Size())
 			}
+			pins = cover.pins(zones, tiles.world)
+			// After the selected zone's coverage asked for its profiles, so
+			// they are measured first.
+			if rows, ok := zones.problemRows(cover.warnings(zones, tiles.world)); ok {
+				shell.Problems.Rows = rows
+			}
+			shell.Pins = nil
+			if tiles.world != nil {
+				shell.Pins = pinLabels(pins, tiles.world, &cam, shell.Viewport.Size())
+			}
 			if zones.anchored && tiles.world != nil && probe.inside {
 				h, ok := pickAt(tiles.world, &cam, probe.cursor, shell.Viewport.Size())
-				zones.hoverAt(tiles.world, h, ok)
+				if msg := zones.hoverAt(tiles.world, cover, h, ok); msg != "" {
+					status = msg
+				}
 			} else {
-				zones.hoverAt(nil, scene.Hit{}, false)
+				zones.hoverAt(nil, cover, scene.Hit{}, false)
 			}
 			shell.Zone.Tools.Armed, shell.Zone.Tools.Active = zones.tool, zones.armed
 			var renderer *render.Renderer
@@ -397,13 +427,13 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			}
 			g.renderer.SetMeshesHidden(shell.Meshes.On)
 			uploading := tiles.sync(g.renderer, uploadBudget)
-			if zonesShown != zones.version {
-				g.renderer.SetZones(zones.overlay())
-				zonesShown = zones.version
+			if line, from := cover.groundLine(zones, tiles.world); zonesShown != zones.version || lineShown != from || !samePinShapes(pins, pinsShown) {
+				g.renderer.SetZones(append(zones.overlay(line), pinShapes(pins)...))
+				zonesShown, lineShown, pinsShown = zones.version, from, pins
 			}
-			if k := (groundKey{version: zones.version, zone: zones.zone, on: shell.Ground.On}); k != groundShown {
-				g.renderer.SetGround(zones.ground(shell.Ground.On))
-				groundShown = k
+			if groundShown != groundBuilt {
+				g.renderer.SetGround(groundMark)
+				groundShown = groundBuilt
 			}
 
 			g.ctx.WaitClient() // lets ANGLE pick up a window resize

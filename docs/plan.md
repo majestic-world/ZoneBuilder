@@ -143,6 +143,7 @@ Chão: o shader da cena desenha a grade das células do terreno nas superfícies
 - **Painel de propriedades:** nome; tipo (lista fechada com os 23 valores do enum, respeitando maiúsculas); parâmetros chave/valor, só para os que o servidor exige (`residence`, `distribution_id`, `fishing_place_type`) ou que scripts leem. A lista tipada dos parâmetros do `ZoneTemplate` foi removida: o foco do app são as coordenadas.
 - **Duplicar zona** para criar variações sem redesenhar.
 - **Painel de problemas** atualizado a cada edição.
+- **Cobertura vertical da zona selecionada** (ver [ADR 0004](adr/0004-chao-medido-e-avisos-sem-bloqueio.md) e o README): o chão sob o contorno é medido sobre os triângulos e mostrado sem depender do botão Chão. Chão acima do topo e abaixo do piso em hachuras diferentes, linhas onde o chão cruza o piso e o topo, a linha do chão em cada parede, o prisma enterrado tracejado, pinos no pior ponto com a folga, números por shape e da zona no inspetor e uma régua com histograma na janela de altura. Arrastar a faixa só reclassifica, no mesmo frame.
 
 **Pronto quando:** com 3 zonas de tipos diferentes no projeto, a busca, o filtro por tipo e o mostrar/ocultar afetam a lista e o viewport como esperado; selecionar uma zona leva a câmera até ela; e salvar, fechar e reabrir o `.zbproj` devolve as zonas idênticas.
 
@@ -158,6 +159,8 @@ Regras (cada uma vira item no painel de problemas):
 - Nome único no projeto. O app não conhece as zonas do datapack: evitar colisão com nomes existentes (o servidor sobrescreve sem avisar) fica com o usuário, por exemplo com um prefixo próprio.
 - `RESIDENCE` com nome `residence_<id>`; `FISHING` com `distribution_id` e `fishing_place_type`; `SIEGE`/`HEADQUARTER` com `residence`.
 - Coordenadas dentro de X ∈ [−163840, 229375] e Y ∈ [−262144, 294911].
+
+Avisos de chão (cobertura vertical, [ADR 0004](adr/0004-chao-medido-e-avisos-sem-bloqueio.md)): chão acima do topo, chão abaixo do piso, folga apertada e área sem chão medido. Aparecem no painel de problemas com ícone próprio, levam ao pior ponto com um clique e **não bloqueiam** a compilação. A faixa Z sugerida na criação e os botões "Recalcular pelo chão", "Piso ao chão" e "Topo ao chão" usam o chão da área inteira, com a regra das camadas.
 
 Compilador:
 - Cabeçalho `<?xml version='1.0' encoding='utf-8'?>` + `<!DOCTYPE list SYSTEM "zone.dtd">` + `<list>`.

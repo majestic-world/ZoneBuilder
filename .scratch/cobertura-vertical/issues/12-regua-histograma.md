@@ -4,7 +4,13 @@
 
 **Blocked by:** 06
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Captura de tela da régua para a zona da captura, antes e depois de "Recalcular pelo chão"
-- [ ] Arrastar a seta Z move a barra da faixa e recolore o histograma a cada frame
+- [x] Captura de tela da régua para a zona da captura, antes e depois de "Recalcular pelo chão"
+- [x] Arrastar a seta Z move a barra da faixa e recolore o histograma a cada frame
+
+## Comments
+
+Implementado na branch `cv/12-regua-histograma` e integrado em `cobertura-vertical`. Smoke: régua antes e depois do ajuste; arrastar a seta Z move a barra e recolore o histograma a cada frame (81–85 q/s). Seam: `TestHistogramSpreadsARampOverItsZ` e `TestHistogramSplitsCutBinsByTheRange`.
+
+Evidências: `C:/Workspace/zone-builder-notes/cobertura-vertical/12-evidence/`.

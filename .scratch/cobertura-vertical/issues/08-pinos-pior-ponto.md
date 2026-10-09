@@ -4,8 +4,14 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Captura de tela da zona da captura: o pino do topo está no pico que fura o topo, com o rótulo em vermelho
-- [ ] Clicar no rótulo enquadra o pico
-- [ ] Arrastar a seta Z muda o número do rótulo a cada frame
+- [x] Captura de tela da zona da captura: o pino do topo está no pico que fura o topo, com o rótulo em vermelho
+- [x] Clicar no rótulo enquadra o pico
+- [x] Arrastar a seta Z muda o número do rótulo a cada frame
+
+## Comments
+
+Implementado na branch `cv/08-pinos-pior-ponto` e integrado em `cobertura-vertical`. Smoke: rótulo "topo −815" em vermelho no pico da captura; clicar enquadra o pico; arrastar a seta Z muda o rótulo a cada frame. Os pinos somem quando a zona selecionada está oculta (revisão).
+
+Evidências: `C:/Workspace/zone-builder-notes/cobertura-vertical/08-evidence/`.

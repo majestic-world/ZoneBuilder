@@ -4,9 +4,15 @@
 
 **Blocked by:** 09
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] No app, um retângulo novo sobre o morro da captura nasce com cobertura de 100%
-- [ ] A faixa da prévia, depois de medida, é a mesma do shape criado pelo clique
-- [ ] Um polígono fechado sobre um vale entre morros nasce com o topo acima dos morros
-- [ ] Um shape criado parcialmente fora dos tiles carregados nasce com a faixa pelos vértices e a mensagem avisa
+- [x] No app, um retângulo novo sobre o morro da captura nasce com cobertura de 100%
+- [x] A faixa da prévia, depois de medida, é a mesma do shape criado pelo clique
+- [x] Um polígono fechado sobre um vale entre morros nasce com o topo acima dos morros
+- [x] Um shape criado parcialmente fora dos tiles carregados nasce com a faixa pelos vértices e a mensagem avisa
+
+## Comments
+
+Implementado na branch `cv/10-faixa-sugerida-na-criacao` e integrado em `cobertura-vertical`. Smoke: retângulo novo sobre o morro nasce com 100% dentro; a faixa da prévia é a mesma do shape criado pelo clique; polígono no vale nasce com o topo acima do morro; círculo que sai do tile carregado nasce pelos vértices, e a mensagem avisa. Seam: `TestAreaInBoxFollowsAConcaveOutline`.
+
+Evidências: `C:/Workspace/zone-builder-notes/cobertura-vertical/10-evidence/`.

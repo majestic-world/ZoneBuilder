@@ -35,7 +35,15 @@ type ZoneShape struct {
 	// whose handles are filled with problemColor.
 	Problem     bool
 	BadVertices []int
+	// Ground is the floor line along the prism's walls, as segments (pairs
+	// of points, server coordinates) drawn in the edge colour.
+	Ground []geom.Vec3
 }
+
+// groundLift raises the ground line along the walls this many units over
+// the floor it follows, so its visible pass wins the depth test against
+// the very triangles it lies on instead of flickering to dashed.
+const groundLift = 2
 
 // problemColor is the edge and handle colour that flags a problem.
 var problemColor = [4]float32{1, 0.12, 0.12, 1}
@@ -52,47 +60,92 @@ const (
 )
 
 // overlayVertex is one overlay vertex: an absolute client-space position,
-// a linear RGBA colour and, for points, the size in pixels.
+// a linear RGBA colour, for points the size in pixels and, for lines, the
+// line's first end (the same on both vertices), where its dashes start.
 type overlayVertex struct {
-	Pos   [3]float32
-	Color [4]float32
-	Size  float32
+	Pos    [3]float32
+	Color  [4]float32
+	Size   float32
+	Anchor [3]float32
 }
+
+// segment is the line from a to b in colour c.
+func segment(a, b [3]float32, c [4]float32) [2]overlayVertex {
+	return [2]overlayVertex{{Pos: a, Color: c, Anchor: a}, {Pos: b, Color: c, Anchor: a}}
+}
+
+// Overlay draw modes, the uMode uniform: plain colour, buried faces
+// (fainter, striped) and buried lines (dashed along the line on screen).
+const (
+	modeVisible = iota
+	modeBuriedFace
+	modeBuriedLine
+)
 
 const overlayVert = `#version 300 es
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec4 aColor;
 layout(location = 2) in float aSize;
+layout(location = 3) in vec3 aAnchor;
 uniform highp vec3 uOrigin;
 uniform highp mat4 uViewProj;
 out vec4 vColor;
+// vAnchor is the clip position of the line's first end, equal on both
+// vertices so it reaches the fragment unchanged (no flat varying: ANGLE's
+// D3D11 backend drops lines that use one).
+out highp vec4 vAnchor;
 void main() {
 	vColor = aColor;
 	gl_PointSize = aSize;
 	gl_Position = uViewProj * vec4(aPos - uOrigin, 1.0);
+	vAnchor = uViewProj * vec4(aAnchor - uOrigin, 1.0);
 }
 `
 
-const overlayFrag = `#version 300 es
+var overlayFrag = `#version 300 es
 precision mediump float;
+uniform int uMode;
+uniform highp vec2 uViewport;
 in vec4 vColor;
+in highp vec4 vAnchor;
 out vec4 oColor;
 void main() {
-	oColor = vColor;
+	vec4 c = vColor;
+	if (uMode == ` + itoa(modeBuriedFace) + `) {
+		// Diagonal stripes, 3 px on, 3 px off.
+		if (mod(gl_FragCoord.x + gl_FragCoord.y, 6.0) >= 3.0) discard;
+		c.a *= 0.6; // the buried faces keep 60% of prismAlpha in their stripes
+	} else if (uMode == ` + itoa(modeBuriedLine) + `) {
+		// Dashes 8 px on, 6 px off, measured on screen from the line's
+		// first end; a first end behind the camera falls back to a fixed
+		// diagonal pattern.
+		highp float d = gl_FragCoord.x + gl_FragCoord.y;
+		if (vAnchor.w > 0.0) {
+			highp vec2 a = (vAnchor.xy / vAnchor.w * 0.5 + 0.5) * uViewport;
+			d = distance(gl_FragCoord.xy, a);
+		}
+		if (mod(d, 14.0) >= 8.0) discard;
+		c.a *= 0.85;
+	}
+	oColor = c;
 }
 `
 
-// zoneOverlay draws zone shapes over the scene: translucent prism faces
-// depth-tested against the scene, then edges and vertex handles on top of
-// everything.
+// zoneOverlay draws zone shapes over the scene. Faces and lines draw in 2
+// passes: where they are in front of the scene, plain; where the scene
+// hides them, faces faint and striped, lines dashed. Vertex handles go on
+// top of everything.
 type zoneOverlay struct {
 	prog     uint32
 	viewProj int32
 	origin   int32
+	mode     int32
+	viewport int32
 	vao, vbo uint32
-	// verts holds the triangle run, then the line run, then the points.
-	verts       []overlayVertex
-	tris, lines int
+	// verts holds the triangle run, then the line run, then the ground
+	// line run, then the points.
+	verts               []overlayVertex
+	tris, lines, ground int
 	dirty       bool
 }
 
@@ -105,6 +158,8 @@ func newZoneOverlay() (*zoneOverlay, error) {
 		prog:     p,
 		viewProj: gles.GetUniformLocation(p, "uViewProj"),
 		origin:   gles.GetUniformLocation(p, "uOrigin"),
+		mode:     gles.GetUniformLocation(p, "uMode"),
+		viewport: gles.GetUniformLocation(p, "uViewport"),
 		vao:      gles.GenVertexArray(),
 		vbo:      gles.GenBuffer(),
 	}
@@ -117,6 +172,8 @@ func newZoneOverlay() (*zoneOverlay, error) {
 	gles.VertexAttribPointer(1, 4, gles.FLOAT, false, stride, unsafe.Offsetof(overlayVertex{}.Color))
 	gles.EnableVertexAttribArray(2)
 	gles.VertexAttribPointer(2, 1, gles.FLOAT, false, stride, unsafe.Offsetof(overlayVertex{}.Size))
+	gles.EnableVertexAttribArray(3)
+	gles.VertexAttribPointer(3, 3, gles.FLOAT, false, stride, unsafe.Offsetof(overlayVertex{}.Anchor))
 	gles.BindVertexArray(0)
 	gles.BindBuffer(gles.ARRAY_BUFFER, 0)
 	return o, nil
@@ -125,7 +182,7 @@ func newZoneOverlay() (*zoneOverlay, error) {
 // set rebuilds the vertex runs for shapes: triangles, then lines, then
 // points, so each draws with one call.
 func (o *zoneOverlay) set(shapes []ZoneShape) {
-	var tris, lines, points []overlayVertex
+	var tris, lines, ground, points []overlayVertex
 	for _, s := range shapes {
 		if len(s.Points) == 0 {
 			continue
@@ -150,11 +207,13 @@ func (o *zoneOverlay) set(shapes []ZoneShape) {
 				for _, v := range [6][3]float32{at(a, zmin), at(b, zmin), at(b, zmax), at(a, zmin), at(b, zmax), at(a, zmax)} {
 					tris = append(tris, overlayVertex{Pos: v, Color: face})
 				}
-				lines = append(lines,
-					overlayVertex{Pos: at(a, zmin), Color: edge}, overlayVertex{Pos: at(b, zmin), Color: edge},
-					overlayVertex{Pos: at(a, zmax), Color: edge}, overlayVertex{Pos: at(b, zmax), Color: edge},
-					overlayVertex{Pos: at(a, zmin), Color: edge}, overlayVertex{Pos: at(a, zmax), Color: edge},
-				)
+				for _, l := range [3][2]overlayVertex{
+					segment(at(a, zmin), at(b, zmin), edge),
+					segment(at(a, zmax), at(b, zmax), edge),
+					segment(at(a, zmin), at(a, zmax), edge),
+				} {
+					lines = append(lines, l[:]...)
+				}
 			}
 			caps := triangulate(client)
 			for _, z := range [2]float32{zmin, zmax} {
@@ -162,12 +221,16 @@ func (o *zoneOverlay) set(shapes []ZoneShape) {
 					tris = append(tris, overlayVertex{Pos: at(client[k], z), Color: face})
 				}
 			}
+			for k := 0; k+1 < len(s.Ground); k += 2 {
+				a, b := scene.FromServer(s.Ground[k]), scene.FromServer(s.Ground[k+1])
+				l := segment(at(a, a.Z+groundLift), at(b, b.Z+groundLift), edge)
+				ground = append(ground, l[:]...)
+			}
 		} else {
 			for i := 1; i < len(client); i++ {
 				a, b := client[i-1], client[i]
-				lines = append(lines,
-					overlayVertex{Pos: [3]float32{a.X, a.Y, a.Z}, Color: edge},
-					overlayVertex{Pos: [3]float32{b.X, b.Y, b.Z}, Color: edge})
+				l := segment([3]float32{a.X, a.Y, a.Z}, [3]float32{b.X, b.Y, b.Z}, edge)
+				lines = append(lines, l[:]...)
 			}
 		}
 		for i, p := range client {
@@ -195,15 +258,16 @@ func (o *zoneOverlay) set(shapes []ZoneShape) {
 			}
 		}
 	}
-	o.verts = append(append(append(o.verts[:0], tris...), lines...), points...)
-	o.tris, o.lines = len(tris), len(lines)
+	o.verts = append(append(append(append(o.verts[:0], tris...), lines...), ground...), points...)
+	o.tris, o.lines, o.ground = len(tris), len(lines), len(ground)
 	o.dirty = true
 }
 
-// draw renders the overlay into the bound viewport target, whose depth
-// buffer holds the scene (reversed Z). It leaves blending off, depth
-// writes on and the depth test GREATER, as the scene pass expects.
-func (o *zoneOverlay) draw(viewProj mat4, origin [3]float32) {
+// draw renders the overlay into the bound viewport target of size w×h,
+// whose depth buffer holds the scene (reversed Z, so LESS is behind the
+// scene). It leaves blending off, depth writes on and the depth test
+// GREATER, as the scene pass expects.
+func (o *zoneOverlay) draw(viewProj mat4, origin [3]float32, w, h int) {
 	if len(o.verts) == 0 {
 		return
 	}
@@ -217,18 +281,26 @@ func (o *zoneOverlay) draw(viewProj mat4, origin [3]float32) {
 	gles.UseProgram(o.prog)
 	gles.UniformMatrix4fv(o.viewProj, (*[16]float32)(&viewProj))
 	gles.Uniform3f(o.origin, origin[0], origin[1], origin[2])
+	gles.Uniform2f(o.viewport, float32(w), float32(h))
 	gles.Enable(gles.BLEND)
 	gles.BlendFunc(gles.SRC_ALPHA, gles.ONE_MINUS_SRC_ALPHA)
-
-	// Faces: hidden by the scene in front of them, never hiding it.
 	gles.DepthMask(false)
-	gles.DepthFunc(gles.GEQUAL)
-	gles.DrawArrays(gles.TRIANGLES, 0, o.tris)
 
-	// Edges and handles: over everything.
+	// Faces: plain in front of the scene, faint stripes behind it.
+	o.pass(gles.TRIANGLES, 0, o.tris, gles.GEQUAL, modeVisible)
+	o.pass(gles.TRIANGLES, 0, o.tris, gles.LESS, modeBuriedFace)
+	// Lines: solid in front of the scene, dashed behind it; the ground
+	// line along the walls the same way.
+	o.pass(gles.LINES, o.tris, o.lines, gles.GEQUAL, modeVisible)
+	o.pass(gles.LINES, o.tris, o.lines, gles.LESS, modeBuriedLine)
+	o.pass(gles.LINES, o.tris+o.lines, o.ground, gles.GEQUAL, modeVisible)
+	o.pass(gles.LINES, o.tris+o.lines, o.ground, gles.LESS, modeBuriedLine)
+
+	// Handles: over everything.
 	gles.Disable(gles.DEPTH_TEST)
-	gles.DrawArrays(gles.LINES, o.tris, o.lines)
-	gles.DrawArrays(gles.POINTS, o.tris+o.lines, len(o.verts)-o.tris-o.lines)
+	gles.Uniform1i(o.mode, modeVisible)
+	run := o.tris + o.lines + o.ground
+	gles.DrawArrays(gles.POINTS, run, len(o.verts)-run)
 
 	gles.Enable(gles.DEPTH_TEST)
 	gles.DepthFunc(gles.GREATER)
@@ -236,6 +308,17 @@ func (o *zoneOverlay) draw(viewProj mat4, origin [3]float32) {
 	gles.Disable(gles.BLEND)
 	gles.UseProgram(0)
 	gles.BindVertexArray(0)
+}
+
+// pass draws count vertices from first as prim with the depth test fn and
+// the fragment mode.
+func (o *zoneOverlay) pass(prim uint32, first, count int, fn uint32, mode int32) {
+	if count == 0 {
+		return
+	}
+	gles.DepthFunc(fn)
+	gles.Uniform1i(o.mode, mode)
+	gles.DrawArrays(prim, first, count)
 }
 
 func (o *zoneOverlay) release() {

@@ -4,12 +4,18 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Teste do seam com chão sintético: uma pirâmide dentro de um quadrado dá o ápice como chão mais alto, mesmo com o ápice longe de qualquer vértice do contorno
-- [ ] Teste do seam: uma rampa sob um contorno em L (côncavo) dá a área acima do topo igual à fórmula fechada
-- [ ] Teste do seam: um quad invisível vai para "sem chão", e a cobertura não conta como 100%
-- [ ] Teste do seam: dentro + acima + abaixo é igual à área total de chão medida
-- [ ] Teste com o cliente real (pulado sem `ZB_CLIENT`): em 22_22, para 1000 colunas sorteadas sobre o terreno, o maior Z dos triângulos de chão da coluna é igual ao Z de um `Pick` vertical vindo de cima, com tolerância de 0,01
-- [ ] No app, o retângulo da captura sobre o morro mostra a folga do topo negativa e a área acima do topo maior que 0
-- [ ] Mover um vértice de um shape do tamanho de um tile mostra "medindo…" e depois o número novo, sem travar o viewport
+- [x] Teste do seam com chão sintético: uma pirâmide dentro de um quadrado dá o ápice como chão mais alto, mesmo com o ápice longe de qualquer vértice do contorno
+- [x] Teste do seam: uma rampa sob um contorno em L (côncavo) dá a área acima do topo igual à fórmula fechada
+- [x] Teste do seam: um quad invisível vai para "sem chão", e a cobertura não conta como 100%
+- [x] Teste do seam: dentro + acima + abaixo é igual à área total de chão medida
+- [x] Teste com o cliente real (pulado sem `ZB_CLIENT`): em 22_22, para 1000 colunas sorteadas sobre o terreno, o maior Z dos triângulos de chão da coluna é igual ao Z de um `Pick` vertical vindo de cima, com tolerância de 0,01
+- [x] No app, o retângulo da captura sobre o morro mostra a folga do topo negativa e a área acima do topo maior que 0
+- [x] Mover um vértice de um shape do tamanho de um tile mostra "medindo…" e depois o número novo, sem travar o viewport
+
+## Comments
+
+Implementado na branch `cv/01-cobertura-terreno-inspetor` e integrado em `cobertura-vertical`. Testes do seam em `internal/coverage` (pirâmide, rampa sob L côncavo, quad invisível, soma das áreas) e `TestFloorTopMatchesTheVerticalPick` no cliente real (1000 colunas em 22_22, ±0,01). Smoke: na captura, folga do topo −815 e acima do topo 83,8%; arrastar um vértice de shape do tamanho de um tile mostra "medindo…" e depois o número novo (pior quadro 21 ms). Perfil de um tile: 25 ms só com terreno.
+
+Evidências: `C:/Workspace/zone-builder-notes/cobertura-vertical/01-evidence/`.

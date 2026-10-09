@@ -4,9 +4,15 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Teste do seam: um telhado 3000 acima da faixa não puxa o topo; um mezanino 200 acima puxa
-- [ ] Teste do seam: o chão mais alto entre os vértices, longe deles, define o topo
-- [ ] No app, "Recalcular pelo chão" no retângulo da captura deixa a cobertura em 100%
-- [ ] "Piso ao chão" e "Topo ao chão" numa zona com vários shapes são desfeitos com um único desfazer
+- [x] Teste do seam: um telhado 3000 acima da faixa não puxa o topo; um mezanino 200 acima puxa
+- [x] Teste do seam: o chão mais alto entre os vértices, longe deles, define o topo
+- [x] No app, "Recalcular pelo chão" no retângulo da captura deixa a cobertura em 100%
+- [x] "Piso ao chão" e "Topo ao chão" numa zona com vários shapes são desfeitos com um único desfazer
+
+## Comments
+
+Implementado na branch `cv/09-ajustar-faixa-ao-chao` e integrado em `cobertura-vertical`. Seam: telhado 3000 acima não puxa o topo e mezanino 200 acima puxa; pico longe dos vértices define o topo; uma torre não sobe de piso em piso até o telhado (revisão). Smoke: "Recalcular pelo chão" na captura deixa 100% dentro; "Piso ao chão" e "Topo ao chão" usam 1 `zone.Batch` e voltam com 1 desfazer. Exclusões mantêm a faixa delas (revisão).
+
+Evidências: `C:/Workspace/zone-builder-notes/cobertura-vertical/09-evidence/, C:/Workspace/zone-builder-notes/cobertura-vertical/review-evidence/`.

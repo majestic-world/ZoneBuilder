@@ -62,6 +62,19 @@ type Command interface {
 // leaves d unchanged and records nothing.
 func (d *Document) Apply(c Command) error { return d.record(c) }
 
+// Batch runs its commands in order as one step: one Undo reverts them
+// all, and when one fails none of them is applied.
+type Batch []Command
+
+func (b Batch) apply(d *Document) error {
+	for _, c := range b {
+		if err := c.apply(d); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // CreateZone adds an empty zone. ID comes from Document.NewZoneID.
 type CreateZone struct {
 	ID   ZoneID

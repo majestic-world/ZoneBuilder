@@ -10,6 +10,7 @@ import (
 	"gioui.org/f32"
 
 	"zonebuilder/internal/camera"
+	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/render"
@@ -37,9 +38,10 @@ const (
 	// generated vertex (a circle vertex, a rectangle's other corners) onto
 	// the surface under it: it starts groundAbove over the clicked height
 	// and takes a hit no further than groundReach from it, so a roof or a
-	// cave floor far from the drawing level is not picked.
+	// cave floor far from the drawing level is not picked (the reach of
+	// the range rule, spec D5).
 	groundAbove = zone.DefaultZMargin
-	groundReach = 1024
+	groundReach = coverage.GroundReach
 )
 
 // arm makes tool take the viewport clicks for the selected zone; a shape
@@ -104,9 +106,8 @@ func (e *zoneEditor) escape() string {
 }
 
 // rectangleClick takes corner v: the first one anchors the rectangle, the
-// second adds it to the selected zone with a Z range covering the surface
-// under all 4 corners.
-func (e *zoneEditor) rectangleClick(s *scene.World, v zone.Point) string {
+// second adds it to the selected zone with the Z range placed suggests.
+func (e *zoneEditor) rectangleClick(s *scene.World, c *floorCoverage, v zone.Point) string {
 	if !e.anchored {
 		e.anchor, e.anchored = v, true
 		e.version++
@@ -116,9 +117,9 @@ func (e *zoneEditor) rectangleClick(s *scene.World, v zone.Point) string {
 	if a.X == v.X || a.Y == v.Y {
 		return "O retângulo precisa de largura e altura: clique noutro canto"
 	}
-	_, zmin, zmax := e.placed(s, v)
+	_, fit := e.placed(s, c, v, true)
 	z, _ := e.doc.Zone(e.zone)
-	if e.apply(zone.AddShape{Zone: e.zone, Kind: zone.Rectangle, Banned: e.banned, Points: []zone.Point{a, v}, ZMin: zmin, ZMax: zmax}) != nil {
+	if e.apply(zone.AddShape{Zone: e.zone, Kind: zone.Rectangle, Banned: e.banned, Points: []zone.Point{a, v}, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
 		return "Não foi possível adicionar o retângulo"
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
@@ -127,17 +128,19 @@ func (e *zoneEditor) rectangleClick(s *scene.World, v zone.Point) string {
 	if e.banned {
 		what = "Exclusão retangular"
 	}
-	log.Printf("zona: %s: %s %d %d … %d %d, z %d..%d", z.Name, what, a.X, a.Y, v.X, v.Y, zmin, zmax)
-	return fmt.Sprintf("%s em %s: %d %d … %d %d, z %d … %d", what, z.Name, a.X, a.Y, v.X, v.Y, zmin, zmax)
+	log.Printf("zona: %s: %s %d %d … %d %d, z %d..%d %s", z.Name, what, a.X, a.Y, v.X, v.Y, fit.zmin, fit.zmax, fit.note())
+	return fmt.Sprintf("%s em %s: %d %d … %d %d, z %d … %d %s", what, z.Name, a.X, a.Y, v.X, v.Y, fit.zmin, fit.zmax, fit.note())
 }
 
 // wholeTile adds to the selected zone a polygon over tile t's whole square,
 // [origin, origin+TileSpan-1] on X and Y (the last unit stays inside the
-// tile, and inside the world bounds for the last tile), spanning on Z
-// everything the tile's scene s holds, terrain, BSP and meshes, plus the
-// margin. It is a polygon, not a rectangle, so its vertices can be moved
-// and more inserted to trim it. banned adds it as an exclusion.
-func (e *zoneEditor) wholeTile(t scene.Tile, s *scene.Scene, banned bool) string {
+// tile, and inside the world bounds for the last tile), with the Z range
+// suggested by the floor under it, measured over w from the terrain (spec
+// D5); with no floor there, the range spans everything the tile's scene s
+// holds, terrain, BSP and meshes, plus the margin. It is a polygon, not a
+// rectangle, so its vertices can be moved and more inserted to trim it.
+// banned adds it as an exclusion.
+func (e *zoneEditor) wholeTile(c *floorCoverage, w *scene.World, t scene.Tile, s *scene.Scene, banned bool) string {
 	z, ok := e.doc.Zone(e.zone)
 	switch {
 	case e.drawing:
@@ -150,11 +153,12 @@ func (e *zoneEditor) wholeTile(t scene.Tile, s *scene.Scene, banned bool) string
 	ox, oy := t.Origin()
 	x0, y0 := int(ox), int(oy)
 	x1, y1 := x0+scene.TileSpan-1, y0+scene.TileSpan-1
-	zmin := int(math.Floor(float64(s.Bounds.Min.Z+scene.ServerZOffset))) - e.margin
-	zmax := int(math.Ceil(float64(s.Bounds.Max.Z+scene.ServerZOffset))) + e.margin
-	floor := zmin + e.margin
+	vmin := int(math.Floor(float64(s.Bounds.Min.Z+scene.ServerZOffset))) - e.margin
+	vmax := int(math.Ceil(float64(s.Bounds.Max.Z+scene.ServerZOffset))) + e.margin
+	floor := vmin + e.margin
 	pts := []zone.Point{{X: x0, Y: y0, Z: floor}, {X: x1, Y: y0, Z: floor}, {X: x1, Y: y1, Z: floor}, {X: x0, Y: y1, Z: floor}}
-	if e.apply(zone.AddShape{Zone: e.zone, Banned: banned, Points: pts, ZMin: zmin, ZMax: zmax}) != nil {
+	fit := c.suggest(e, w, len(z.Shapes), pts, vmin, vmax, true, true)
+	if e.apply(zone.AddShape{Zone: e.zone, Banned: banned, Points: pts, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
 		return "Não foi possível cobrir o tile"
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
@@ -163,13 +167,13 @@ func (e *zoneEditor) wholeTile(t scene.Tile, s *scene.Scene, banned bool) string
 	if banned {
 		what = "Exclusão do tile inteiro"
 	}
-	log.Printf("zona: %s: %s %s: %d %d … %d %d, z %d..%d", z.Name, what, t.Name(), x0, y0, x1, y1, zmin, zmax)
-	return fmt.Sprintf("%s %s em %s: %d %d … %d %d, z %d … %d", what, t.Name(), z.Name, x0, y0, x1, y1, zmin, zmax)
+	log.Printf("zona: %s: %s %s: %d %d … %d %d, z %d..%d %s", z.Name, what, t.Name(), x0, y0, x1, y1, fit.zmin, fit.zmax, fit.note())
+	return fmt.Sprintf("%s %s em %s: %d %d … %d %d, z %d … %d %s", what, t.Name(), z.Name, x0, y0, x1, y1, fit.zmin, fit.zmax, fit.note())
 }
 
 // wholeTile covers, in the selected zone, the tile in view: the one under
 // the viewport's centre, or under the camera when the centre meets nothing.
-func wholeTile(e *zoneEditor, ts *tiles, cam *camera.Camera, vp image.Point, banned bool) string {
+func wholeTile(e *zoneEditor, c *floorCoverage, ts *tiles, cam *camera.Camera, vp image.Point, banned bool) string {
 	if ts.world == nil {
 		return "Abra um mapa antes de cobrir o tile"
 	}
@@ -181,26 +185,27 @@ func wholeTile(e *zoneEditor, ts *tiles, cam *camera.Camera, vp image.Point, ban
 	if !ok {
 		return "Nenhum tile carregado no centro da vista"
 	}
-	return e.wholeTile(t, s, banned)
+	return e.wholeTile(c, ts.world, t, s, banned)
 }
 
 // circleClick takes the center, then a point on the circle: the circle
 // goes into the selected zone as a polygon of zone.CircleSides vertices,
-// each dropped onto the surface under it.
-func (e *zoneEditor) circleClick(s *scene.World, v zone.Point) string {
+// each dropped onto the surface under it, with the Z range placed
+// suggests.
+func (e *zoneEditor) circleClick(s *scene.World, c *floorCoverage, v zone.Point) string {
 	if !e.anchored {
 		e.anchor, e.anchored = v, true
 		e.version++
 		return fmt.Sprintf("Centro em %d %d %d; clique na borda para dar o raio", v.X, v.Y, v.Z)
 	}
-	c := e.anchor
-	r := radius(c, v)
+	a := e.anchor
+	r := radius(a, v)
 	if r < minCircleRadius {
 		return fmt.Sprintf("Raio de %d: o mínimo é %d; clique mais longe do centro", r, minCircleRadius)
 	}
-	pts, zmin, zmax := e.placed(s, v)
+	pts, fit := e.placed(s, c, v, true)
 	z, _ := e.doc.Zone(e.zone)
-	if e.apply(zone.AddShape{Zone: e.zone, Banned: e.banned, Points: pts, ZMin: zmin, ZMax: zmax}) != nil {
+	if e.apply(zone.AddShape{Zone: e.zone, Banned: e.banned, Points: pts, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
 		return "Não foi possível adicionar o círculo"
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
@@ -209,8 +214,8 @@ func (e *zoneEditor) circleClick(s *scene.World, v zone.Point) string {
 	if e.banned {
 		what = "Exclusão circular"
 	}
-	log.Printf("zona: %s: %s centro %d %d raio %d → polígono de %s, z %d..%d", z.Name, what, c.X, c.Y, r, inflect.Count(len(pts), "vértice", "vértices"), zmin, zmax)
-	return fmt.Sprintf("%s em %s: raio %d, polígono de %s, z %d … %d", what, z.Name, r, inflect.Count(len(pts), "vértice", "vértices"), zmin, zmax)
+	log.Printf("zona: %s: %s centro %d %d raio %d → polígono de %s, z %d..%d %s", z.Name, what, a.X, a.Y, r, inflect.Count(len(pts), "vértice", "vértices"), fit.zmin, fit.zmax, fit.note())
+	return fmt.Sprintf("%s em %s: raio %d, polígono de %s, z %d … %d %s", what, z.Name, r, inflect.Count(len(pts), "vértice", "vértices"), fit.zmin, fit.zmax, fit.note())
 }
 
 // restartClick adds v to the selected zone's restart points (player
@@ -236,42 +241,71 @@ func radius(c, v zone.Point) int {
 
 // placed is the shape the armed rectangle or circle tool adds from the
 // anchor to v: its outline (a rectangle's 4 corners, a circle's polygon),
-// the generated vertices dropped onto the ground of s, and the Z range
-// suggested from them with the configured margin. Clicks and the preview
-// both go through it, so the preview is what gets added.
-func (e *zoneEditor) placed(s *scene.World, v zone.Point) (pts []zone.Point, zmin, zmax int) {
+// with the generated vertices dropped onto the ground of s, and its Z
+// range, suggested by the floor under its area with the configured margin
+// (floorCoverage.suggest, from the range its vertices suggest). Clicks
+// and the preview both go through it, so the preview is what gets added:
+// the preview asks for the outline's profile in the background and shows
+// the vertex range until it is in; a click (now) measures it on the spot
+// when it is not in yet.
+func (e *zoneEditor) placed(s *scene.World, c *floorCoverage, v zone.Point, now bool) ([]zone.Point, zSuggestion) {
 	a := e.anchor
+	var pts, vertices []zone.Point
 	if e.tool == ui.ToolCircle {
 		pts = zone.CirclePoints(a, max(radius(a, v), 1), zone.CircleSides)
 		for i := range pts {
 			pts[i].Z = groundZ(s, pts[i].X, pts[i].Y, a.Z)
 		}
-		zmin, zmax = zone.SuggestZRange(append(slices.Clone(pts), a), e.margin)
-		return pts, zmin, zmax
+		vertices = append(slices.Clone(pts), a)
+	} else {
+		r := zone.RectangleCorners(a, v)
+		r[1].Z = groundZ(s, r[1].X, r[1].Y, r[1].Z)
+		r[3].Z = groundZ(s, r[3].X, r[3].Y, r[3].Z)
+		pts = r[:]
+		vertices = pts
 	}
-	c := zone.RectangleCorners(a, v)
-	c[1].Z = groundZ(s, c[1].X, c[1].Y, c[1].Z)
-	c[3].Z = groundZ(s, c[3].X, c[3].Y, c[3].Z)
-	zmin, zmax = zone.SuggestZRange(c[:], e.margin)
-	return c[:], zmin, zmax
+	vmin, vmax := zone.SuggestZRange(vertices, e.margin)
+	return pts, c.suggest(e, s, e.nextShape(), pts, vmin, vmax, false, now)
+}
+
+// nextShape is the index the next shape added to the selected zone gets.
+func (e *zoneEditor) nextShape() int {
+	z, _ := e.doc.Zone(e.zone)
+	return len(z.Shapes)
 }
 
 // hoverAt tracks the surface point under the cursor (h, when ok) while a
-// rectangle or circle is anchored, and places the preview shape on s.
-func (e *zoneEditor) hoverAt(s *scene.World, h scene.Hit, ok bool) {
+// rectangle or circle is anchored, and places the preview shape on s;
+// while the preview's floor is being measured, it takes the range again
+// from c, so it changes when the profile comes in. It returns the status
+// line when the preview's range changed, else "".
+func (e *zoneEditor) hoverAt(s *scene.World, c *floorCoverage, h scene.Hit, ok bool) string {
 	ok = ok && s != nil && e.armed && e.anchored
 	p := zone.Point{}
 	if ok {
 		p = serverPoint(h)
 	}
-	if ok == e.hovering && p == e.hover {
-		return
+	moved := ok != e.hovering || p != e.hover
+	if !moved && !(ok && e.ghostZ.from == zMeasuring) {
+		return ""
 	}
 	e.hover, e.hovering = p, ok
-	if ok {
-		e.ghost, e.ghostMin, e.ghostMax = e.placed(s, p)
+	if !ok {
+		e.version++
+		return ""
 	}
+	fit := e.ghostZ
+	if moved {
+		e.ghost, fit = e.placed(s, c, p, false)
+	} else {
+		fit = c.suggest(e, s, e.nextShape(), e.ghost, fit.vmin, fit.vmax, false, false)
+	}
+	if !moved && fit == e.ghostZ {
+		return ""
+	}
+	e.ghostZ = fit
 	e.version++
+	return fmt.Sprintf("%s · prévia: z %d … %d %s", e.hint(), fit.zmin, fit.zmax, fit.note())
 }
 
 // preview is the rectangle or circle being placed: from the anchor to the
@@ -286,7 +320,7 @@ func (e *zoneEditor) preview() (render.ZoneShape, bool) {
 	if !e.hovering {
 		return render.ZoneShape{Points: []geom.Vec3{serverVec(a)}, Color: color, Marked: 0}, true
 	}
-	rs := overlayShape(e.ghost, e.ghostMin, e.ghostMax, color)
+	rs := overlayShape(e.ghost, e.ghostZ.zmin, e.ghostZ.zmax, color)
 	if e.tool == ui.ToolRectangle {
 		rs.Marked = 0
 	}
@@ -314,37 +348,18 @@ func serverVec(p zone.Point) geom.Vec3 {
 	return geom.Vec3{X: float32(p.X), Y: float32(p.Y), Z: float32(p.Z)}
 }
 
-// groundZ is the server Z of the surface under x y near height ref (see
-// groundAbove and groundReach), or ref when nothing is there.
+// groundZ is the server Z of the surface under x y near height ref, or ref
+// when nothing is there: the first surface straight down from groundAbove
+// over ref, counted only within groundReach of ref, so a roof or a cave
+// floor far from the drawing level is not picked.
 func groundZ(s *scene.World, x, y, ref int) int {
-	if z, ok := ground(s, zone.Point{X: x, Y: y, Z: ref}, groundAbove, groundReach, false); ok {
+	o := scene.FromServer(serverVec(zone.Point{X: x, Y: y, Z: ref + groundAbove}))
+	h, ok := s.Pick(scene.Ray{Origin: o, Dir: geom.Vec3{Z: -1}})
+	if !ok {
+		return ref
+	}
+	if z := round(h.Pos.Z); z >= ref-groundReach && z <= ref+groundReach {
 		return z
 	}
 	return ref
-}
-
-// ground is the server Z of the surface at p, found by a vertical pick from
-// above over p.Z: the first surface straight down or, with up set and
-// nothing below (p buried under higher ground), the nearest surface
-// straight up, hit from beneath since picking is two-sided. With reach > 0,
-// a surface further than reach from p.Z counts as none, so a roof or a cave
-// floor far from the drawing level is not picked.
-func ground(s *scene.World, p zone.Point, above, reach int, up bool) (int, bool) {
-	o := scene.FromServer(serverVec(zone.Point{X: p.X, Y: p.Y, Z: p.Z + above}))
-	dirs := []float32{-1}
-	if up {
-		dirs = append(dirs, 1)
-	}
-	for _, dir := range dirs {
-		h, ok := s.Pick(scene.Ray{Origin: o, Dir: geom.Vec3{Z: dir}})
-		if !ok {
-			continue
-		}
-		z := round(h.Pos.Z)
-		if reach > 0 && (z < p.Z-reach || z > p.Z+reach) {
-			return 0, false
-		}
-		return z, true
-	}
-	return 0, false
 }

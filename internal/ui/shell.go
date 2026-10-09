@@ -80,6 +80,11 @@ type Shell struct {
 	// EdgeLabels are the lengths of the selected zone's edges, drawn on
 	// the viewport at their midpoints.
 	EdgeLabels []EdgeLabel
+	// Pins are the labels of the selected shape's worst-point pins (its
+	// highest and lowest floor); unlike EdgeLabels a click on one is
+	// reported by PinClicked.
+	Pins     []EdgeLabel
+	pinPicks []widget.Clickable
 	// XML shows the last compilation, to copy.
 	XML XMLWindow
 	// Message is the last outcome ("" for none), shown over the status
@@ -130,6 +135,7 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	// bounds, so the viewport gets what lands between them.
 	s.Arrow.Layout(gtx)
 	s.edgeLabels(gtx)
+	s.pinLabels(gtx)
 
 	m := gtx.Dp(floatMargin)
 	brand := at(gtx, image.Pt(m, m), s.brand)

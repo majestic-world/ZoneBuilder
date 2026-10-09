@@ -18,8 +18,10 @@ type Ground struct {
 	Grid bool
 	// Shapes are the selected zone's closed shapes. The scene inside a
 	// shape's outline and Z range is tinted with Color; inside the
-	// outline but above or below the range it is hatched; the outline
-	// is drawn on whatever surface it crosses. Banned shapes cut holes.
+	// outline but above the range it gets a warm hatch, below it a cold
+	// one; lines mark where it crosses each shape's ZMin and ZMax; the
+	// outline is drawn on whatever surface it crosses. Banned shapes cut
+	// holes. Shapes past the shader's room are left out (GroundLeftOut).
 	Shapes []GroundShape
 	// Color is the zone's linear RGB.
 	Color [3]float32
@@ -39,11 +41,36 @@ type GroundShape struct {
 const GridMajor = 8
 
 // The footprint's capacity in the shader. Points past it, and the
-// shapes they belong to, are left out.
+// shapes they belong to, are left out (GroundLeftOut counts them).
 const (
 	groundMaxPoints = 128
 	groundMaxShapes = 8
 )
+
+// groundFits reports whether shape s still fits in the shader after
+// shapes shapes holding points points, and whether it is drawable at all.
+func groundFits(s GroundShape, shapes, points int) (fits, drawable bool) {
+	if len(s.Points) < 3 {
+		return false, false
+	}
+	return shapes < groundMaxShapes && points+len(s.Points) <= groundMaxPoints, true
+}
+
+// GroundLeftOut is how many drawable shapes of g the shader leaves out
+// of the footprint for lack of room.
+func GroundLeftOut(g Ground) int {
+	shapes, points, out := 0, 0, 0
+	for _, s := range g.Shapes {
+		fits, drawable := groundFits(s, shapes, points)
+		switch {
+		case fits:
+			shapes, points = shapes+1, points+len(s.Points)
+		case drawable:
+			out++
+		}
+	}
+	return out
+}
 
 // groundShader holds the ground uniforms of the scene program and the
 // footprint in client coordinates, rebased on every draw.
@@ -81,7 +108,7 @@ func (gs *groundShader) set(g Ground) {
 	gs.grid, gs.color = g.Grid, g.Color
 	gs.points, gs.ranges, gs.zs = gs.points[:0], gs.ranges[:0], gs.zs[:0]
 	for _, s := range g.Shapes {
-		if len(s.Points) < 3 || len(gs.ranges) == groundMaxShapes || len(gs.points)+len(s.Points) > groundMaxPoints {
+		if fits, _ := groundFits(s, len(gs.ranges), len(gs.points)); !fits {
 			continue
 		}
 		gs.ranges = append(gs.ranges, [4]int32{int32(len(gs.points)), int32(len(s.Points)), boolInt(s.Banned), 0})
@@ -159,6 +186,11 @@ float gridLine(highp vec2 g) {
 	return line * (1.0 - smoothstep(0.12, 0.3, max(fw.x, fw.y)));
 }
 
+// The footprint's fixed colours above and below a shape's Z range, apart
+// from every zone type's colour: a hot red-orange and an ice blue.
+const vec3 groundAbove = vec3(1.0, 0.18, 0.0);
+const vec3 groundBelow = vec3(0.0, 0.55, 1.0);
+
 vec3 ground(vec3 c) {
 	// The derivatives are taken here, in uniform control flow.
 	highp vec3 n = normalize(cross(dFdx(vPos), dFdy(vPos)));
@@ -167,13 +199,17 @@ vec3 ground(vec3 c) {
 	float minor = gridLine(g);
 	float major = gridLine(g / ` + itoa(GridMajor) + `.0);
 	highp float px = length(fwidth(vPos.xy));
+	highp float fz = max(fwidth(vPos.z), 1e-4);
 	if ((uGround & 1) != 0) {
 		c = mix(c, c * 0.25, minor * up * 0.75);
 		c = mix(c, vec3(0.95, 0.85, 0.35), major * up * 0.55);
 	}
 	if ((uGround & 2) != 0) {
-		bool inside = false, outside = false, cut = false;
+		bool inside = false, above = false, below = false, cut = false;
 		highp float edge = 1e20;
+		// top and bottom are the nearest crossings, in pixels, of the ZMax
+		// and ZMin of a shape whose outline holds the fragment.
+		highp float top = 1e20, bottom = 1e20;
 		for (int s = 0; s < uShapeCount; s++) {
 			ivec4 sh = uShapes[s];
 			bool in_ = false;
@@ -192,13 +228,28 @@ vec3 ground(vec3 c) {
 				cut = cut || zin;
 			} else if (in_) {
 				inside = inside || zin;
-				outside = outside || !zin;
+				above = above || vPos.z > uShapeZ[s].y;
+				below = below || vPos.z < uShapeZ[s].x;
+				top = min(top, abs(vPos.z - uShapeZ[s].y) / fz);
+				bottom = min(bottom, abs(vPos.z - uShapeZ[s].x) / fz);
 			}
 		}
-		if (inside && !cut) {
-			c = mix(c, uZoneColor, 0.3);
-		} else if (outside && !cut && fract((gl_FragCoord.x + gl_FragCoord.y) / 14.0) < 0.3) {
-			c = mix(c, uZoneColor, 0.25);
+		if (!cut) {
+			if (inside) {
+				c = mix(c, uZoneColor, 0.3);
+			} else if (above) {
+				// Warm hatch, rising to the right.
+				float h = step(fract((gl_FragCoord.x + gl_FragCoord.y) / 12.0), 0.4);
+				c = mix(c, groundAbove, 0.15 + 0.5 * h);
+			} else if (below) {
+				// Cold hatch, falling to the right.
+				float h = step(fract((gl_FragCoord.x - gl_FragCoord.y) / 12.0), 0.4);
+				c = mix(c, groundBelow, 0.15 + 0.5 * h);
+			}
+			// The ZMax and ZMin lines, in the hatch colours: the exact edge
+			// of the covered area.
+			c = mix(c, groundAbove * 1.1 + 0.1, (1.0 - smoothstep(1.0, 2.0, top)) * up);
+			c = mix(c, groundBelow * 1.1 + 0.1, (1.0 - smoothstep(1.0, 2.0, bottom)) * up);
 		}
 		float line = 1.0 - smoothstep(px * 1.2, px * 2.4, edge);
 		c = mix(c, uZoneColor * 1.3 + 0.15, line);

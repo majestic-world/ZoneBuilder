@@ -8,3 +8,7 @@
 
 - [ ] A diferença entre o `//pos` e o Z relatado no pior ponto está registrada nos comentários; acima de 16, o ADR 0003 e `MinClearance` são reabertos
 - [ ] O teste da zona com folga apertada está registrado, com o valor da folga e se o servidor reconheceu o personagem
+
+## Comments
+
+Para a verificação, abrir `C:/Workspace/zone-builder-notes/cobertura-vertical/captura.zbproj` (mapa 22_22). O pino do topo fica em 76288 162688 −1240 (coordenadas do servidor), com folga do topo −815 na faixa −2754 … −2055. Os limiares a confirmar são `MinClearance = 32`, `StrayDepth = 16` e `StrayShare = 1%`, em `internal/coverage/warnings.go`.

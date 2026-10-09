@@ -15,6 +15,7 @@ import (
 	"gioui.org/layout"
 
 	"zonebuilder/internal/camera"
+	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
@@ -24,11 +25,6 @@ import (
 // grabSlop is how close, in pixels, a press must land to a vertex or edge
 // midpoint handle to grab it.
 const grabSlop = 10
-
-// groundProbe is how far above a vertex the rays that look for the ground
-// under it start, so a vertex picked on a floor finds that floor rather
-// than the ceiling or roof above it.
-const groundProbe = 64
 
 // editState is the zoneEditor's editing of existing shapes: the selected
 // vertex, a drag in progress and the Z margin. The current shape is
@@ -389,6 +385,58 @@ func (e *zoneEditor) setZoneHeight(text string) string {
 	return fmt.Sprintf("%s: altura %d, z %d … %d", z.Name, v[0], base, base+v[0])
 }
 
+// zoneToGround moves one side of every included shape of the selected
+// zone to the floor under it, by the layer rule of spec D5 from the
+// shape's own range: the top margin above its highest floor when top is
+// set, else the floor margin below its lowest. Exclusions keep their
+// range: it decides which floor they cut out (spec D1). All in one step
+// to undo; a shape with no floor counted, or that the move would turn
+// upside down, keeps its range.
+func (e *zoneEditor) zoneToGround(c *floorCoverage, s *scene.World, top bool) string {
+	side, name, sides := "piso", "Piso ao chão", coverage.FloorSide
+	if top {
+		side, name, sides = "topo", "Topo ao chão", coverage.TopSide
+	}
+	z, _, _, ok := e.zoneZ()
+	switch {
+	case s == nil:
+		return "Abra um mapa para achar o chão sob a zona"
+	case !ok:
+		return "Selecione uma zona pronta para ajustar ao chão"
+	}
+	var steps zone.Batch
+	kept := 0
+	for i, sh := range z.Shapes {
+		if sh.Banned {
+			continue
+		}
+		p := c.profile(e, s, shapeRef{z.ID, i}, outline(sh.Kind, e.shownPoints(z.ID, i, sh.Points)), true)
+		if p == nil {
+			kept++
+			continue
+		}
+		zmin, zmax, g := p.Fit(sh.ZMin, sh.ZMax, e.margin, sides)
+		if !g.Measured || zmin > zmax {
+			log.Printf("zona: %s, shape %d: %s mantido (chão contado: %v, faixa %d..%d)", z.Name, i+1, side, g.Measured, zmin, zmax)
+			kept++
+			continue
+		}
+		log.Printf("zona: %s, shape %d: %s ao chão, faixa %d..%d (chão %.0f..%.0f, %s fora)", z.Name, i+1, side, zmin, zmax, g.Min.Z, g.Max.Z, inflect.Count(len(g.Others), "camada", "camadas"))
+		steps = append(steps, zone.SetZRange{Zone: z.ID, Shape: i, ZMin: zmin, ZMax: zmax})
+	}
+	if len(steps) == 0 {
+		return fmt.Sprintf("%s: nenhum shape de %s tem chão perto da faixa", name, z.Name)
+	}
+	if e.apply(steps) != nil {
+		return "Não foi possível ajustar a zona ao chão"
+	}
+	msg := fmt.Sprintf("%s: %s de %s, folga %d", name, inflect.Count(len(steps), "shape", "shapes"), z.Name, e.margin)
+	if kept > 0 {
+		msg += "; " + inflect.Count(kept, "shape mantido", "shapes mantidos")
+	}
+	return msg
+}
+
 // insertAfter inserts a vertex in the middle of the current shape's edge
 // from vertex i to the next one and selects it.
 func (e *zoneEditor) insertAfter(i int) string {
@@ -425,61 +473,43 @@ func (e *zoneEditor) removeVertex() string {
 	return fmt.Sprintf("Vértice %d apagado; restam %s", v+1, inflect.Count(len(sh.Points), "vértice", "vértices"))
 }
 
-// groundZRange sets the current shape's Z range from the ground under its
-// vertices (groundUnder), then the margin below the lowest and above the
-// highest ground.
-func (e *zoneEditor) groundZRange(s *scene.World) string {
-	_, sh, ok := e.currentShape()
+// groundZRange sets the current shape's Z range from the floor under its
+// whole area (coverage.Profile.Fit, from the current range): the margin
+// below the lowest and above the highest floor that counts.
+func (e *zoneEditor) groundZRange(c *floorCoverage, s *scene.World) string {
+	z, sh, ok := e.currentShape()
 	switch {
 	case s == nil:
-		return "Abra um mapa para achar o chão sob os vértices"
-	case !ok || len(sh.Points) == 0:
-		return "Selecione um shape com vértices"
+		return "Abra um mapa para achar o chão sob o shape"
+	case !ok || e.drawing:
+		return "Selecione um shape fechado"
 	}
-	pts := sh.Points
-	if sh.Kind == zone.Rectangle && len(pts) == 2 {
-		c := zone.RectangleCorners(pts[0], pts[1])
-		pts = c[:]
+	p := c.profile(e, s, shapeRef{z.ID, e.shape}, outline(sh.Kind, e.shownPoints(z.ID, e.shape, sh.Points)), true)
+	if p == nil {
+		return "Selecione um shape fechado"
 	}
-	ground := make([]zone.Point, 0, len(pts))
-	missed := 0
-	for i, p := range pts {
-		z, ok := groundUnder(s, p)
-		if !ok {
-			log.Printf("zona: nenhum chão sob o vértice %d (%d %d)", i+1, p.X, p.Y)
-			missed++
-			continue
+	zmin, zmax, g := p.Fit(sh.ZMin, sh.ZMax, e.margin, coverage.BothSides)
+	if !g.Measured {
+		if len(g.Others) > 0 {
+			return fmt.Sprintf("Nenhum chão a até %d da faixa; %s", coverage.GroundReach, othersText(g.Others))
 		}
-		log.Printf("zona: chão sob o vértice %d (%d %d %d): z %d", i+1, p.X, p.Y, p.Z, z)
-		ground = append(ground, zone.Point{X: p.X, Y: p.Y, Z: z})
+		return "Nenhum chão medido sob o shape"
 	}
-	if len(ground) == 0 {
-		return "Nenhum vértice tem chão sob ele"
-	}
-	zmin, zmax := zone.SuggestZRange(ground, e.margin)
 	if e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: zmin, ZMax: zmax}) != nil {
 		return "Não foi possível definir a faixa Z"
 	}
-	log.Printf("zona: faixa Z pelo chão %d..%d (folga %d, %s)", zmin, zmax, e.margin, inflect.Count(missed, "vértice sem chão", "vértices sem chão"))
+	log.Printf("zona: faixa Z pelo chão %d..%d (chão %.0f..%.0f, folga %d, %s fora)", zmin, zmax, g.Min.Z, g.Max.Z, e.margin, inflect.Count(len(g.Others), "camada", "camadas"))
 	msg := fmt.Sprintf("Faixa Z pelo chão: %d … %d (folga %d)", zmin, zmax, e.margin)
-	if missed > 0 {
-		msg += fmt.Sprintf("; %s sem chão", inflect.Count(missed, "vértice", "vértices"))
+	if len(g.Others) > 0 {
+		msg += "; " + othersText(g.Others)
 	}
 	return msg
-}
-
-// groundUnder is the server Z of the ground at vertex p: the first surface
-// straight down from groundProbe above it or, when nothing lies below (the
-// vertex ended up under the surface, after a move onto higher ground), the
-// ground it is buried under.
-func groundUnder(s *scene.World, p zone.Point) (int, bool) {
-	return ground(s, p, groundProbe, 0, true)
 }
 
 // panel handles the edit panel's requests and fills its fields and titles
 // for the current shape and selected vertex. It returns the status line,
 // "" to keep the current one.
-func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World) string {
+func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World, c *floorCoverage) string {
 	var msg string
 	if p.Undo.Clicked(gtx) {
 		msg = e.undo()
@@ -494,7 +524,7 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World) 
 		msg = e.setZRange(p.ZRange.Text())
 	}
 	if p.GroundZ.Clicked(gtx) {
-		msg = e.groundZRange(s)
+		msg = e.groundZRange(c, s)
 	}
 	if p.MoveShapeRequested(gtx) {
 		if d, ok := ints(p.Offset.Text(), 3); !ok {
