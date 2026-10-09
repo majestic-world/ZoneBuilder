@@ -13,7 +13,6 @@ import (
 	"gioui.org/app"
 
 	"zonebuilder/internal/geom"
-	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/locale"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
