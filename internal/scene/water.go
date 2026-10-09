@@ -74,11 +74,14 @@ func NewWaterVolume(t Tile, export int, name string, b *unreal.Brush, m *unreal.
 	if err != nil {
 		return WaterVolume{}, err
 	}
-	centre := v.Bounds.Center()
+	// The mean of every face vertex is strictly inside a convex solid, which
+	// the AABB centre is not: on a wedge it lies on the slanted face, where
+	// float noise would decide the plane's side.
+	centre := vertexMean(v.Faces)
 	v.Exact = true
 	for _, f := range v.Faces {
 		pl := facePlane(f)
-		if pl.Normal.Dot(centre) > pl.D {
+		if float64(pl.Normal.X)*centre[0]+float64(pl.Normal.Y)*centre[1]+float64(pl.Normal.Z)*centre[2] > float64(pl.D) {
 			pl = Plane{Normal: pl.Normal.Scale(-1), D: -pl.D}
 		}
 		v.Planes = append(v.Planes, pl)
@@ -101,6 +104,27 @@ func NewWaterVolume(t Tile, export int, name string, b *unreal.Brush, m *unreal.
 		v.Exact = false
 	}
 	return v, nil
+}
+
+// vertexMean is the mean of the vertices of faces, in float64 to keep
+// precision at world coordinates.
+func vertexMean(faces [][]geom.Vec3) [3]float64 {
+	var c [3]float64
+	n := 0
+	for _, f := range faces {
+		for _, p := range f {
+			c[0] += float64(p.X)
+			c[1] += float64(p.Y)
+			c[2] += float64(p.Z)
+			n++
+		}
+	}
+	if n > 0 {
+		for k := range c {
+			c[k] /= float64(n)
+		}
+	}
+	return c
 }
 
 // facePlane is the plane of convex polygon f by Newell's method, about the

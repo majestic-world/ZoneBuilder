@@ -157,7 +157,7 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	call, bar := measure(gtx, s.commandBar)
 	barAt := image.Pt(max(m+brand.X+gtx.Dp(16), (ix-bar.X)/2), m)
 	place(gtx, barAt, call)
-	s.Project.popup.at = barAt.Add(image.Pt(gtx.Dp(6), bar.Y+gtx.Dp(6)))
+	s.Project.anchor = barAt.Add(image.Pt(gtx.Dp(6), bar.Y+gtx.Dp(6)))
 
 	call, status := measure(gtx, s.statusPill)
 	statusAt := image.Pt(max(left, (ix-status.X)/2), area.Y-m-status.Y)

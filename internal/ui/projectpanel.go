@@ -34,19 +34,17 @@ type ProjectPanel struct {
 	recent     []widget.Clickable
 
 	menu widget.Clickable
-	// popup is the menu, dropped down below the command bar.
-	popup ContextMenu
-	sink  pointerSink
+	// popup is the menu, dropped down below the command bar at anchor,
+	// which the Shell sets as it places the bar.
+	popup  ContextMenu
+	anchor image.Point
+	sink   pointerSink
 }
 
 // Requests reports the menu items clicked since the last call, and closes
 // the menu after one.
 func (p *ProjectPanel) Requests(gtx layout.Context) (open, save, saveAs bool) {
-	open, save, saveAs = p.OpenProject.Clicked(gtx), p.Save.Clicked(gtx), p.SaveAs.Clicked(gtx)
-	if open || save || saveAs {
-		p.popup.Close()
-	}
-	return open, save, saveAs
+	return p.popup.Chosen(gtx, &p.OpenProject), p.popup.Chosen(gtx, &p.Save), p.popup.Chosen(gtx, &p.SaveAs)
 }
 
 // RecentMapClicked returns the recent map clicked since the last call.
@@ -64,7 +62,7 @@ func (p *ProjectPanel) RecentMapClicked(gtx layout.Context) (string, bool) {
 func (s *Shell) commandBar(gtx layout.Context) layout.Dimensions {
 	p := &s.Project
 	if p.menu.Clicked(gtx) && !p.popup.Close() {
-		p.popup.Open(p.popup.at)
+		p.popup.Open(p.anchor)
 	}
 	divider := func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Left: unit.Dp(6), Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

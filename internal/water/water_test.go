@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/water"
 	"zonebuilder/internal/zone"
@@ -110,13 +111,13 @@ func TestFloranLakeReproducesTheDatapack(t *testing.T) {
 		}
 	}
 	if len(lake) != len(want) {
-		t.Fatalf("22_24 has %d volumes with top -3780, want %d", len(lake), len(want))
+		t.Fatalf("22_24 has %s with top -3780, want %d", inflect.Count(len(lake), "volume", "volumes"), len(want))
 	}
 
 	doc := zone.NewDocument()
 	plans := water.Compile(lake, live, doc)
 	if len(plans) != 1 {
-		t.Fatalf("Compile gave %d plans, want 1", len(plans))
+		t.Fatalf("Compile gave %s, want 1", inflect.Count(len(plans), "plan", "plans"))
 	}
 	p := plans[0]
 	if p.Name != "[22_24_WaterVolume0]" {
@@ -127,7 +128,7 @@ func TestFloranLakeReproducesTheDatapack(t *testing.T) {
 		t.Errorf("zone = %q type %q params %v, want %q type water without params", z.Name, z.Type, z.Params, p.Name)
 	}
 	if len(z.Shapes) != len(want) || len(p.Volumes) != len(want) {
-		t.Fatalf("%d shapes from %d volumes, want %d", len(z.Shapes), len(p.Volumes), len(want))
+		t.Fatalf("%s from %s, want %d", inflect.Count(len(z.Shapes), "shape", "shapes"), inflect.Count(len(p.Volumes), "volume", "volumes"), len(want))
 	}
 	for i, s := range z.Shapes {
 		v := p.Volumes[i]
@@ -155,7 +156,7 @@ func TestFloranFountainGivesOneZonePerTop(t *testing.T) {
 		}
 	}
 	if len(fountain) != 2 {
-		t.Fatalf("22_24 has %d of WaterVolume26/27, want 2", len(fountain))
+		t.Fatalf("22_24 has %s of WaterVolume26/27, want 2", inflect.Count(len(fountain), "volume", "volumes"))
 	}
 	doc := zone.NewDocument()
 	plans := water.Compile(fountain, live, doc)
@@ -167,6 +168,6 @@ func TestFloranFountainGivesOneZonePerTop(t *testing.T) {
 	}
 	slices.Sort(tops)
 	if len(plans) != 2 || !slices.Equal(tops, []int{-5559, -3776}) {
-		t.Errorf("Compile gave %d plans with tops %v, want 2 with -5559 and -3776", len(plans), tops)
+		t.Errorf("Compile gave %s with tops %v, want 2 with -5559 and -3776", inflect.Count(len(plans), "plan", "plans"), tops)
 	}
 }

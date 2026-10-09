@@ -257,12 +257,15 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 						if tiles.world == nil {
 							break
 						}
-						if msg, open := waterSel.rightClick(tiles.world, &cam, e.Position, shell.Viewport.Size()); open {
+						msg, open := waterSel.rightClick(tiles.world, &cam, e.Position, shell.Viewport.Size())
+						if open {
 							shell.WaterMenu.Menu.Open(image.Pt(round(e.Position.X), round(e.Position.Y)))
-							status = msg
 							if zones.drawing {
-								status = waterBusy
+								msg = waterBusy
 							}
+						}
+						if msg != "" {
+							status = msg
 						}
 					}
 				case key.Event:
@@ -559,6 +562,11 @@ func logScene(tile scene.Tile, r tileResult) {
 	log.Printf("cena: %s sem textura", inflect.Count(untextured, "triângulo", "triângulos"))
 	for _, w := range s.Warnings {
 		log.Printf("cena: aviso: %s", w)
+	}
+	for _, v := range s.WaterVolumes {
+		if v.Unsupported != "" {
+			log.Printf("cena: água: %s %s não suportado: %s", v.Tile.Name(), v.Name, v.Unsupported)
+		}
 	}
 }
 

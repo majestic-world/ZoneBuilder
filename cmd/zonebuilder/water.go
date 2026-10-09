@@ -105,27 +105,48 @@ func (ws *waterSelection) prune(w *scene.World) {
 
 // pickWaterAt is the water volume under viewport pixel p, the selectable
 // volume the ray through p enters first before the surface h it hit (ok:
-// it hit one), or before the far plane.
-func pickWaterAt(w *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point, h scene.Hit, ok bool) (*scene.WaterVolume, bool) {
+// it hit one), or before the far plane. Without one, unsupported is the
+// Unsupported volume there, if any, so the click can say why it selects
+// nothing (spec D1).
+func pickWaterAt(w *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point, h scene.Hit, ok bool) (v, unsupported *scene.WaterVolume) {
 	maxDist := cam.Far
 	if ok {
 		maxDist = h.Distance
 	}
-	v, _, found := w.PickWater(rayAt(w, cam, p, viewport), maxDist)
-	return v, found
+	r := rayAt(w, cam, p, viewport)
+	if v, _, found := w.PickWater(r, maxDist); found {
+		return v, nil
+	}
+	if u, found := w.PickUnsupportedWater(r, maxDist); found {
+		return nil, u
+	}
+	return nil, nil
+}
+
+// unsupportedStatus says why water volume v can't be selected.
+func unsupportedStatus(v *scene.WaterVolume) string {
+	msg := "Volume " + v.Tile.Name() + " " + v.Name + " não suportado: " + v.Unsupported
+	log.Printf("água: %s", msg)
+	return msg
 }
 
 // click handles a left click at viewport pixel p, with no zone tool armed,
 // that picked h (ok: something was hit): the water body under it becomes
 // the selection, Ctrl toggles the one volume, and a click elsewhere
-// clears it. It returns the status line, "" to keep the current one.
+// clears it. A click on an Unsupported volume says why it is not selected.
+// It returns the status line, "" to keep the current one.
 func (ws *waterSelection) click(w *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point, h scene.Hit, ok, ctrl bool) string {
-	v, found := pickWaterAt(w, cam, p, viewport, h, ok)
+	v, unsupported := pickWaterAt(w, cam, p, viewport, h, ok)
 	switch {
-	case found && ctrl:
+	case v != nil && ctrl:
 		ws.toggle(w, v)
-	case found:
+	case v != nil:
 		ws.selectBody(w, v)
+	case unsupported != nil:
+		if !ctrl {
+			ws.clear()
+		}
+		return unsupportedStatus(unsupported)
 	case ctrl:
 		return ""
 	case ok && h.Water:
@@ -144,11 +165,15 @@ func (ws *waterSelection) click(w *scene.World, cam *camera.Camera, p f32.Point,
 // rightClick handles a right click at viewport pixel p (spec D4): over a
 // water volume outside the selection, its body becomes the selection;
 // over any water volume, open reports that the context menu opens, with
-// the selection's status. Elsewhere nothing changes.
+// the selection's status. Over an Unsupported volume msg says why it is
+// not selected; elsewhere nothing changes.
 func (ws *waterSelection) rightClick(w *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point) (msg string, open bool) {
 	h, ok := pickAt(w, cam, p, viewport)
-	v, found := pickWaterAt(w, cam, p, viewport, h, ok)
-	if !found {
+	v, unsupported := pickWaterAt(w, cam, p, viewport, h, ok)
+	if unsupported != nil {
+		return unsupportedStatus(unsupported), false
+	}
+	if v == nil {
 		return "", false
 	}
 	if !slices.Contains(ws.ids, v.ID()) {
@@ -234,50 +259,34 @@ func waterCompiled(created, existing []string) string {
 	case 1:
 		parts = append(parts, "Criada a zona de água "+created[0])
 	default:
-		parts = append(parts, fmt.Sprintf("Criadas %d zonas de água: %s", len(created), listPT(created)))
+		parts = append(parts, fmt.Sprintf("Criadas %d zonas de água: %s", len(created), inflect.List(created)))
 	}
 	switch len(existing) {
 	case 0:
 	case 1:
 		parts = append(parts, "Zona "+existing[0]+" já existe no projeto: compilada a versão do projeto")
 	default:
-		parts = append(parts, "Zonas "+listPT(existing)+" já existem no projeto: compiladas as versões do projeto")
+		parts = append(parts, "Zonas "+inflect.List(existing)+" já existem no projeto: compiladas as versões do projeto")
 	}
 	below := scene.ServerZOffset - water.ServerZOffset
 	return strings.Join(parts, ". ") + fmt.Sprintf(". No viewport o topo fica %d abaixo da água (ADR 0005)", below)
 }
 
 // warningsStatus is the D7 warnings for the status line, a sentence per
-// kind naming the volumes ("" without any); the full text of each goes to
-// the log.
+// kind ("" without any); the full text of each goes to the log.
 func warningsStatus(ws []water.Warning) string {
-	var approximate, outside, overlapOrder []string
-	overlaps := map[string][]string{}
+	var kinds []water.WarningKind
+	byKind := map[water.WarningKind][]water.Warning{}
 	for _, w := range ws {
-		switch w.Kind {
-		case water.Approximate:
-			approximate = append(approximate, w.Volume)
-		case water.OutsideTile:
-			outside = append(outside, w.Volume)
-		case water.Overlap:
-			if _, ok := overlaps[w.Volume]; !ok {
-				overlapOrder = append(overlapOrder, w.Volume)
-			}
-			// "25_25 WaterVolume7" crossing "25_25 WaterVolume9" reads
-			// as just WaterVolume7.
-			tile, _, _ := strings.Cut(w.Volume, " ")
-			overlaps[w.Volume] = append(overlaps[w.Volume], strings.TrimPrefix(w.Other, tile+" "))
+		if _, ok := byKind[w.Kind]; !ok {
+			kinds = append(kinds, w.Kind)
 		}
+		byKind[w.Kind] = append(byKind[w.Kind], w)
 	}
+	slices.Sort(kinds)
 	var b strings.Builder
-	for _, v := range overlapOrder {
-		fmt.Fprintf(&b, ". Água sobreposta: %s cruza %s (o servidor usa o maior topo)", v, listPT(overlaps[v]))
-	}
-	if len(approximate) > 0 {
-		fmt.Fprintf(&b, ". Aproximada, parede ou topo inclinado: %s", listPT(approximate))
-	}
-	if len(outside) > 0 {
-		fmt.Fprintf(&b, ". Passa do próprio tile: %s", listPT(outside))
+	for _, k := range kinds {
+		b.WriteString(". " + k.Status(byKind[k]))
 	}
 	return b.String()
 }
@@ -310,15 +319,7 @@ func (ws *waterSelection) status(w *scene.World) string {
 		kind = "aproximada"
 	}
 	return fmt.Sprintf("Água: %s · %s %s (servidor %s) · %s",
-		inflect.Count(len(vs), "volume", "volumes"), topWord, listPT(client), listPT(server), kind)
-}
-
-// listPT joins items as a pt-BR list: "a", "a e b", "a, b e c".
-func listPT(items []string) string {
-	if len(items) < 2 {
-		return strings.Join(items, "")
-	}
-	return strings.Join(items[:len(items)-1], ", ") + " e " + items[len(items)-1]
+		inflect.Count(len(vs), "volume", "volumes"), topWord, inflect.List(client), inflect.List(server), kind)
 }
 
 // overlay is the selected volumes as overlay prisms in the water zone's
