@@ -4,10 +4,14 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Validar/compilar produz o mesmo resultado e XML nos dois idiomas.
-- [ ] Linha já visível troca de idioma sem revalidar; clique continua selecionando a mesma zona/shape/vértice/restart.
-- [ ] Aviso de chão fica separado e não bloqueia compilação; contagem e mensagens em ambos os idiomas.
+- [x] Validar/compilar produz o mesmo resultado e XML nos dois idiomas.
+- [x] Linha já visível troca de idioma sem revalidar; clique continua selecionando a mesma zona/shape/vértice/restart.
+- [x] Aviso de chão fica separado e não bloqueia compilação; contagem e mensagens em ambos os idiomas.
 
 ## Comments
+
+- Claimed by `i18n/03-problems` at integration base `c918e4b`.
+- Structured rules preserve targets and raw values; presentation lives in paired `zone` catalogs.
+- `problemRows(ws, wsChanged, lang)` and `warningText(w, lang)` rebuild presentation only; the loop supplies the current language and calls `reformatProblemClick(lang)` for retained click status. Tests were added at document and presentation seams; integration runs checks after merge.

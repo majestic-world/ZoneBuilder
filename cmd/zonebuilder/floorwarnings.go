@@ -1,13 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"slices"
 
 	"zonebuilder/internal/camera"
 	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/zone"
 )
@@ -69,42 +69,61 @@ func (c *floorCoverage) warnings(e *zoneEditor, w *scene.World) ([]floorWarning,
 	return ws, true
 }
 
-// warningText is w's line in the problem panel.
-func warningText(w floorWarning) string {
-	var s string
+// warningText presents a warning without adding it to blocking problems.
+func warningText(w floorWarning, lang locale.Language) string {
+	index := locale.Number(lang, float64(w.shape+1), 0)
+	signedClearance := func() string {
+		value := roundF(w.Clearance)
+		if value < 0 {
+			return "−" + locale.Number(lang, float64(-value), 0)
+		}
+		return "+" + locale.Number(lang, float64(value), 0)
+	}
 	switch w.Kind {
 	case coverage.AboveTop:
-		s = fmt.Sprintf("chão acima do topo (folga %s, %s do chão)", signed(roundF(w.Clearance)), share(w.Share))
+		return locale.Format(lang, "zone.warning.above_top", map[string]string{
+			"index": index, "clearance": signedClearance(), "share": locale.Percent(lang, w.Share, 1),
+		})
 	case coverage.BelowFloor:
-		s = fmt.Sprintf("chão abaixo do piso (folga %s, %s do chão)", signed(roundF(w.Clearance)), share(w.Share))
+		return locale.Format(lang, "zone.warning.below_floor", map[string]string{
+			"index": index, "clearance": signedClearance(), "share": locale.Percent(lang, w.Share, 1),
+		})
 	case coverage.TightTop:
-		s = fmt.Sprintf("folga apertada no topo: %s, abaixo de %d", signed(roundF(w.Clearance)), coverage.MinClearance)
+		return locale.Format(lang, "zone.warning.tight_top", map[string]string{
+			"index": index, "clearance": signedClearance(), "minimum": locale.Number(lang, float64(coverage.MinClearance), 0),
+		})
 	case coverage.TightFloor:
-		s = fmt.Sprintf("folga apertada no piso: %s, abaixo de %d", signed(roundF(w.Clearance)), coverage.MinClearance)
+		return locale.Format(lang, "zone.warning.tight_floor", map[string]string{
+			"index": index, "clearance": signedClearance(), "minimum": locale.Number(lang, float64(coverage.MinClearance), 0),
+		})
 	case coverage.NoGround:
-		s = fmt.Sprintf("área sem chão medido: %s u²", units(roundF(w.Area)))
+		return locale.Format(lang, "zone.warning.no_ground", map[string]string{
+			"index": index, "area": locale.Number(lang, float64(roundF(w.Area)), 0),
+		})
 	}
-	return fmt.Sprintf("shape %d: %s", w.shape+1, s)
+	return ""
 }
 
 // goToWarning selects w's zone, with its shape as the current shape, and
 // frames its worst floor, or the shape for area with no floor. While a
 // polygon is being drawn the selection stays on it, but the camera still
 // goes. It returns the status line.
-func (e *zoneEditor) goToWarning(w floorWarning, s *scene.World, cam *camera.Camera) string {
+func (e *zoneEditor) goToWarning(i int, w floorWarning, s *scene.World, cam *camera.Camera, lang locale.Language) string {
 	z, ok := e.doc.Zone(w.zone)
 	if !ok || w.shape >= len(z.Shapes) {
 		return ""
 	}
-	msg := z.Name + ": " + warningText(w)
+	e.lastProblemClick, e.hasProblemClick = i, true
+	e.problemClickNoFrame, e.problemClickDrawing = false, e.drawing
+	msg := locale.Format(lang, "zone.problem.selected", map[string]string{"name": z.Name, "problem": warningText(w, lang)})
 	if e.drawing {
-		msg = "Feche o polígono atual para selecionar o aviso"
+		msg = locale.Text(lang, "zone.warning.select_drawing")
 	} else {
 		e.zone, e.shape = z.ID, w.shape
 		e.sel = vertexRef{zone: z.ID, shape: w.shape, index: -1}
 		e.version++
 	}
-	log.Printf("zona: aviso em %s: %s", z.Name, warningText(w))
+	log.Printf("zona: aviso em %s: %s", z.Name, warningText(w, locale.PtBR))
 	if s == nil {
 		return msg
 	}
@@ -114,7 +133,8 @@ func (e *zoneEditor) goToWarning(w floorWarning, s *scene.World, cam *camera.Cam
 			b.Include(renderPoint(s, v))
 		}
 		if b.Empty() {
-			return msg + " (nada para enquadrar)"
+			e.problemClickNoFrame = true
+			return locale.Format(lang, "zone.problem.nothing_to_frame", map[string]string{"message": msg})
 		}
 		cam.Frame(b)
 	} else {

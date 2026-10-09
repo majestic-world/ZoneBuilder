@@ -1,43 +1,41 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"zonebuilder/internal/camera"
 	"zonebuilder/internal/geom"
-	"zonebuilder/internal/inflect"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
 	"zonebuilder/internal/zone"
 )
 
-// problemRows is the problem panel's rows, when the document or the floor
-// warnings ws changed since they were last built (ok): the problems, then
-// the warnings. The problems and warnings they show are kept, which a
-// click refers to.
-func (e *zoneEditor) problemRows(ws []floorWarning, wsChanged bool) (rows []ui.ProblemRow, ok bool) {
-	if e.problemsAt == e.version+1 && !wsChanged {
+// problemRows rebuilds the presentation when the document, warnings or
+// language changes. The retained target slices keep row indices stable.
+func (e *zoneEditor) problemRows(ws []floorWarning, wsChanged bool, lang locale.Language) (rows []ui.ProblemRow, ok bool) {
+	if e.problemsAt == e.version+1 && !wsChanged && e.problemsLang == string(lang) {
 		return nil, false
 	}
 	e.problemsAt = e.version + 1
+	e.problemsLang = string(lang)
 	e.problems = e.doc.Problems()
 	e.warnings = ws
 	rows = make([]ui.ProblemRow, 0, len(e.problems)+len(ws))
 	for _, p := range e.problems {
-		rows = append(rows, ui.ProblemRow{Zone: e.zoneName(p.Zone), Message: p.Message})
+		rows = append(rows, ui.ProblemRow{Zone: e.zoneName(p.Zone, lang), Message: p.Text(lang)})
 	}
 	for _, w := range ws {
-		rows = append(rows, ui.ProblemRow{Zone: e.zoneName(w.zone), Message: warningText(w), Warning: true})
+		rows = append(rows, ui.ProblemRow{Zone: e.zoneName(w.zone, lang), Message: warningText(w, lang), Warning: true})
 	}
 	return rows, true
 }
 
 // zoneName is zone id's name as the problem panel shows it.
-func (e *zoneEditor) zoneName(id zone.ZoneID) string {
+func (e *zoneEditor) zoneName(id zone.ZoneID, lang locale.Language) string {
 	z, _ := e.doc.Zone(id)
 	if z.Name == "" {
-		return "(sem nome)"
+		return locale.Text(lang, "zone.problem.unnamed")
 	}
 	return z.Name
 }
@@ -57,9 +55,9 @@ func (e *zoneEditor) problemCounts() map[zone.ZoneID]int {
 // the zone. While a polygon is being drawn the selection stays on it, but
 // the camera still goes. A floor warning's row goes to it (goToWarning).
 // It returns the status line.
-func (e *zoneEditor) goToProblem(i int, s *scene.World, cam *camera.Camera) string {
+func (e *zoneEditor) goToProblem(i int, s *scene.World, cam *camera.Camera, lang locale.Language) string {
 	if n := len(e.problems); i >= n && i-n < len(e.warnings) {
-		return e.goToWarning(e.warnings[i-n], s, cam)
+		return e.goToWarning(i, e.warnings[i-n], s, cam, lang)
 	}
 	if i < 0 || i >= len(e.problems) {
 		return ""
@@ -69,16 +67,18 @@ func (e *zoneEditor) goToProblem(i int, s *scene.World, cam *camera.Camera) stri
 	if !ok {
 		return ""
 	}
-	msg := z.Name + ": " + p.Message
+	e.lastProblemClick, e.hasProblemClick = i, true
+	e.problemClickNoFrame, e.problemClickDrawing = false, e.drawing
+	msg := locale.Format(lang, "zone.problem.selected", map[string]string{"name": z.Name, "problem": p.Text(lang)})
 	if e.drawing {
-		msg = "Feche o polígono atual para selecionar o problema"
+		msg = locale.Text(lang, "zone.problem.select_drawing")
 	} else {
 		shape := max(p.Shape, 0)
 		e.zone, e.shape = z.ID, shape
 		e.sel = vertexRef{zone: z.ID, shape: shape, index: p.Vertex}
 		e.version++
 	}
-	log.Printf("zona: problema em %s: %s", z.Name, p.Message)
+	log.Printf("zona: problema em %s: %s", z.Name, p.Text(locale.PtBR))
 	if s == nil {
 		return msg
 	}
@@ -115,7 +115,8 @@ func (e *zoneEditor) goToProblem(i int, s *scene.World, cam *camera.Camera) stri
 		}
 	}
 	if b.Empty() {
-		return msg + " (nada para enquadrar)"
+		e.problemClickNoFrame = true
+		return locale.Format(lang, "zone.problem.nothing_to_frame", map[string]string{"message": msg})
 	}
 	cam.Frame(b)
 	log.Printf("zona: câmera no problema: %s", formatPose(cam, s))
@@ -142,13 +143,58 @@ func (e *zoneEditor) badVertices(id zone.ZoneID) map[int][]int {
 	return bad
 }
 
-// blockedStatus is the status line of a compilation the selected zones'
-// problems blocked; each problem goes to the log.
-func (e *zoneEditor) blockedStatus(b *zone.BlockedError) string {
+// reformatProblemClick presents the last clicked row without selecting or
+// framing it again. The loop calls this only while that click owns the status.
+func (e *zoneEditor) reformatProblemClick(lang locale.Language) string {
+	if !e.hasProblemClick {
+		return ""
+	}
+	i := e.lastProblemClick
+	var msg string
+	if i >= len(e.problems) {
+		j := i - len(e.problems)
+		if j < 0 || j >= len(e.warnings) {
+			return ""
+		}
+		if e.problemClickDrawing {
+			return locale.Text(lang, "zone.warning.select_drawing")
+		}
+		w := e.warnings[j]
+		z, ok := e.doc.Zone(w.zone)
+		if !ok {
+			return ""
+		}
+		msg = locale.Format(lang, "zone.problem.selected", map[string]string{"name": z.Name, "problem": warningText(w, lang)})
+	} else {
+		if i < 0 {
+			return ""
+		}
+		if e.problemClickDrawing {
+			return locale.Text(lang, "zone.problem.select_drawing")
+		}
+		p := e.problems[i]
+		z, ok := e.doc.Zone(p.Zone)
+		if !ok {
+			return ""
+		}
+		msg = locale.Format(lang, "zone.problem.selected", map[string]string{"name": z.Name, "problem": p.Text(lang)})
+	}
+	if e.problemClickNoFrame {
+		return locale.Format(lang, "zone.problem.nothing_to_frame", map[string]string{"message": msg})
+	}
+	return msg
+}
+
+// blockedStatus presents a blocked compilation; each problem goes to the log.
+func (e *zoneEditor) blockedStatus(b *zone.BlockedError, lang locale.Language) string {
 	for _, p := range b.Problems {
 		z, _ := e.doc.Zone(p.Zone)
-		log.Printf("zona: compilação bloqueada: %s: %s", z.Name, p.Message)
+		log.Printf("zona: compilação bloqueada: %s: %s", z.Name, p.Text(locale.PtBR))
 	}
-	return fmt.Sprintf("Compilação bloqueada, nada foi gravado: %s nas zonas selecionadas (veja Problemas)",
-		inflect.Count(len(b.Problems), "problema", "problemas"))
+	return blockedStatusText(b, lang)
+}
+
+// blockedStatusText re-renders a retained blocked result without recompiling.
+func blockedStatusText(b *zone.BlockedError, lang locale.Language) string {
+	return locale.Plural(lang, "zone.problem.blocked_status", len(b.Problems), nil)
 }
