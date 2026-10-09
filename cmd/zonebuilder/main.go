@@ -264,7 +264,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 						if open {
 							shell.WaterMenu.Menu.Open(image.Pt(round(e.Position.X), round(e.Position.Y)))
 							if zones.drawing {
-								msg = action(waterBusy)
+								msg = action(locale.Message{Key: "actions.water.busy"})
 							}
 						}
 						if msg.render(shell.Language) != "" {
@@ -284,7 +284,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 						if msg := zones.escape(); msg != "" {
 							status = editorResult(msg, zones)
 						} else if waterSel.clear() {
-							status = action("actions.water.cleared")
+							status = action(locale.Message{Key: "actions.water.cleared"})
 						}
 					}
 				}
@@ -330,7 +330,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				}
 			}
 			if name, ok := shell.XML.Copied(gtx); ok {
-				status = actionArgs("actions.xml.copied", map[string]string{"name": name})
+				status = actionArgs(locale.Message{Key: "actions.xml.copied"}, map[string]string{"name": name})
 			}
 			for _, req := range shell.Zones.Update(gtx) {
 				if msg := zones.listRequest(req, tiles.world, &cam); msg != "" {
@@ -367,7 +367,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			if openTile && !tiles.opening() {
 				t, err := scene.ParseTile(shell.Tile.Text())
 				if err != nil {
-					status = actionError("actions.error.invalid_tile", err, nil)
+					status = actionError(locale.Message{Key: "actions.error.invalid_tile"}, err, nil)
 				} else {
 					status = openTiles(tiles, shell, []scene.Tile{t})
 				}
@@ -375,7 +375,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			for _, r := range tiles.receive() {
 				t := r.entry.tile
 				if r.err != nil {
-					status = actionError("actions.error.load_tile", r.err, map[string]string{"tile": t.Name()})
+					status = actionError(locale.Message{Key: "actions.error.load_tile"}, r.err, map[string]string{"tile": t.Name()})
 					log.Printf("cena: %s: %v", t.Name(), r.err)
 					continue
 				}
@@ -399,15 +399,15 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			}
 
 			if shell.Meshes.Toggled(gtx) {
-				status = action("actions.map.meshes_visible")
+				status = action(locale.Message{Key: "actions.map.meshes_visible"})
 				if shell.Meshes.On {
-					status = action("actions.map.meshes_hidden")
+					status = action(locale.Message{Key: "actions.map.meshes_hidden"})
 				}
 			}
 			if shell.Ground.Toggled(gtx) {
-				status = action("actions.map.grid_hidden")
+				status = action(locale.Message{Key: "actions.map.grid_hidden"})
 				if shell.Ground.On {
-					status = actionArgs("actions.map.grid_visible", map[string]string{"step": fmt.Sprint(render.GridMajor)})
+					status = actionArgs(locale.Message{Key: "actions.map.grid_visible"}, map[string]string{"step": fmt.Sprint(render.GridMajor)})
 				}
 			}
 			moving := fly.Step(&cam, gtx.Now)
@@ -540,12 +540,12 @@ func worldPosition(w *scene.World, p geom.Vec3) geom.Vec3 {
 func openTiles(tiles *tiles, shell *ui.Shell, list []scene.Tile) actionStatus {
 	if err := tiles.open(strings.TrimSpace(shell.Client.Text()), list, shell.Neighbours.Value); err != nil {
 		log.Printf("cena: %v", err)
-		return actionError("actions.error.open_map", err, nil)
+		return actionError(locale.Message{Key: "actions.error.open_map"}, err, nil)
 	}
 	if shell.Neighbours.Value {
-		return actionArgs("actions.map.loading_neighbours", map[string]string{"tile": list[0].Name()})
+		return actionArgs(locale.Message{Key: "actions.map.loading_neighbours"}, map[string]string{"tile": list[0].Name()})
 	}
-	return actionArgs("actions.map.loading_tiles", map[string]string{"tiles": strings.Join(tileNames(list), ", ")})
+	return actionArgs(locale.Message{Key: "actions.map.loading_tiles"}, map[string]string{"tiles": strings.Join(tileNames(list), ", ")})
 }
 
 // logScene logs what loading tile brought.
