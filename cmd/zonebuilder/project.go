@@ -83,7 +83,7 @@ func (s *session) chooseLanguage(shell *ui.Shell, lang locale.Language) string {
 	}
 	if err != nil {
 		log.Printf("configuração: %v", err)
-		s.languageWarning = actionError("actions.preference.unsaved", err, nil)
+		s.languageWarning = actionError(locale.Message{Key: "actions.preference.unsaved"}, err, nil)
 		return s.languageWarning.render(lang)
 	}
 	s.languageWarning = actionStatus{}
@@ -125,7 +125,7 @@ func (s *session) update(gtx layout.Context, w *app.Window, shell *ui.Shell, zon
 		case pk.save:
 			status = s.save(w, shell, zones, tiles, pk.path)
 		case busy:
-			status = action("actions.project.wait")
+			status = action(locale.Message{Key: "actions.project.wait"})
 		default:
 			status, load = s.open(w, shell, zones, pk.path)
 		}
@@ -167,14 +167,14 @@ func (s *session) save(w *app.Window, shell *ui.Shell, zones *zoneEditor, tiles 
 	}
 	if err := project.Save(path, p); err != nil {
 		log.Print(err)
-		return actionError("actions.error.save_project", err, map[string]string{"path": path})
+		return actionError(locale.Message{Key: "actions.error.save_project"}, err, map[string]string{"path": path})
 	}
 	s.path, s.saved = path, zones.version
 	s.cfg.Project = path
 	s.saveConfig()
 	w.Option(app.Title(windowTitle(path)))
 	log.Printf("projeto: salvo em %s: %s, tiles %q", path, inflect.Count(len(p.Document.Zones()), "zona", "zonas"), p.Tiles)
-	return actionArgs("actions.project.saved", map[string]string{"path": path})
+	return actionArgs(locale.Message{Key: "actions.project.saved"}, map[string]string{"path": path})
 }
 
 // open reads the project file at path into the window, which then edits
@@ -188,7 +188,7 @@ func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, path s
 	}
 	if err != nil {
 		log.Print(err)
-		return actionError("actions.error.open_project", err, map[string]string{"path": path}), nil
+		return actionError(locale.Message{Key: "actions.error.open_project"}, err, map[string]string{"path": path}), nil
 	}
 	shell.Client.SetText(p.Client)
 	if len(tiles) > 0 {
@@ -201,7 +201,7 @@ func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, path s
 	s.saveConfig()
 	w.Option(app.Title(windowTitle(path)))
 	log.Printf("projeto: aberto %s: %s, tiles %q", path, inflect.Count(len(p.Document.Zones()), "zona", "zonas"), p.Tiles)
-	return actionArgs("actions.project.opened", map[string]string{"path": path}), tiles
+	return actionArgs(locale.Message{Key: "actions.project.opened"}, map[string]string{"path": path}), tiles
 }
 
 // name is the project file's name, localized before the first save.

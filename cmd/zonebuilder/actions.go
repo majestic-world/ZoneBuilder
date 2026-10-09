@@ -13,23 +13,25 @@ type actionStatus struct {
 	problemClick bool
 }
 
-func action(key string) actionStatus {
-	return actionStatus{message: locale.Message{Key: key}}
+func action(message locale.Message) actionStatus {
+	return actionStatus{message: message}
 }
 
-func actionArgs(key string, args map[string]string) actionStatus {
-	return actionStatus{message: locale.Message{Key: key, Args: args}}
-}
-func waterAction(key string, summary *waterSummary) actionStatus {
-	return actionStatus{message: locale.Message{Key: key}, water: summary}
+func actionArgs(message locale.Message, args map[string]string) actionStatus {
+	message.Args = args
+	return action(message)
 }
 
-func actionError(key string, err error, args map[string]string) actionStatus {
+func waterAction(message locale.Message, summary *waterSummary) actionStatus {
+	return actionStatus{message: message, water: summary}
+}
+
+func actionError(message locale.Message, err error, args map[string]string) actionStatus {
 	if args == nil {
 		args = make(map[string]string, 1)
 	}
 	args["detail"] = err.Error()
-	return actionArgs(key, args)
+	return actionArgs(message, args)
 }
 
 func (s actionStatus) render(lang locale.Language) string {
