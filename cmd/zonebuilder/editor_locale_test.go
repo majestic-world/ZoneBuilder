@@ -16,6 +16,15 @@ func TestEditorLanguageSwitchKeepsPolygonAndHistory(t *testing.T) {
 	if msg := e.create("[giran]", zone.PeaceZone, ui.ToolPolygon); !strings.Contains(msg, "criada") {
 		t.Fatalf("Portuguese creation: %q", msg)
 	}
+	created := zonesJSON(t, e.doc)
+	e.Language = locale.En
+	if got := e.Status(e.Language); got != "Zone [giran] created. Polygon: click a surface for the first vertex; Esc cancels" {
+		t.Errorf("retained creation and instruction: %q", got)
+	}
+	if zonesJSON(t, e.doc) != created {
+		t.Fatal("rerender repeated creation")
+	}
+	e.Language = locale.PtBR
 	if msg := e.polygonClick(zone.Point{X: 100, Y: 200, Z: 300}); !strings.Contains(msg, "vértice") {
 		t.Fatalf("Portuguese vertex: %q", msg)
 	}
@@ -64,5 +73,26 @@ func TestEditorUndoStatusRerendersWithoutRepeatingUndo(t *testing.T) {
 	}
 	if zonesJSON(t, e.doc) != before {
 		t.Fatal("redo changed zone data")
+	}
+}
+
+// Switching after the first rectangle corner updates its instruction but
+// preserves the anchor and does not place a shape.
+func TestRectangleInstructionSwitchKeepsAnchor(t *testing.T) {
+	e := newZoneEditor()
+	e.Language = locale.PtBR
+	e.create("area", zone.PeaceZone, ui.ToolRectangle)
+	anchor := zone.Point{X: 123, Y: 456, Z: 789}
+	e.rectangleClick(nil, nil, anchor)
+	before := zonesJSON(t, e.doc)
+	e.Language = locale.En
+	if got := e.hint(); got != "Rectangle: click the opposite corner; Esc cancels" {
+		t.Errorf("English instruction: %q", got)
+	}
+	if got := e.Status(e.Language); got != "First corner at 123 456 789; click the opposite corner" {
+		t.Errorf("retained anchor status: %q", got)
+	}
+	if !e.anchored || e.anchor != anchor || zonesJSON(t, e.doc) != before {
+		t.Fatal("changing language moved the anchor or modified the document")
 	}
 }
