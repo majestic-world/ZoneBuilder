@@ -48,9 +48,9 @@ type zoneEditor struct {
 	anchor, hover      zone.Point
 	anchored, hovering bool
 	// ghost is the shape placed from the anchor to hover, with its Z range
-	// ghostMin..ghostMax, while hovering (see placed).
-	ghost              []zone.Point
-	ghostMin, ghostMax int
+	// ghostZ, while hovering (see placed).
+	ghost  []zone.Point
+	ghostZ zSuggestion
 	// version counts changes to what the overlay shows.
 	version int
 	// problems and warnings are the problems and floor warnings the
@@ -107,7 +107,7 @@ func (e *zoneEditor) points() []zone.Point {
 
 // click handles a click at viewport pixel p that picked h (ok: something
 // was hit). It returns the status line, or "" when no tool is armed.
-func (e *zoneEditor) click(s *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point, h scene.Hit, ok bool) string {
+func (e *zoneEditor) click(s *scene.World, c *floorCoverage, cam *camera.Camera, p f32.Point, viewport image.Point, h scene.Hit, ok bool) string {
 	if !e.armed {
 		return ""
 	}
@@ -116,7 +116,7 @@ func (e *zoneEditor) click(s *scene.World, cam *camera.Camera, p f32.Point, view
 		if len(pts) >= 3 {
 			first := renderPoint(s, pts[0])
 			if x, y, vis := cam.Project(first, viewport.X, viewport.Y); vis && dist(p, f32.Pt(x, y)) <= closeSlop {
-				return e.close()
+				return e.close(s, c)
 			}
 		}
 	}
@@ -126,9 +126,9 @@ func (e *zoneEditor) click(s *scene.World, cam *camera.Camera, p f32.Point, view
 	v := serverPoint(h)
 	switch e.tool {
 	case ui.ToolRectangle:
-		return e.rectangleClick(s, v)
+		return e.rectangleClick(s, c, v)
 	case ui.ToolCircle:
-		return e.circleClick(s, v)
+		return e.circleClick(s, c, v)
 	case ui.ToolRestart, ui.ToolPKRestart:
 		return e.restartClick(v)
 	}
@@ -152,9 +152,10 @@ func (e *zoneEditor) polygonClick(v zone.Point) string {
 	return fmt.Sprintf("%s: %d %d %d", inflect.Count(n, "vértice", "vértices"), v.X, v.Y, v.Z)
 }
 
-// close ends the polygon being drawn with the Z range suggested from its
-// vertices. It returns the status line.
-func (e *zoneEditor) close() string {
+// close ends the polygon being drawn with the Z range suggested by the
+// floor under its area over s, measured now, or from its vertices when the
+// floor gives none (floorCoverage.suggest). It returns the status line.
+func (e *zoneEditor) close(s *scene.World, c *floorCoverage) string {
 	if !e.drawing {
 		return ""
 	}
@@ -162,8 +163,9 @@ func (e *zoneEditor) close() string {
 	if len(pts) < 3 {
 		return fmt.Sprintf("O polígono tem %s; são precisos 3 para fechar", inflect.Count(len(pts), "vértice", "vértices"))
 	}
-	zmin, zmax := zone.SuggestZRange(pts, e.margin)
-	if e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: zmin, ZMax: zmax}) != nil {
+	vmin, vmax := zone.SuggestZRange(pts, e.margin)
+	fit := c.suggest(e, s, e.shape, pts, vmin, vmax, false, true)
+	if e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
 		return "Não foi possível fechar o polígono"
 	}
 	e.drawing, e.armed = false, false
@@ -172,8 +174,8 @@ func (e *zoneEditor) close() string {
 	if e.banned {
 		what = "Exclusão fechada"
 	}
-	log.Printf("zona: %s: %s com %s, z %d..%d", z.Name, strings.ToLower(what), inflect.Count(len(pts), "vértice", "vértices"), zmin, zmax)
-	return fmt.Sprintf("%s em %s: %s, z %d … %d", what, z.Name, inflect.Count(len(pts), "vértice", "vértices"), zmin, zmax)
+	log.Printf("zona: %s: %s com %s, z %d..%d %s", z.Name, strings.ToLower(what), inflect.Count(len(pts), "vértice", "vértices"), fit.zmin, fit.zmax, fit.note())
+	return fmt.Sprintf("%s em %s: %s, z %d … %d %s", what, z.Name, inflect.Count(len(pts), "vértice", "vértices"), fit.zmin, fit.zmax, fit.note())
 }
 
 // selection is the zones checked for compilation, in creation order.

@@ -234,13 +234,13 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 					if probe.handle(e) && tiles.world != nil {
 						probe.click, probe.clickHit = pickAt(tiles.world, &cam, e.Position, shell.Viewport.Size())
 						logClick(probe.click, probe.clickHit)
-						if msg := zones.click(tiles.world, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit); msg != "" {
+						if msg := zones.click(tiles.world, cover, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit); msg != "" {
 							status = msg
 						}
 					}
 				case key.Event:
 					if (e.Name == key.NameReturn || e.Name == key.NameEnter) && e.State == key.Press {
-						if msg := zones.close(); msg != "" {
+						if msg := zones.close(tiles.world, cover); msg != "" {
 							status = msg
 						}
 					}
@@ -272,7 +272,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				status = zones.arm(t, shell.Zone.Tools.Banned.Value)
 			}
 			if shell.Zone.Tools.WholeTile.Clicked(gtx) {
-				status = wholeTile(zones, tiles, &cam, shell.Viewport.Size(), shell.Zone.Tools.Banned.Value)
+				status = wholeTile(zones, cover, tiles, &cam, shell.Viewport.Size(), shell.Zone.Tools.Banned.Value)
 			}
 			if shell.Zone.Compile.Clicked(gtx) {
 				var files []zonexml.File
@@ -402,9 +402,11 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			}
 			if zones.anchored && tiles.world != nil && probe.inside {
 				h, ok := pickAt(tiles.world, &cam, probe.cursor, shell.Viewport.Size())
-				zones.hoverAt(tiles.world, h, ok)
+				if msg := zones.hoverAt(tiles.world, cover, h, ok); msg != "" {
+					status = msg
+				}
 			} else {
-				zones.hoverAt(nil, scene.Hit{}, false)
+				zones.hoverAt(nil, cover, scene.Hit{}, false)
 			}
 			shell.Zone.Tools.Armed, shell.Zone.Tools.Active = zones.tool, zones.armed
 			var renderer *render.Renderer

@@ -251,7 +251,9 @@ func (c *floorCoverage) start(key coverageKey, pts []zone.Point, bans []coverage
 }
 
 // receive takes the profile measured in the background, if it is in, and
-// then forgets the profiles of shapes no longer in e's document.
+// then forgets the profiles of shapes no longer in e's document. The slot
+// one past a zone's last shape stays: it holds the profile of the shape
+// being placed (floorCoverage.suggest).
 func (c *floorCoverage) receive(e *zoneEditor) {
 	select {
 	case r := <-c.results:
@@ -262,7 +264,7 @@ func (c *floorCoverage) receive(e *zoneEditor) {
 		return
 	}
 	for ref := range c.shapes {
-		if z, ok := e.doc.Zone(ref.zone); !ok || ref.shape >= len(z.Shapes) {
+		if z, ok := e.doc.Zone(ref.zone); !ok || ref.shape > len(z.Shapes) {
 			delete(c.shapes, ref)
 		}
 	}
