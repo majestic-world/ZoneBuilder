@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (Clique seleciona a água), 03 (Volume vira zona de água)
 
-**Status:** needs-triage
+**Status:** ready-for-agent
 
 - [ ] Teste do seam: aplicar os planos de 3 volumes e dar 1 `Undo` deixa o documento como antes
 - [ ] No app, 22_22: clique direito no mar de Giran → "Compilar zona de água" → a janela de XML mostra `zonebuilder_water.xml` com 1 zona `[22_22_WaterVolume0]` e 8 polígonos, e o Copiar copia esse texto

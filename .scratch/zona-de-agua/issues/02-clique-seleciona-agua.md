@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Volumes de água na cena)
 
-**Status:** needs-triage
+**Status:** ready-for-agent
 
 - [ ] Teste do seam, raio × poliedro convexo: entra pelo topo (entrada = distância até o topo), passa ao lado (sem acerto), nasce dentro (entrada 0), raspa uma aresta (acerto estável) e um volume atrás do chão, com entrada além de `maxDist`, não é escolhido
 - [ ] Teste do seam: 3 caixas encostadas com o mesmo topo formam 1 corpo, e uma 4ª encostada com topo 100 acima fica fora

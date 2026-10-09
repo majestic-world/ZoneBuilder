@@ -1,4 +1,4 @@
-Status: needs-triage
+Status: ready-for-agent
 
 # Zona de água a partir do WaterVolume
 
@@ -189,10 +189,11 @@ Cada teste nomeia o bug concreto que pegaria. Não se testa cor, texto de painel
 - Desenhar todos os volumes do mapa (o "mostrar volumes" do UnrealEd).
 - Outros volumes (`PhysicsVolume`, `BlockingVolume`) e outros tipos de zona gerados a partir deles.
 
-## Decisões a aprovar
+## Decisões aprovadas
 
-Antes de mover os tickets para `ready-for-agent`:
+Aprovadas pelo usuário em 2026-10-09, todas na opção recomendada:
 
-1. **Offset de Z (D6):** −30, como o datapack (recomendado), ou +32, como o ADR 0003.
-2. **O clique seleciona o corpo d'água inteiro (D3)**, com Ctrl+clique para volumes avulsos (recomendado), ou só o volume clicado.
-3. **A ação cria a zona no projeto (D5)** antes de compilar (recomendado), ou só gera o XML sem tocar no projeto.
+1. **Offset de Z (D6):** −30, como o datapack.
+2. **O clique seleciona o corpo d'água inteiro (D3)**, com Ctrl+clique para volumes avulsos.
+3. **A ação cria a zona no projeto (D5)** antes de compilar.
+4. **Ticket 06 sem o 05:** as docs saem com o −30 marcado como pendente da medição em jogo; o ticket 05 fica aberto para o usuário.

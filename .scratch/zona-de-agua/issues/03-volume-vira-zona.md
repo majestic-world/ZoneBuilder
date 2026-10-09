@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Volumes de água na cena)
 
-**Status:** needs-triage
+**Status:** ready-for-agent
 
 - [ ] Teste com o cliente real (pulado sem `ZB_CLIENT`): os 11 volumes de topo −3780 de 22_24 dão 1 zona com 11 polígonos iguais, ponto a ponto e em `zmin`/`zmax`, aos shapes `[22_24_water1…9]`, `[22_24_water12]` e `[22_24_water13]` do datapack, com os valores copiados no teste
 - [ ] Teste com o cliente real: `WaterVolume26` e `WaterVolume27` de 22_24 (encostados, topos −3746 e −5529) dão 2 zonas

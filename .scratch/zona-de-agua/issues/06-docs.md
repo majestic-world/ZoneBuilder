@@ -7,9 +7,9 @@
 - `docs/plan.md`: a leitura de `WaterVolume` (brush, faces BSP, transformação ABrush) em "Fatos que moldam o design" e o `internal/water` no fluxo.
 - Spec: `Status: resolved` com o resumo.
 
-**Blocked by:** 04 (Menu "Compilar zona de água"), 05 (Verificação em jogo do offset da água)
+**Blocked by:** 04 (Menu "Compilar zona de água"); o 05 fica aberto para o usuário (decisão 4 da spec: o −30 sai marcado como pendente da medição em jogo)
 
-**Status:** needs-triage
+**Status:** ready-for-agent
 
 - [ ] Os 3 arquivos atualizados, com os números do ADR 0005 já confirmados
 - [ ] Nenhuma menção a um comportamento que o ticket 05 mudou

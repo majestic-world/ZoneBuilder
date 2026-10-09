@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** needs-triage
+**Status:** ready-for-agent
 
 - [ ] Teste com o cliente real (pulado sem `ZB_CLIENT`): 22_22 tem 8 volumes vivos, e o `WaterVolume0` tem caixa x 86.757…98.304, y 152.256…153.600, z −8.778…−3.780
 - [ ] Teste com o cliente real: o `MainScale` e o `PostScale` de um `WaterVolume` de 22_22 decodificam como `(1, 1, 1)` com `SheerRate 0`
