@@ -324,7 +324,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 					start.apply(&cam, tiles.world)
 				}
 				log.Printf("cena: câmera %s", formatPose(&cam, tiles.world))
-				status = t.Name()
+				status = "" // the Tiles line names it
 				probe.click = scene.Hit{}
 				probe.clickHit = false
 			}
@@ -360,7 +360,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			}
 			shell.Loading, shell.Progress = tiles.progress(renderer)
 
-			rect := shell.Layout(gtx, panelLines(g, status, tiles, &cam))
+			rect := shell.Layout(gtx, panelLines(status, tiles))
 			if e.Size != size || rect != vpRect {
 				log.Printf("frame: window %dx%d, viewport %v", e.Size.X, e.Size.Y, rect)
 				size, vpRect = e.Size, rect
@@ -458,81 +458,39 @@ func logScene(tile scene.Tile, r tileResult) {
 	}
 }
 
-// panelLines are the side panel's info lines: the status, then what the
-// world's tiles hold, all tiles together.
-func panelLines(g *gfx, status string, tiles *tiles, cam *camera.Camera) []string {
+// panelLines are the side panel's info lines: the status, the open tiles
+// and what failed to load in them. The counts and bounds of what loaded
+// go to the log (logScene).
+func panelLines(status string, tiles *tiles) []string {
 	var lines []string
 	if status != "" {
 		lines = append(lines, status)
 	}
 	if w := tiles.world; w != nil {
-		scenes := w.Scenes()
 		if names := tiles.shown(); len(names) > 0 {
 			lines = append(lines, "Tiles: "+strings.Join(names, ", "))
 		}
-		terrain, bounds, terrains := 0, geom.EmptyBox(), 0
-		for _, s := range scenes {
-			for _, t := range s.Terrains {
-				terrain += len(s.Batches[t.Batch].Indices) / 3
-				bounds.Union(t.Bounds)
-				terrains++
-				if t.FallbackScale {
-					lines = append(lines, t.Tile.Name()+": TerrainScale quebrado, posição por MapX/MapY")
-				}
-			}
-		}
-		if terrains > 0 {
-			lines = append(lines,
-				fmt.Sprintf("Terreno: %s", inflect.Count(terrain, "triângulo", "triângulos")),
-				fmt.Sprintf("x %.0f … %.0f", bounds.Min.X, bounds.Max.X),
-				fmt.Sprintf("y %.0f … %.0f", bounds.Min.Y, bounds.Max.Y),
-				fmt.Sprintf("z %.0f … %.0f", bounds.Min.Z, bounds.Max.Z),
-			)
-		} else if len(scenes) > 0 {
-			lines = append(lines, "Nenhum tile aberto tem terreno")
-		}
-		if n, tris := bspSummary(scenes...); n > 0 {
-			lines = append(lines, fmt.Sprintf("BSP: %s, %s", inflect.Count(n, "superfície", "superfícies"), inflect.Count(tris, "triângulo", "triângulos")))
-		}
-		if len(scenes) > 0 {
-			lines = append(lines, meshSummary(scenes...))
-		}
-		for _, s := range scenes {
+		for _, s := range w.Scenes() {
 			lines = append(lines, s.Warnings...)
 		}
-		p := worldPosition(w, cam.Position)
-		lines = append(lines, fmt.Sprintf("Câmera: %.0f %.0f %.0f", p.X, p.Y, p.Z))
-	}
-	lines = append(lines,
-		"WASD move, Q/E desce/sobe, Shift acelera,",
-		"arrastar olha, Shift+arrastar sobe, roda aproxima",
-	)
-	if g != nil {
-		lines = append(lines, g.renderer.Info.Renderer)
 	}
 	return lines
 }
 
-// meshSummary is the static mesh actor and triangle counts of scenes.
-func meshSummary(scenes ...*scene.Scene) string {
-	actors, tris := 0, 0
-	for _, s := range scenes {
-		actors += len(s.Actors)
-		for i := range s.Actors {
-			tris += s.Actors[i].Triangles()
-		}
+// meshSummary is the static mesh actor and triangle counts of s.
+func meshSummary(s *scene.Scene) string {
+	tris := 0
+	for i := range s.Actors {
+		tris += s.Actors[i].Triangles()
 	}
 	return fmt.Sprintf("Static meshes: %s, %s",
-		inflect.Count(actors, "ator", "atores"), inflect.Count(tris, "triângulo", "triângulos"))
+		inflect.Count(len(s.Actors), "ator", "atores"), inflect.Count(tris, "triângulo", "triângulos"))
 }
 
-// bspSummary is the BSP surface and triangle counts of scenes.
-func bspSummary(scenes ...*scene.Scene) (surfaces, tris int) {
-	for _, s := range scenes {
-		surfaces += len(s.BSPSurfaces)
-		for _, sf := range s.BSPSurfaces {
-			tris += sf.Count / 3
-		}
+// bspSummary is the BSP surface and triangle counts of s.
+func bspSummary(s *scene.Scene) (surfaces, tris int) {
+	for _, sf := range s.BSPSurfaces {
+		tris += sf.Count / 3
 	}
-	return surfaces, tris
+	return len(s.BSPSurfaces), tris
 }
