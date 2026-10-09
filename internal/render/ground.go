@@ -16,12 +16,14 @@ type Ground struct {
 	// Grid draws the terrain cell lines, a stronger line every
 	// GridMajor cells.
 	Grid bool
-	// Shapes are the selected zone's closed shapes. The scene inside a
-	// shape's outline and Z range is tinted with Color; inside the
-	// outline but above the range it gets a warm hatch, below it a cold
-	// one; lines mark where it crosses each shape's ZMin and ZMax; the
-	// outline is drawn on whatever surface it crosses. Banned shapes cut
-	// holes. Shapes past the shader's room are left out (GroundLeftOut).
+	// Shapes are the selected zone's closed shapes. The floor (surfaces
+	// facing up, below the eye) inside a shape's outline and Z range is
+	// tinted with Color; inside the outline but above the range it gets
+	// a warm hatch, below it a cold one; lines mark where it crosses
+	// each shape's ZMin and ZMax. Walls and ceilings keep their colour;
+	// the outline is drawn on whatever surface it crosses. Banned shapes
+	// cut holes. Shapes past the shader's room are left out
+	// (GroundLeftOut).
 	Shapes []GroundShape
 	// Color is the zone's linear RGB.
 	Color [3]float32
@@ -234,22 +236,26 @@ vec3 ground(vec3 c) {
 				bottom = min(bottom, abs(vPos.z - uShapeZ[s].x) / fz);
 			}
 		}
+		// The tint, hatches and level lines only mark the floor: surfaces
+		// facing up and seen from above, so walls and ceilings keep
+		// their colour. The outline below marks any surface.
+		float floor_ = up * step(vPos.z, uEye.z);
 		if (!cut) {
 			if (inside) {
-				c = mix(c, uZoneColor, 0.3);
+				c = mix(c, uZoneColor, 0.3 * floor_);
 			} else if (above) {
 				// Warm hatch, rising to the right.
 				float h = step(fract((gl_FragCoord.x + gl_FragCoord.y) / 12.0), 0.4);
-				c = mix(c, groundAbove, 0.15 + 0.5 * h);
+				c = mix(c, groundAbove, (0.15 + 0.5 * h) * floor_);
 			} else if (below) {
 				// Cold hatch, falling to the right.
 				float h = step(fract((gl_FragCoord.x - gl_FragCoord.y) / 12.0), 0.4);
-				c = mix(c, groundBelow, 0.15 + 0.5 * h);
+				c = mix(c, groundBelow, (0.15 + 0.5 * h) * floor_);
 			}
 			// The ZMax and ZMin lines, in the hatch colours: the exact edge
 			// of the covered area.
-			c = mix(c, groundAbove * 1.1 + 0.1, (1.0 - smoothstep(1.0, 2.0, top)) * up);
-			c = mix(c, groundBelow * 1.1 + 0.1, (1.0 - smoothstep(1.0, 2.0, bottom)) * up);
+			c = mix(c, groundAbove * 1.1 + 0.1, (1.0 - smoothstep(1.0, 2.0, top)) * floor_);
+			c = mix(c, groundBelow * 1.1 + 0.1, (1.0 - smoothstep(1.0, 2.0, bottom)) * floor_);
 		}
 		float line = 1.0 - smoothstep(px * 1.2, px * 2.4, edge);
 		c = mix(c, uZoneColor * 1.3 + 0.15, line);
