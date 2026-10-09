@@ -218,24 +218,21 @@ func readVectors(r *l2pkg.Reader, what string) [][3]float32 {
 	return out
 }
 
-// Polygon is one node's convex polygon on a visible surface.
+// Polygon is one BSP node's convex polygon. Points is reused between
+// visits: copy it to keep it.
 type Polygon struct {
 	Surf   int
 	Points [][3]float32
 }
 
-// VisiblePolygons returns every node polygon of m whose surface is visible
-// (not PFNotVisible) and has at least 3 points, in node order: the input of
-// UE2-Studio's Model::visual_surfaces, which fans each one (0, i-1, i) and
-// groups them by surface. Out-of-range indices are errors.
-func (m *Model) VisiblePolygons(visit func(Polygon)) error {
+// Polygons visits every node polygon of m that has at least 3 points, in
+// node order, whatever its surface's flags: a brush's Model is the
+// volume's whole shape. Out-of-range indices are errors.
+func (m *Model) Polygons(visit func(Polygon)) error {
 	var pts [][3]float32
 	for k, node := range m.Nodes {
 		if node.Surf < 0 || int(node.Surf) >= len(m.Surfs) {
 			return fmt.Errorf("nó BSP %d: superfície %d fora do intervalo", k, node.Surf)
-		}
-		if m.Surfs[node.Surf].PolyFlags&PFNotVisible != 0 {
-			continue
 		}
 		start, count := int(node.VertPool), int(node.NumVertices)
 		if start < 0 || start+count > len(m.Verts) {
@@ -257,4 +254,15 @@ func (m *Model) VisiblePolygons(visit func(Polygon)) error {
 		visit(Polygon{Surf: int(node.Surf), Points: pts})
 	}
 	return nil
+}
+
+// VisiblePolygons is Polygons without the polygons of invisible surfaces
+// (PFNotVisible): the input of UE2-Studio's Model::visual_surfaces, which
+// fans each one (0, i-1, i) and groups them by surface.
+func (m *Model) VisiblePolygons(visit func(Polygon)) error {
+	return m.Polygons(func(p Polygon) {
+		if m.Surfs[p.Surf].PolyFlags&PFNotVisible == 0 {
+			visit(p)
+		}
+	})
 }

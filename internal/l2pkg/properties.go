@@ -216,7 +216,7 @@ func readValue(p *Package, r *Reader, name string, typ uint8, structName string,
 		case "Color":
 			b, g, rd, a := r.U8(), r.U8(), r.U8(), r.U8()
 			return Value{Kind: KindColor, Color: [4]uint8{rd, g, b, a}}, nil
-		case "TerrainLayer":
+		case "TerrainLayer", "Scale":
 			m, err := ReadProperties(p, r, 0)
 			return Value{Kind: KindMaps, Maps: []Properties{m}}, err
 		case "PointRegion":
