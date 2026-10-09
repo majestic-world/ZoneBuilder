@@ -77,7 +77,7 @@ func cellCrossings(p, q coverage.Point) []float64 {
 func TestEdgeFloorLineFollowsRampAtCellCrossings(t *testing.T) {
 	// Clockwise on purpose: Edges keeps the outline's own order.
 	o := coverage.Outline{{X: 30, Y: 40}, {X: 130, Y: 280}, {X: 270, Y: 210}, {X: 250, Y: 20}}
-	r := coverage.Measure(ramp(), o).Classify(-1e6, 1e6)
+	r := coverage.Measure(ramp(), o, nil).Classify(-1e6, 1e6)
 	if len(r.Edges) != len(o) {
 		t.Fatalf("%d edges, want %d", len(r.Edges), len(o))
 	}

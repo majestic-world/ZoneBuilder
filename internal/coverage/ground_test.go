@@ -14,7 +14,7 @@ import (
 func TestFarRoofLeftOutNearMezzaninePulls(t *testing.T) {
 	f := append(grid(0), bspQuad(0, 0, 100, 300, 256+200)...)
 	f = append(f, bspQuad(200, 0, 300, 300, 256+3000)...)
-	g := coverage.Measure(f, square(0, 0, 300, 300)).Ground(-256, 256)
+	g := coverage.Measure(f, square(0, 0, 300, 300), nil).Ground(-256, 256)
 	if !g.Measured {
 		t.Fatal("no ground counted under the square")
 	}
@@ -38,7 +38,7 @@ func TestPeakFarFromTheVerticesSetsTheTop(t *testing.T) {
 	apex := v(437, 611, 2000.5)
 	a, b, c, d := v(0, 0, 0), v(1000, 0, 0), v(1000, 1000, 0), v(0, 1000, 0)
 	f := floor{tri(a, b, apex), tri(b, c, apex), tri(c, d, apex), tri(d, a, apex)}
-	g := coverage.Measure(f, square(0, 0, 1000, 1000)).Ground(-2000, -1500)
+	g := coverage.Measure(f, square(0, 0, 1000, 1000), nil).Ground(-2000, -1500)
 	if !g.Measured {
 		t.Fatal("no ground counted under the square")
 	}
