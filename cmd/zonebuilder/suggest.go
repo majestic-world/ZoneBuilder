@@ -15,6 +15,9 @@ type zSource int
 const (
 	// zByFloor: the floor under the shape's whole area (spec D5).
 	zByFloor zSource = iota
+	// zByVertices: the clicked points alone, as the panel asks (spec
+	// D2); nothing is measured.
+	zByVertices
 	// zMeasuring: the vertices, while the floor under the outline is
 	// measured in the background (the preview only).
 	zMeasuring
@@ -41,6 +44,8 @@ func (z zSuggestion) sourceMessage() locale.Message {
 	switch z.from {
 	case zByFloor:
 		return locale.Message{Key: "editor.source.ground"}
+	case zByVertices:
+		return locale.Message{Key: "editor.source.vertices"}
 	case zMeasuring:
 		return locale.Message{Key: "editor.source.measuring"}
 	case zOffTiles:
@@ -60,12 +65,18 @@ func (z zSuggestion) noteFor(lang locale.Language) string {
 // range the shape would get without them: vmin…vmax, from its vertices,
 // or, with fromTerrain, the terrain under the outline plus the margin (the
 // whole tile, whose vertices lie on nothing). vmin…vmax is the range
-// itself when part of the outline lies off w's tiles, when no floor
-// counts, and, unless now, while the outline's profile is measured in the
-// background; now measures it on the spot. The profile is kept as shape
-// i's, the index the shape has once added.
+// itself when the panel asks for the clicked points (not with
+// fromTerrain: the whole tile always takes the floor), when part of the
+// outline lies off w's tiles, when no floor counts, and, unless now,
+// while the outline's profile is measured in the background; now
+// measures it on the spot. The profile is kept as shape i's, the index
+// the shape has once added.
 func (c *floorCoverage) suggest(e *zoneEditor, w *scene.World, i int, pts []zone.Point, vmin, vmax int, fromTerrain, now bool) zSuggestion {
 	z := zSuggestion{zmin: vmin, zmax: vmax, vmin: vmin, vmax: vmax}
+	if e.fromVertices && !fromTerrain {
+		z.from = zByVertices
+		return z
+	}
 	if w == nil || offTiles(w, coverageOutline(pts)) {
 		z.from = zOffTiles
 		return z
