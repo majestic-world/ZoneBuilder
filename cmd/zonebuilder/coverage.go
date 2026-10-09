@@ -10,6 +10,7 @@ import (
 	"gioui.org/app"
 
 	"zonebuilder/internal/coverage"
+	"zonebuilder/internal/geom"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/zone"
 )
@@ -62,6 +63,9 @@ type shapeCoverage struct {
 	report     coverage.Report
 	zmin, zmax int
 	classified *coverage.Profile
+	// ground is the floor line along the walls of lined's outline.
+	ground []geom.Vec3
+	lined  *coverage.Profile
 }
 
 func newFloorCoverage(win *app.Window) *floorCoverage {
@@ -175,6 +179,31 @@ func (c *floorCoverage) receive(e *zoneEditor) {
 			delete(c.shapes, ref)
 		}
 	}
+}
+
+// groundLine is the floor line along the walls of e's current shape over
+// w (spec D4d), as segments in server coordinates, and the profile it
+// comes from. Both are nil while the shape's outline or scene is being
+// measured, so the line leaves while the outline is dragged and comes
+// back with the new measure.
+func (c *floorCoverage) groundLine(e *zoneEditor, w *scene.World) ([]geom.Vec3, *coverage.Profile) {
+	r, measuring, ok := c.current(e, w)
+	if !ok || measuring {
+		return nil, nil
+	}
+	s := c.shapes[shapeRef{e.zone, e.shape}]
+	if s.lined != s.profile {
+		s.ground = nil
+		for _, sp := range r.Edges {
+			for _, g := range sp {
+				s.ground = append(s.ground,
+					geom.Vec3{X: float32(g.From.X), Y: float32(g.From.Y), Z: float32(g.From.Z)},
+					geom.Vec3{X: float32(g.To.X), Y: float32(g.To.Y), Z: float32(g.To.Z)})
+			}
+		}
+		s.lined = s.profile
+	}
+	return s.ground, s.profile
 }
 
 // inspector is the inspector's coverage lines for e's current shape over
