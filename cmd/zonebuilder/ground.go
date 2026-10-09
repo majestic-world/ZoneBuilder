@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image"
 	"math"
 	"strconv"
@@ -10,6 +9,7 @@ import (
 
 	"zonebuilder/internal/camera"
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
@@ -71,7 +71,7 @@ func outline(kind zone.ShapeKind, pts []zone.Point) []zone.Point {
 // their midpoints on the viewport of size vp seen by cam: every edge of
 // its shapes, and of the polygon being drawn, that looks at least
 // minLabelEdge pixels long.
-func (e *zoneEditor) edgeLabels(s *scene.World, cam *camera.Camera, vp image.Point) []ui.EdgeLabel {
+func (e *zoneEditor) edgeLabels(s *scene.World, cam *camera.Camera, vp image.Point, lang locale.Language) []ui.EdgeLabel {
 	z, ok := e.doc.Zone(e.zone)
 	if !ok || z.Hidden {
 		return nil
@@ -99,7 +99,7 @@ func (e *zoneEditor) edgeLabels(s *scene.World, cam *camera.Camera, vp image.Poi
 				continue
 			}
 			length := math.Hypot(float64(b.X-a.X), float64(b.Y-a.Y))
-			labels = append(labels, ui.EdgeLabel{At: pa.Add(pb).Mul(0.5), Text: units(int(math.Round(length)))})
+			labels = append(labels, ui.EdgeLabel{At: pa.Add(pb).Mul(0.5), Text: locale.Number(lang, math.Round(length), 0)})
 		}
 	}
 	return labels
@@ -107,7 +107,7 @@ func (e *zoneEditor) edgeLabels(s *scene.World, cam *camera.Camera, vp image.Poi
 
 // measure describes a shape's outline on the ground: the size of its
 // bounding box, its area and its perimeter, in server units.
-func measure(pts []zone.Point) string {
+func measure(lang locale.Language, pts []zone.Point) string {
 	if len(pts) < 3 {
 		return ""
 	}
@@ -120,8 +120,10 @@ func measure(pts []zone.Point) string {
 		area2 += float64(a.X)*float64(b.Y) - float64(b.X)*float64(a.Y)
 		perimeter += math.Hypot(float64(b.X-a.X), float64(b.Y-a.Y))
 	}
-	return fmt.Sprintf("No chão: %s × %s, área %s, perímetro %s (unidades do servidor)",
-		units(hi.X-lo.X), units(hi.Y-lo.Y), units(int(math.Round(math.Abs(area2)/2))), units(int(math.Round(perimeter))))
+	return locale.Format(lang, "editor.ground.measure", map[string]string{
+		"width": locale.Number(lang, float64(hi.X-lo.X), 0), "length": locale.Number(lang, float64(hi.Y-lo.Y), 0),
+		"area": locale.Number(lang, math.Round(math.Abs(area2)/2), 0), "perimeter": locale.Number(lang, math.Round(perimeter), 0),
+	})
 }
 
 // units writes n with a dot between thousands, as pt-BR does.

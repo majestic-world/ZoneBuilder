@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"zonebuilder/internal/coverage"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/zone"
 )
@@ -34,16 +35,24 @@ type zSuggestion struct {
 }
 
 // note says, for the status line, where z's range came from.
-func (z zSuggestion) note() string {
+func (z zSuggestion) note() string { return z.noteFor(locale.PtBR) }
+
+func (z zSuggestion) sourceKey() string { return z.sourceMessage().Key }
+
+func (z zSuggestion) sourceMessage() locale.Message {
 	switch z.from {
 	case zByFloor:
-		return "pelo chão da área"
+		return locale.Message{Key: "editor.source.ground"}
 	case zMeasuring:
-		return "pelos vértices, medindo o chão…"
+		return locale.Message{Key: "editor.source.measuring"}
 	case zOffTiles:
-		return "pelos vértices: parte da área fora dos tiles carregados"
+		return locale.Message{Key: "editor.source.off_tiles"}
 	}
-	return "pelos vértices: nenhum chão medido na área"
+	return locale.Message{Key: "editor.source.no_ground"}
+}
+
+func (z zSuggestion) noteFor(lang locale.Language) string {
+	return z.sourceMessage().Render(lang)
 }
 
 // suggest is the Z range for shape i of e's selected zone, being added

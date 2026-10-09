@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"zonebuilder/internal/camera"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/geom"
-	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
 	"zonebuilder/internal/zone"
@@ -58,7 +58,7 @@ func (e *zoneEditor) rows() []ui.ZoneRow {
 			Compile:  !e.leftOut[z.ID],
 		}
 		if e.drawing && z.ID == e.zone {
-			rows[i].Note = "desenhando"
+			rows[i].Note = locale.Text(e.Language, "editor.row.drawing")
 		}
 	}
 	return rows
@@ -78,17 +78,19 @@ func (e *zoneEditor) listRequest(req any, s *scene.World, cam *camera.Camera) st
 		return e.selectZone(r.Zone, s, cam)
 	case ui.HideZones:
 		if e.apply(zone.SetHidden{Zones: r.Zones, Hidden: r.Hidden}) != nil {
-			return "Não foi possível mudar a visibilidade"
-		}
-		verb := "exibida"
-		if r.Hidden {
-			verb = "oculta"
+			return e.present(locale.Message{Key: "editor.visibility.failed"})
 		}
 		if len(r.Zones) == 1 {
 			z, _ := e.doc.Zone(r.Zones[0])
-			return fmt.Sprintf("Zona %s %s", z.Name, verb)
+			if r.Hidden {
+				return e.present(locale.Message{Key: "editor.visibility.hidden_one", Args: map[string]string{"name": z.Name}})
+			}
+			return e.present(locale.Message{Key: "editor.visibility.shown_one", Args: map[string]string{"name": z.Name}})
 		}
-		return inflect.Count(len(r.Zones), "zona "+verb, "zonas "+verb+"s")
+		if r.Hidden {
+			return e.present(locale.Message{Key: "editor.visibility.hidden", Count: len(r.Zones), Plural: true, Args: nil})
+		}
+		return e.present(locale.Message{Key: "editor.visibility.shown", Count: len(r.Zones), Plural: true, Args: nil})
 	case ui.RenameZone:
 		return e.rename(r.Zone, r.Name)
 	case ui.DeleteZone:
@@ -98,7 +100,7 @@ func (e *zoneEditor) listRequest(req any, s *scene.World, cam *camera.Camera) st
 	case ui.CycleZoneColor:
 		return e.cycleColor(r.Zone)
 	case ui.GoTo:
-		return goTo(r.Text, s, cam)
+		return e.goTo(r.Text, s, cam)
 	case ui.SelectForCompile:
 		return e.selectForCompile(r.Zones, r.Compile)
 	}
@@ -113,14 +115,15 @@ func (e *zoneEditor) selectZone(id zone.ZoneID, s *scene.World, cam *camera.Came
 	if !ok {
 		return ""
 	}
-	msg := "Zona " + z.Name + " selecionada"
-	if e.drawing && id != e.zone {
-		msg = "Feche o polígono atual para selecionar outra zona"
-	} else {
+	drawingOther := e.drawing && id != e.zone
+	if !drawingOther {
 		e.zone, e.shape = id, 0
 	}
 	if s == nil {
-		return msg
+		if drawingOther {
+			return e.present(locale.Message{Key: "editor.zone.select_drawing"})
+		}
+		return e.present(locale.Message{Key: "editor.zone.selected", Args: map[string]string{"name": z.Name}})
 	}
 	b := geom.EmptyBox()
 	for _, sh := range z.Shapes {
@@ -129,11 +132,17 @@ func (e *zoneEditor) selectZone(id zone.ZoneID, s *scene.World, cam *camera.Came
 		}
 	}
 	if b.Empty() {
-		return msg + "; ela não tem vértices para enquadrar"
+		if drawingOther {
+			return e.present(locale.Message{Key: "editor.zone.select_drawing_no_frame"})
+		}
+		return e.present(locale.Message{Key: "editor.zone.selected_no_frame", Args: map[string]string{"name": z.Name}})
 	}
 	cam.Frame(b)
 	log.Printf("zona: câmera em %s: %s", z.Name, formatPose(cam, s))
-	return msg
+	if drawingOther {
+		return e.present(locale.Message{Key: "editor.zone.select_drawing"})
+	}
+	return e.present(locale.Message{Key: "editor.zone.selected", Args: map[string]string{"name": z.Name}})
 }
 
 func (e *zoneEditor) rename(id zone.ZoneID, name string) string {
@@ -141,51 +150,51 @@ func (e *zoneEditor) rename(id zone.ZoneID, name string) string {
 	z, ok := e.doc.Zone(id)
 	switch {
 	case !ok:
-		return "Selecione uma zona na lista"
+		return e.present(locale.Message{Key: "editor.zone.select_list"})
 	case name == "":
-		return "Digite o novo nome"
+		return e.present(locale.Message{Key: "editor.zone.rename_name"})
 	case name == z.Name:
 		return ""
 	}
 	old := z.Name
 	if e.apply(zone.Rename{Zone: id, Name: name}) != nil {
-		return "Não foi possível renomear a zona"
+		return e.present(locale.Message{Key: "editor.zone.rename_failed"})
 	}
 	log.Printf("zona: %s renomeada para %s", old, name)
-	return fmt.Sprintf("Zona %s renomeada para %s", old, name)
+	return e.present(locale.Message{Key: "editor.zone.renamed", Args: map[string]string{"old": old, "name": name}})
 }
 
 func (e *zoneEditor) deleteZone(id zone.ZoneID) string {
 	z, ok := e.doc.Zone(id)
 	if !ok {
-		return "Selecione uma zona na lista"
+		return e.present(locale.Message{Key: "editor.zone.select_list"})
 	}
 	if e.apply(zone.DeleteZone{Zone: id}) != nil {
-		return "Não foi possível apagar a zona"
+		return e.present(locale.Message{Key: "editor.zone.delete_failed"})
 	}
 	if e.zone == id {
 		e.drawing, e.zone, e.shape = false, 0, 0
 	}
 	log.Printf("zona: %s apagada", z.Name)
-	return "Zona " + z.Name + " apagada"
+	return e.present(locale.Message{Key: "editor.zone.deleted", Args: map[string]string{"name": z.Name}})
 }
 
 func (e *zoneEditor) duplicate(id zone.ZoneID) string {
 	z, ok := e.doc.Zone(id)
 	switch {
 	case !ok:
-		return "Selecione uma zona na lista"
+		return e.present(locale.Message{Key: "editor.zone.select_list"})
 	case e.drawing:
-		return "Feche o polígono antes de duplicar"
+		return e.present(locale.Message{Key: "editor.zone.duplicate_drawing"})
 	}
 	dup := e.doc.NewZoneID()
 	if e.apply(zone.DuplicateZone{Zone: id, ID: dup}) != nil {
-		return "Não foi possível duplicar a zona"
+		return e.present(locale.Message{Key: "editor.zone.duplicate_failed"})
 	}
 	e.zone, e.shape = dup, 0
 	c, _ := e.doc.Zone(dup)
 	log.Printf("zona: %s duplicada como %s", z.Name, c.Name)
-	return fmt.Sprintf("Zona %s duplicada como %s", z.Name, c.Name)
+	return e.present(locale.Message{Key: "editor.zone.duplicated", Args: map[string]string{"old": z.Name, "name": c.Name}})
 }
 
 // cycleColor steps a zone's colour: its type's, then each of zoneColors,
@@ -193,7 +202,7 @@ func (e *zoneEditor) duplicate(id zone.ZoneID) string {
 func (e *zoneEditor) cycleColor(id zone.ZoneID) string {
 	z, ok := e.doc.Zone(id)
 	if !ok {
-		return "Selecione uma zona na lista"
+		return e.present(locale.Message{Key: "editor.zone.select_list"})
 	}
 	next := zone.Color{} // back to the type's
 	if i := slices.Index(zoneColors, z.Color); z.Color == (zone.Color{}) {
@@ -202,30 +211,35 @@ func (e *zoneEditor) cycleColor(id zone.ZoneID) string {
 		next = zoneColors[i+1]
 	}
 	if e.apply(zone.SetColor{Zone: id, Color: next}) != nil {
-		return "Não foi possível mudar a cor"
+		return e.present(locale.Message{Key: "editor.zone.color_failed"})
 	}
 	if next == (zone.Color{}) {
-		return "Zona " + z.Name + " com a cor do tipo"
+		return e.present(locale.Message{Key: "editor.zone.color_default", Args: map[string]string{"name": z.Name}})
 	}
-	return fmt.Sprintf("Zona %s com a cor #%02X%02X%02X", z.Name, next[0], next[1], next[2])
+	return e.present(locale.Message{Key: "editor.zone.color_custom", Args: map[string]string{"name": z.Name, "color": fmt.Sprintf("#%02X%02X%02X", next[0], next[1], next[2])}})
 }
 
 // goTo frames the server point typed as "x y z" (spaces, commas or
 // semicolons between the numbers). It returns the status line.
-func goTo(text string, s *scene.World, cam *camera.Camera) string {
+func (e *zoneEditor) goTo(text string, s *scene.World, cam *camera.Camera) string {
 	p, err := parsePoint(text)
 	if err != nil {
-		return err.Error()
+		if errors.Is(err, errPointFormat) {
+			return e.present(locale.Message{Key: "editor.goto.format"})
+		}
+		return e.present(locale.Message{Key: "editor.goto.invalid", Args: map[string]string{"value": err.Error()}})
 	}
 	if s == nil {
-		return "Abra um tile antes de ir para um ponto"
+		return e.present(locale.Message{Key: "editor.goto.open_first"})
 	}
 	c := scene.ToRender(scene.FromServer(p).Sub(s.Origin))
 	h := geom.Vec3{X: goToHalfSize, Y: goToHalfSize, Z: goToHalfSize}
 	cam.Frame(geom.Box{Min: c.Sub(h), Max: c.Add(h)})
 	log.Printf("zona: câmera indo para %g %g %g: %s", p.X, p.Y, p.Z, formatPose(cam, s))
-	return fmt.Sprintf("Câmera em %g %g %g", p.X, p.Y, p.Z)
+	return e.present(locale.Message{Key: "editor.goto.done", Args: map[string]string{"x": fmt.Sprint(p.X), "y": fmt.Sprint(p.Y), "z": fmt.Sprint(p.Z)}})
 }
+
+var errPointFormat = errors.New("point requires three coordinates")
 
 // parsePoint reads a server x y z.
 func parsePoint(text string) (geom.Vec3, error) {
@@ -233,13 +247,13 @@ func parsePoint(text string) (geom.Vec3, error) {
 		return r == ' ' || r == '\t' || r == ',' || r == ';'
 	})
 	if len(fields) != 3 {
-		return geom.Vec3{}, errors.New("Digite x y z, 3 números separados por espaço")
+		return geom.Vec3{}, errPointFormat
 	}
 	var v [3]float32
 	for i, f := range fields {
 		n, err := strconv.ParseFloat(f, 32)
 		if err != nil {
-			return geom.Vec3{}, fmt.Errorf("%q não é um número", f)
+			return geom.Vec3{}, fmt.Errorf("%q", f)
 		}
 		v[i] = float32(n)
 	}
