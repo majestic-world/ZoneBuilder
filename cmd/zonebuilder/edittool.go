@@ -124,22 +124,22 @@ func (e *zoneEditor) sync() {
 
 func (e *zoneEditor) undo() string {
 	if !e.doc.Undo() {
-		return e.text("editor.undo.empty")
+		return e.present(locale.Message{Key: "editor.undo.empty"})
 	}
 	e.version++
 	e.sync()
 	log.Printf("zona: desfeito")
-	return e.text("editor.undo.done")
+	return e.present(locale.Message{Key: "editor.undo.done"})
 }
 
 func (e *zoneEditor) redo() string {
 	if !e.doc.Redo() {
-		return e.text("editor.redo.empty")
+		return e.present(locale.Message{Key: "editor.redo.empty"})
 	}
 	e.version++
 	e.sync()
 	log.Printf("zona: refeito")
-	return e.text("editor.redo.done")
+	return e.present(locale.Message{Key: "editor.redo.done"})
 }
 
 // viewportEvent handles the editing input of the viewport: Ctrl+Z/Ctrl+Y,
@@ -175,7 +175,7 @@ func (e *zoneEditor) viewportEvent(s *scene.World, cam *camera.Camera, ev event.
 			return e.dragEvent(s, cam, ev, vp), true
 		}
 		if e.grabArrow(ev) {
-			return e.text("editor.arrow.drag_hint"), true
+			return e.present(locale.Message{Key: "editor.arrow.drag_hint"}), true
 		}
 		if ev.Kind == pointer.Press && ev.Buttons == pointer.ButtonPrimary {
 			return e.press(s, cam, ev, vp)
@@ -206,9 +206,9 @@ func (e *zoneEditor) press(s *scene.World, cam *camera.Camera, ev pointer.Event,
 		e.drag = drag{kind: dragVertex, press: ev.Position, from: p}
 		if ev.Modifiers.Contain(key.ModCtrl) {
 			e.drag.kind = dragShape
-			return e.message("editor.drag.shape", map[string]string{"index": intArg(hit.shape+1), "name": z.Name}), true
+			return e.present(locale.Message{Key: "editor.drag.shape", Args: map[string]string{"index": intArg(hit.shape+1), "name": z.Name}}), true
 		}
-		return e.message("editor.drag.vertex", map[string]string{"index": intArg(hit.index+1), "name": z.Name, "x": intArg(p.X), "y": intArg(p.Y), "z": intArg(p.Z)}), true
+		return e.present(locale.Message{Key: "editor.drag.vertex", Args: map[string]string{"index": intArg(hit.index+1), "name": z.Name, "x": intArg(p.X), "y": intArg(p.Y), "z": intArg(p.Z)}}), true
 	}
 	if _, sh, ok := e.currentShape(); ok && sh.Kind != zone.Rectangle && len(sh.Points) >= 2 {
 		for i := range sh.Points {
@@ -236,9 +236,9 @@ func (e *zoneEditor) dragEvent(s *scene.World, cam *camera.Camera, ev pointer.Ev
 			e.drag.to, e.drag.moved = serverPoint(h), true
 			e.version++
 			e.lastHit = h
-			return e.message("editor.drag.drop", map[string]string{"surface": describeHitLang(h, true, e.Language)})
+			return e.present(locale.Message{Key: "editor.drag.drop", Args: map[string]string{"surface": describeHitLang(h, true, e.Language)}})
 		}
-		return e.text("editor.click.no_surface")
+		return e.present(locale.Message{Key: "editor.click.no_surface"})
 	case pointer.Release:
 		d := e.drag
 		e.drag = drag{}
@@ -307,18 +307,18 @@ func (e *zoneEditor) shownZRange(id zone.ZoneID, shape int, s zone.Shape) (int, 
 
 func (e *zoneEditor) moveVertex(v int, p zone.Point) string {
 	if e.apply(zone.MoveVertex{Zone: e.zone, Shape: e.shape, Index: v, Point: p}) != nil {
-		return e.text("editor.vertex.move_failed")
+		return e.present(locale.Message{Key: "editor.vertex.move_failed"})
 	}
 	log.Printf("zona: vértice %d movido para %d %d %d", v+1, p.X, p.Y, p.Z)
-	return e.message("editor.vertex.moved", map[string]string{"index": intArg(v+1), "x": intArg(p.X), "y": intArg(p.Y), "z": intArg(p.Z)})
+	return e.present(locale.Message{Key: "editor.vertex.moved", Args: map[string]string{"index": intArg(v+1), "x": intArg(p.X), "y": intArg(p.Y), "z": intArg(p.Z)}})
 }
 
 func (e *zoneEditor) moveShape(dx, dy, dz int) string {
 	if e.apply(zone.MoveShape{Zone: e.zone, Shape: e.shape, DX: dx, DY: dy, DZ: dz}) != nil {
-		return e.text("editor.shape.move_failed")
+		return e.present(locale.Message{Key: "editor.shape.move_failed"})
 	}
 	log.Printf("zona: shape %d movido por %d %d %d", e.shape+1, dx, dy, dz)
-	return e.message("editor.shape.moved", map[string]string{"x": intArg(dx), "y": intArg(dy), "z": intArg(dz)})
+	return e.present(locale.Message{Key: "editor.shape.moved", Args: map[string]string{"x": intArg(dx), "y": intArg(dy), "z": intArg(dz)}})
 }
 
 // zoneZ is the selected zone's floor (its lowest zmin) and top (its
@@ -340,31 +340,31 @@ func (e *zoneEditor) zoneZ() (z zone.Zone, base, top int, ok bool) {
 func (e *zoneEditor) shiftZone(dz int) string {
 	z, base, top, ok := e.zoneZ()
 	if !ok {
-		return e.text("editor.zone.move_select")
+		return e.present(locale.Message{Key: "editor.zone.move_select"})
 	}
 	if dz == 0 {
 		return ""
 	}
 	if e.apply(zone.ShiftZoneZ{Zone: z.ID, DZ: dz}) != nil {
-		return e.text("editor.zone.move_failed")
+		return e.present(locale.Message{Key: "editor.zone.move_failed"})
 	}
 	log.Printf("zona: %s movida %+d em z, agora %d..%d", z.Name, dz, base+dz, top+dz)
-	key := "editor.zone.raised"
+	args := map[string]string{"name": z.Name, "delta": intArg(abs(dz)), "min": intArg(base+dz), "max": intArg(top+dz)}
 	if dz < 0 {
-		key = "editor.zone.lowered"
+		return e.present(locale.Message{Key: "editor.zone.lowered", Args: args})
 	}
-	return e.message(key, map[string]string{"name": z.Name, "delta": intArg(abs(dz)), "min": intArg(base+dz), "max": intArg(top+dz)})
+	return e.present(locale.Message{Key: "editor.zone.raised", Args: args})
 }
 
 // setZoneBase moves the selected zone so its floor lands at text's z.
 func (e *zoneEditor) setZoneBase(text string) string {
 	v, ok := ints(text, 1)
 	if !ok {
-		return e.text("editor.zone.base_integer")
+		return e.present(locale.Message{Key: "editor.zone.base_integer"})
 	}
 	_, base, _, ok := e.zoneZ()
 	if !ok {
-		return e.text("editor.zone.base_select")
+		return e.present(locale.Message{Key: "editor.zone.base_select"})
 	}
 	return e.shiftZone(v[0] - base)
 }
@@ -374,17 +374,17 @@ func (e *zoneEditor) setZoneBase(text string) string {
 func (e *zoneEditor) setZoneHeight(text string) string {
 	v, ok := ints(text, 1)
 	if !ok || v[0] < 0 {
-		return e.text("editor.zone.height_integer")
+		return e.present(locale.Message{Key: "editor.zone.height_integer"})
 	}
 	z, base, _, ok := e.zoneZ()
 	if !ok {
-		return e.text("editor.zone.height_select")
+		return e.present(locale.Message{Key: "editor.zone.height_select"})
 	}
 	if e.apply(zone.SetZoneHeight{Zone: z.ID, Height: v[0]}) != nil {
-		return e.text("editor.zone.height_failed")
+		return e.present(locale.Message{Key: "editor.zone.height_failed"})
 	}
 	log.Printf("zona: %s com altura %d", z.Name, v[0])
-	return e.message("editor.zone.height_done", map[string]string{"name": z.Name, "height": intArg(v[0]), "min": intArg(base), "max": intArg(base+v[0])})
+	return e.present(locale.Message{Key: "editor.zone.height_done", Args: map[string]string{"name": z.Name, "height": intArg(v[0]), "min": intArg(base), "max": intArg(base+v[0])}})
 }
 
 // zoneToGround moves one side of every included shape of the selected
@@ -395,17 +395,20 @@ func (e *zoneEditor) setZoneHeight(text string) string {
 // to undo; a shape with no floor counted, or that the move would turn
 // upside down, keeps its range.
 func (e *zoneEditor) zoneToGround(c *floorCoverage, s *scene.World, top bool) string {
-	sideKey, side, sides := "editor.ground.floor_side", "piso", coverage.FloorSide
+	side, sides := "piso", coverage.FloorSide
+	sideKey := "editor.ground.floor_side"
+	name := locale.Text(e.Language, "editor.ground.floor_side")
 	if top {
-		sideKey, side, sides = "editor.ground.top_side", "topo", coverage.TopSide
+		side, sides = "topo", coverage.TopSide
+		sideKey = "editor.ground.top_side"
+		name = locale.Text(e.Language, "editor.ground.top_side")
 	}
-	name := locale.Text(e.Language, sideKey)
 	z, _, _, ok := e.zoneZ()
 	switch {
 	case s == nil:
-		return e.text("editor.ground.open_first")
+		return e.present(locale.Message{Key: "editor.ground.open_first"})
 	case !ok:
-		return e.text("editor.ground.select_first")
+		return e.present(locale.Message{Key: "editor.ground.select_first"})
 	}
 	var steps zone.Batch
 	kept := 0
@@ -428,19 +431,19 @@ func (e *zoneEditor) zoneToGround(c *floorCoverage, s *scene.World, top bool) st
 		steps = append(steps, zone.SetZRange{Zone: z.ID, Shape: i, ZMin: zmin, ZMax: zmax})
 	}
 	if len(steps) == 0 {
-		return e.message("editor.ground.none", map[string]string{"side": name, "__side": sideKey, "name": z.Name})
+		return e.present(locale.Message{Key: "editor.ground.none", Args: map[string]string{"side": name, "__side": sideKey, "name": z.Name}})
 	}
 	if e.apply(steps) != nil {
-		return e.text("editor.ground.failed")
+		return e.present(locale.Message{Key: "editor.ground.failed"})
 	}
-	key := "editor.ground.done"
-	if kept > 0 {
-		key = "editor.ground.some_kept"
-		if kept == 1 {
-			key = "editor.ground.one_kept"
-		}
+	args := map[string]string{"side": name, "__side": sideKey, "name": z.Name, "margin": intArg(e.margin), "kept": intArg(kept)}
+	if kept == 1 {
+		return e.present(locale.Message{Key: "editor.ground.one_kept", Count: len(steps), Plural: true, Args: args})
 	}
-	return e.plural(key, len(steps), map[string]string{"side": name, "__side": sideKey, "name": z.Name, "margin": intArg(e.margin), "kept": intArg(kept)})
+	if kept > 1 {
+		return e.present(locale.Message{Key: "editor.ground.some_kept", Count: len(steps), Plural: true, Args: args})
+	}
+	return e.present(locale.Message{Key: "editor.ground.done", Count: len(steps), Plural: true, Args: args})
 }
 
 // insertAfter inserts a vertex in the middle of the current shape's edge
@@ -449,34 +452,34 @@ func (e *zoneEditor) insertAfter(i int) string {
 	_, sh, ok := e.currentShape()
 	switch {
 	case ok && sh.Kind == zone.Rectangle:
-		return e.text("editor.vertex.rectangle_insert")
+		return e.present(locale.Message{Key: "editor.vertex.rectangle_insert"})
 	case !ok || len(sh.Points) < 2:
-		return e.text("editor.vertex.select_shape")
+		return e.present(locale.Message{Key: "editor.vertex.select_shape"})
 	}
 	p := midpoint(sh.Points, i)
 	if e.apply(zone.InsertVertex{Zone: e.zone, Shape: e.shape, Index: i + 1, Point: p}) != nil {
-		return e.text("editor.vertex.insert_failed")
+		return e.present(locale.Message{Key: "editor.vertex.insert_failed"})
 	}
 	e.selectVertex(e.zone, e.shape, i+1)
 	log.Printf("zona: vértice %d inserido em %d %d %d", i+2, p.X, p.Y, p.Z)
-	return e.message("editor.vertex.inserted", map[string]string{"index": intArg(i+2), "x": intArg(p.X), "y": intArg(p.Y), "z": intArg(p.Z)})
+	return e.present(locale.Message{Key: "editor.vertex.inserted", Args: map[string]string{"index": intArg(i+2), "x": intArg(p.X), "y": intArg(p.Y), "z": intArg(p.Z)}})
 }
 
 func (e *zoneEditor) removeVertex() string {
 	v, ok := e.selected()
 	if !ok {
-		return e.text("editor.vertex.select_remove")
+		return e.present(locale.Message{Key: "editor.vertex.select_remove"})
 	}
 	if _, sh, _ := e.currentShape(); sh.Kind == zone.Rectangle {
-		return e.text("editor.vertex.rectangle_remove")
+		return e.present(locale.Message{Key: "editor.vertex.rectangle_remove"})
 	}
 	if e.apply(zone.RemoveVertex{Zone: e.zone, Shape: e.shape, Index: v}) != nil {
-		return e.text("editor.vertex.remove_failed")
+		return e.present(locale.Message{Key: "editor.vertex.remove_failed"})
 	}
 	_, sh, _ := e.currentShape()
 	e.selectVertex(e.zone, e.shape, min(v, len(sh.Points)-1))
 	log.Printf("zona: vértice %d apagado", v+1)
-	return e.plural("editor.vertex.removed", len(sh.Points), map[string]string{"index": intArg(v+1)})
+	return e.present(locale.Message{Key: "editor.vertex.removed", Count: len(sh.Points), Plural: true, Args: map[string]string{"index": intArg(v+1)}})
 }
 
 // groundZRange sets the current shape's Z range from the floor under its
@@ -486,32 +489,32 @@ func (e *zoneEditor) groundZRange(c *floorCoverage, s *scene.World) string {
 	z, sh, ok := e.currentShape()
 	switch {
 	case s == nil:
-		return e.text("editor.ground.shape_open_first")
+		return e.present(locale.Message{Key: "editor.ground.shape_open_first"})
 	case !ok || e.drawing:
-		return e.text("editor.shape.select_closed")
+		return e.present(locale.Message{Key: "editor.shape.select_closed"})
 	}
 	p := c.profile(e, s, shapeRef{z.ID, e.shape}, outline(sh.Kind, e.shownPoints(z.ID, e.shape, sh.Points)), true)
 	if p == nil {
-		return e.text("editor.shape.select_closed")
+		return e.present(locale.Message{Key: "editor.shape.select_closed"})
 	}
 	zmin, zmax, g := p.Fit(sh.ZMin, sh.ZMax, e.margin, coverage.BothSides)
 	if !g.Measured {
 		if len(g.Others) > 0 {
 			e.lastOthers = append(e.lastOthers[:0], g.Others...)
-			return e.message("editor.ground.other_only", map[string]string{"reach": intArg(coverage.GroundReach), "others": othersText(e.Language, g.Others)})
+			return e.present(locale.Message{Key: "editor.ground.other_only", Args: map[string]string{"reach": intArg(coverage.GroundReach), "others": othersText(e.Language, g.Others)}})
 		}
-		return e.text("editor.ground.shape_none")
+		return e.present(locale.Message{Key: "editor.ground.shape_none"})
 	}
 	if e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: zmin, ZMax: zmax}) != nil {
-		return e.text("editor.zone.range_failed")
+		return e.present(locale.Message{Key: "editor.zone.range_failed"})
 	}
 	log.Printf("zona: faixa Z pelo chão %d..%d (chão %.0f..%.0f, folga %d, %s fora)", zmin, zmax, g.Min.Z, g.Max.Z, e.margin, inflect.Count(len(g.Others), "camada", "camadas"))
-	key := "editor.ground.range_done"
-	if len(g.Others) > 0 {
-		key = "editor.ground.range_others"
-	}
 	e.lastOthers = append(e.lastOthers[:0], g.Others...)
-	return e.message(key, map[string]string{"min": intArg(zmin), "max": intArg(zmax), "margin": intArg(e.margin), "others": othersText(e.Language, g.Others)})
+	args := map[string]string{"min": intArg(zmin), "max": intArg(zmax), "margin": intArg(e.margin), "others": othersText(e.Language, g.Others)}
+	if len(g.Others) > 0 {
+		return e.present(locale.Message{Key: "editor.ground.range_others", Args: args})
+	}
+	return e.present(locale.Message{Key: "editor.ground.range_done", Args: args})
 }
 
 // panel handles the edit panel's requests and fills its fields and titles
@@ -536,9 +539,9 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World, 
 	}
 	if p.MoveShapeRequested(gtx) {
 		if d, ok := ints(p.Offset.Text(), 3); !ok {
-			msg = e.text("editor.shape.offset_format")
+			msg = e.present(locale.Message{Key: "editor.shape.offset_format"})
 		} else if _, _, ok := e.currentShape(); !ok || e.drawing {
-			msg = e.text("editor.shape.select_closed")
+			msg = e.present(locale.Message{Key: "editor.shape.select_closed"})
 		} else {
 			msg = e.moveShape(d[0], d[1], d[2])
 		}
@@ -550,7 +553,7 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World, 
 		if v, ok := e.selected(); ok {
 			msg = e.insertAfter(v)
 		} else {
-			msg = e.text("editor.vertex.select")
+			msg = e.present(locale.Message{Key: "editor.vertex.select"})
 		}
 	}
 	if p.RemoveVertex.Clicked(gtx) {
@@ -593,25 +596,25 @@ func (e *zoneEditor) setZRange(text string) string {
 	r, ok := ints(text, 2)
 	switch {
 	case !ok:
-		return e.text("editor.zone.range_format")
+		return e.present(locale.Message{Key: "editor.zone.range_format"})
 	case e.drawing:
-		return e.text("editor.zone.range_drawing")
+		return e.present(locale.Message{Key: "editor.zone.range_drawing"})
 	}
 	if _, _, ok := e.currentShape(); !ok {
-		return e.text("editor.shape.select")
+		return e.present(locale.Message{Key: "editor.shape.select"})
 	}
 	if e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: r[0], ZMax: r[1]}) != nil {
-		return e.text("editor.zone.range_failed")
+		return e.present(locale.Message{Key: "editor.zone.range_failed"})
 	}
 	log.Printf("zona: faixa Z %d..%d", r[0], r[1])
-	return e.message("editor.zone.range_done", map[string]string{"min": intArg(r[0]), "max": intArg(r[1])})
+	return e.present(locale.Message{Key: "editor.zone.range_done", Args: map[string]string{"min": intArg(r[0]), "max": intArg(r[1])}})
 }
 
 // setCoords moves the selected vertex to "x y z", or "x y" keeping its Z.
 func (e *zoneEditor) setCoords(text string) string {
 	v, ok := e.selected()
 	if !ok {
-		return e.text("editor.vertex.select")
+		return e.present(locale.Message{Key: "editor.vertex.select"})
 	}
 	_, sh, _ := e.currentShape()
 	p := sh.Points[v]
@@ -620,7 +623,7 @@ func (e *zoneEditor) setCoords(text string) string {
 	} else if c, ok := ints(text, 2); ok {
 		p.X, p.Y = c[0], c[1]
 	} else {
-		return e.text("editor.vertex.coordinates_format")
+		return e.present(locale.Message{Key: "editor.vertex.coordinates_format"})
 	}
 	return e.moveVertex(v, p)
 }
@@ -663,18 +666,16 @@ func screenDist(s *scene.World, cam *camera.Camera, p zone.Point, at f32.Point, 
 // shapeKind names shape s's kind in the panels: "polígono" or "retângulo",
 // "exclusão, " first for an exclusion.
 func shapeKind(s zone.Shape, lang locale.Language) string {
-	key := "editor.shape.polygon"
-	if s.Kind == zone.Rectangle {
-		key = "editor.shape.rectangle"
+	switch {
+	case s.Banned && s.Kind == zone.Rectangle:
+		return locale.Text(lang, "editor.shape.exclusion_rectangle")
+	case s.Banned:
+		return locale.Text(lang, "editor.shape.exclusion_polygon")
+	case s.Kind == zone.Rectangle:
+		return locale.Text(lang, "editor.shape.rectangle")
+	default:
+		return locale.Text(lang, "editor.shape.polygon")
 	}
-	if s.Banned {
-		if s.Kind == zone.Rectangle {
-			key = "editor.shape.exclusion_rectangle"
-		} else {
-			key = "editor.shape.exclusion_polygon"
-		}
-	}
-	return locale.Text(lang, key)
 }
 
 // serverPoint is a picked position as a vertex.

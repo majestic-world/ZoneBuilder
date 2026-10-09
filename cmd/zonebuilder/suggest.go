@@ -37,20 +37,22 @@ type zSuggestion struct {
 // note says, for the status line, where z's range came from.
 func (z zSuggestion) note() string { return z.noteFor(locale.PtBR) }
 
-func (z zSuggestion) sourceKey() string {
+func (z zSuggestion) sourceKey() string { return z.sourceMessage().Key }
+
+func (z zSuggestion) sourceMessage() locale.Message {
 	switch z.from {
 	case zByFloor:
-		return "editor.source.ground"
+		return locale.Message{Key: "editor.source.ground"}
 	case zMeasuring:
-		return "editor.source.measuring"
+		return locale.Message{Key: "editor.source.measuring"}
 	case zOffTiles:
-		return "editor.source.off_tiles"
+		return locale.Message{Key: "editor.source.off_tiles"}
 	}
-	return "editor.source.no_ground"
+	return locale.Message{Key: "editor.source.no_ground"}
 }
 
 func (z zSuggestion) noteFor(lang locale.Language) string {
-	return locale.Text(lang, z.sourceKey())
+	return z.sourceMessage().Render(lang)
 }
 
 // suggest is the Z range for shape i of e's selected zone, being added

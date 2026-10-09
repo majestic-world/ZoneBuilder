@@ -48,25 +48,24 @@ func signed(n int) string {
 }
 
 func (p worstPin) label(lang locale.Language) string {
-	key := "editor.pin.floor"
-	if p.top {
-		key = "editor.pin.top"
-	}
 	value := locale.Number(lang, float64(abs(p.clearance)), 0)
 	if p.clearance < 0 {
 		value = "−" + value
 	} else {
 		value = "+" + value
 	}
-	return locale.Format(lang, key, map[string]string{"clearance": value})
+	if p.top {
+		return locale.Format(lang, "editor.pin.top", map[string]string{"clearance": value})
+	}
+	return locale.Format(lang, "editor.pin.floor", map[string]string{"clearance": value})
 }
 
 func pinMessage(p worstPin) locale.Message {
-	key := "editor.pin.lowest"
+	args := map[string]string{"clearance": intArg(p.clearance)}
 	if p.top {
-		key = "editor.pin.highest"
+		return locale.Message{Key: "editor.pin.highest", Args: args}
 	}
-	return locale.Message{Key: key, Args: map[string]string{"clearance": intArg(p.clearance)}}
+	return locale.Message{Key: "editor.pin.lowest", Args: args}
 }
 
 func pinStatus(p worstPin, lang locale.Language) string {

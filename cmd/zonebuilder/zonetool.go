@@ -80,14 +80,9 @@ func newZoneEditor() *zoneEditor {
 	return &zoneEditor{doc: zone.NewDocument(), editState: newEditState()}
 }
 
-// message retains the identity and raw user data behind a visible editor status.
-func (e *zoneEditor) message(key string, args map[string]string) string {
-	e.LastMessage = locale.Message{Key: key, Args: args}
-	return e.Status(e.Language)
-}
-
-func (e *zoneEditor) plural(key string, count int, args map[string]string) string {
-	e.LastMessage = locale.Message{Key: key, Count: count, Plural: true, Args: args}
+// present retains an action's message identity and data until the next status.
+func (e *zoneEditor) present(message locale.Message) string {
+	e.LastMessage = message
 	return e.Status(e.Language)
 }
 
@@ -128,7 +123,6 @@ func (e *zoneEditor) Status(lang locale.Language) string {
 	return msg.Render(lang)
 }
 
-func (e *zoneEditor) text(key string) string { return e.message(key, nil) }
 
 func intArg(n int) string { return fmt.Sprint(n) }
 
@@ -165,18 +159,18 @@ func (e *zoneEditor) create(name string, t zone.Type, tool ui.Tool) string {
 	name = strings.TrimSpace(name)
 	switch {
 	case e.drawing:
-		return e.text("editor.create.drawing")
+		return e.present(locale.Message{Key: "editor.create.drawing"})
 	case name == "":
-		return e.text("editor.create.name")
+		return e.present(locale.Message{Key: "editor.create.name"})
 	}
 	id := e.doc.NewZoneID()
 	if e.apply(zone.CreateZone{ID: id, Name: name, Type: t}) != nil {
-		return e.text("editor.create.failed")
+		return e.present(locale.Message{Key: "editor.create.failed"})
 	}
 	e.zone = id
 	log.Printf("zona: criada %s (%s)", name, t)
 	e.arm(tool, false)
-	return e.message("editor.create.done", map[string]string{"name": name, "hint": e.hint(), "__hint": e.hintKey()})
+	return e.present(locale.Message{Key: "editor.create.done", Args: map[string]string{"name": name, "hint": e.hint(), "__hint": e.hintKey()}})
 }
 
 // points is the polygon being drawn.
@@ -201,7 +195,7 @@ func (e *zoneEditor) click(s *scene.World, c *floorCoverage, cam *camera.Camera,
 		}
 	}
 	if !ok {
-		return e.text("editor.click.no_surface")
+		return e.present(locale.Message{Key: "editor.click.missed"})
 	}
 	v := serverPoint(h)
 	switch e.tool {
@@ -221,15 +215,15 @@ func (e *zoneEditor) polygonClick(v zone.Point) string {
 	if !e.drawing {
 		z, _ := e.doc.Zone(e.zone)
 		if e.apply(zone.AddShape{Zone: e.zone, Banned: e.banned, Points: []zone.Point{v}}) != nil {
-			return e.text("editor.polygon.start_failed")
+			return e.present(locale.Message{Key: "editor.polygon.start_failed"})
 		}
 		e.drawing, e.shape = true, len(z.Shapes)
 	} else if e.apply(zone.AddVertex{Zone: e.zone, Shape: e.shape, Point: v}) != nil {
-		return e.text("editor.vertex.add_failed")
+		return e.present(locale.Message{Key: "editor.vertex.add_failed"})
 	}
 	n := len(e.points())
 	log.Printf("zona: vértice %d em %d %d %d", n, v.X, v.Y, v.Z)
-	return e.plural("editor.polygon.vertex", n, map[string]string{"x": intArg(v.X), "y": intArg(v.Y), "z": intArg(v.Z)})
+	return e.present(locale.Message{Key: "editor.polygon.vertex", Count: n, Plural: true, Args: map[string]string{"x": intArg(v.X), "y": intArg(v.Y), "z": intArg(v.Z)}})
 }
 
 // close ends the polygon being drawn with the Z range suggested by the
@@ -241,12 +235,12 @@ func (e *zoneEditor) close(s *scene.World, c *floorCoverage) string {
 	}
 	pts := e.points()
 	if len(pts) < 3 {
-		return e.plural("editor.polygon.too_few", len(pts), nil)
+		return e.present(locale.Message{Key: "editor.polygon.too_few", Count: len(pts), Plural: true, Args: nil})
 	}
 	vmin, vmax := zone.SuggestZRange(pts, e.margin)
 	fit := c.suggest(e, s, e.shape, pts, vmin, vmax, false, true)
 	if e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
-		return e.text("editor.polygon.close_failed")
+		return e.present(locale.Message{Key: "editor.polygon.close_failed"})
 	}
 	e.drawing, e.armed = false, false
 	z, _ := e.doc.Zone(e.zone)
@@ -255,11 +249,11 @@ func (e *zoneEditor) close(s *scene.World, c *floorCoverage) string {
 		what = "Exclusão fechada"
 	}
 	log.Printf("zona: %s: %s com %s, z %d..%d %s", z.Name, strings.ToLower(what), inflect.Count(len(pts), "vértice", "vértices"), fit.zmin, fit.zmax, fit.note())
-	key := "editor.polygon.closed"
+	args := map[string]string{"name": z.Name, "vertices": e.vertexCount(len(pts)), "__vertices": intArg(len(pts)), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language), "__source": fit.sourceKey()}
 	if e.banned {
-		key = "editor.polygon.exclusion_closed"
+		return e.present(locale.Message{Key: "editor.polygon.exclusion_closed", Args: args})
 	}
-	return e.message(key, map[string]string{"name": z.Name, "vertices": e.vertexCount(len(pts)), "__vertices": intArg(len(pts)), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language), "__source": fit.sourceKey()})
+	return e.present(locale.Message{Key: "editor.polygon.closed", Args: args})
 }
 
 // selection is the zones checked for compilation, in creation order.
@@ -287,7 +281,7 @@ func (e *zoneEditor) selectForCompile(ids []zone.ZoneID, in bool) string {
 		}
 	}
 	n := len(e.selection())
-	return e.plural("editor.compile.selection", n, map[string]string{"total": intArg(len(e.doc.Zones()))})
+	return e.present(locale.Message{Key: "editor.compile.selection", Count: n, Plural: true, Args: map[string]string{"total": intArg(len(e.doc.Zones()))}})
 }
 
 // compile compiles the selected zones for the XML window. Nothing comes out
@@ -297,23 +291,23 @@ func (e *zoneEditor) compile() (string, []zonexml.File) {
 	sel := e.selection()
 	switch {
 	case e.drawing:
-		return e.text("editor.compile.drawing"), nil
+		return e.present(locale.Message{Key: "editor.compile.drawing"}), nil
 	case len(e.doc.Zones()) == 0:
-		return e.text("editor.compile.empty"), nil
+		return e.present(locale.Message{Key: "editor.compile.empty"}), nil
 	case len(sel) == 0:
-		return e.text("editor.compile.none"), nil
+		return e.present(locale.Message{Key: "editor.compile.none"}), nil
 	}
 	files, err := e.doc.Compile(sel)
 	if b, ok := errors.AsType[*zone.BlockedError](err); ok {
 		e.blockedStatus(b, e.Language)
-		return e.plural("zone.problem.blocked_status", len(b.Problems), nil), nil
+		return e.present(locale.Message{Key: "zone.problem.blocked_status", Count: len(b.Problems), Plural: true, Args: nil}), nil
 	}
 	if err != nil {
 		log.Printf("zona: compilação: %v", err)
-		return e.message("editor.compile.failed", map[string]string{"detail": err.Error()}), nil
+		return e.present(locale.Message{Key: "editor.compile.failed", Args: map[string]string{"detail": err.Error()}}), nil
 	}
 	log.Printf("zona: compiladas %s em %s", inflect.Count(len(sel), "zona", "zonas"), inflect.Count(len(files), "arquivo", "arquivos"))
-	return e.plural("editor.compile.done", len(sel), map[string]string{"files": e.fileCount(len(files)), "__files": intArg(len(files))}), files
+	return e.present(locale.Message{Key: "editor.compile.done", Count: len(sel), Plural: true, Args: map[string]string{"files": e.fileCount(len(files)), "__files": intArg(len(files))}}), files
 }
 
 // info is the zone panel's lines below its controls: the armed tool's

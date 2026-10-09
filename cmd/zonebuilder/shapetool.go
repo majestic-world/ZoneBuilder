@@ -48,15 +48,15 @@ const (
 // tool draws an exclusion when banned is set. It returns the status line.
 func (e *zoneEditor) arm(tool ui.Tool, banned bool) string {
 	if e.drawing {
-		return e.text("editor.tool.finish_first")
+		return e.present(locale.Message{Key: "editor.tool.finish_first"})
 	}
 	if _, ok := e.doc.Zone(e.zone); !ok {
-		return e.text("editor.tool.create_first")
+		return e.present(locale.Message{Key: "editor.tool.create_first"})
 	}
 	e.tool, e.armed, e.banned = tool, true, banned && tool.IsShape()
 	e.anchored, e.hovering = false, false
 	e.version++
-	return e.text(e.hintKey())
+	return e.present(e.hintMessage())
 }
 
 // hint is the armed tool's instruction, or "" when none is armed.
@@ -67,46 +67,45 @@ func (e *zoneEditor) hint() string {
 	return locale.Text(e.Language, e.hintKey())
 }
 
-func (e *zoneEditor) hintKey() string {
-	if !e.armed {
-		return ""
-	}
+func (e *zoneEditor) hintKey() string { return e.hintMessage().Key }
+
+func (e *zoneEditor) hintMessage() locale.Message {
 	switch e.tool {
 	case ui.ToolRectangle:
 		switch {
 		case e.banned && e.anchored:
-			return "editor.hint.exclusion_rectangle_opposite"
+			return locale.Message{Key: "editor.hint.exclusion_rectangle_opposite"}
 		case e.banned:
-			return "editor.hint.exclusion_rectangle_first"
+			return locale.Message{Key: "editor.hint.exclusion_rectangle_first"}
 		case e.anchored:
-			return "editor.hint.rectangle_opposite"
+			return locale.Message{Key: "editor.hint.rectangle_opposite"}
 		}
-		return "editor.hint.rectangle_first"
+		return locale.Message{Key: "editor.hint.rectangle_first"}
 	case ui.ToolCircle:
 		switch {
 		case e.banned && e.anchored:
-			return "editor.hint.exclusion_circle_radius"
+			return locale.Message{Key: "editor.hint.exclusion_circle_radius"}
 		case e.banned:
-			return "editor.hint.exclusion_circle_center"
+			return locale.Message{Key: "editor.hint.exclusion_circle_center"}
 		case e.anchored:
-			return "editor.hint.circle_radius"
+			return locale.Message{Key: "editor.hint.circle_radius"}
 		}
-		return "editor.hint.circle_center"
+		return locale.Message{Key: "editor.hint.circle_center"}
 	case ui.ToolRestart:
-		return "editor.hint.restart"
+		return locale.Message{Key: "editor.hint.restart"}
 	case ui.ToolPKRestart:
-		return "editor.hint.pk_restart"
+		return locale.Message{Key: "editor.hint.pk_restart"}
 	}
 	if e.drawing {
 		if e.banned {
-			return "editor.hint.exclusion_polygon_continue"
+			return locale.Message{Key: "editor.hint.exclusion_polygon_continue"}
 		}
-		return "editor.hint.polygon_continue"
+		return locale.Message{Key: "editor.hint.polygon_continue"}
 	}
 	if e.banned {
-		return "editor.hint.exclusion_polygon_first"
+		return locale.Message{Key: "editor.hint.exclusion_polygon_first"}
 	}
-	return "editor.hint.polygon_first"
+	return locale.Message{Key: "editor.hint.polygon_first"}
 }
 
 // escape puts the armed tool down, dropping a rectangle's first corner or
@@ -115,13 +114,13 @@ func (e *zoneEditor) hintKey() string {
 func (e *zoneEditor) escape() string {
 	switch {
 	case e.drawing:
-		return e.text("editor.polygon.open")
+		return e.present(locale.Message{Key: "editor.polygon.open"})
 	case !e.armed:
 		return ""
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
 	e.version++
-	return e.text("editor.tool.put_away")
+	return e.present(locale.Message{Key: "editor.tool.put_away"})
 }
 
 // rectangleClick takes corner v: the first one anchors the rectangle, the
@@ -130,16 +129,16 @@ func (e *zoneEditor) rectangleClick(s *scene.World, c *floorCoverage, v zone.Poi
 	if !e.anchored {
 		e.anchor, e.anchored = v, true
 		e.version++
-		return e.message("editor.rectangle.anchor", pointArgs(v))
+		return e.present(locale.Message{Key: "editor.rectangle.anchor", Args: pointArgs(v)})
 	}
 	a := e.anchor
 	if a.X == v.X || a.Y == v.Y {
-		return e.text("editor.rectangle.zero_size")
+		return e.present(locale.Message{Key: "editor.rectangle.zero_size"})
 	}
 	_, fit := e.placed(s, c, v, true)
 	z, _ := e.doc.Zone(e.zone)
 	if e.apply(zone.AddShape{Zone: e.zone, Kind: zone.Rectangle, Banned: e.banned, Points: []zone.Point{a, v}, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
-		return e.text("editor.rectangle.failed")
+		return e.present(locale.Message{Key: "editor.rectangle.failed"})
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
 	e.shape = len(z.Shapes)
@@ -148,11 +147,11 @@ func (e *zoneEditor) rectangleClick(s *scene.World, c *floorCoverage, v zone.Poi
 		what = "Exclusão retangular"
 	}
 	log.Printf("zona: %s: %s %d %d … %d %d, z %d..%d %s", z.Name, what, a.X, a.Y, v.X, v.Y, fit.zmin, fit.zmax, fit.note())
-	key := "editor.rectangle.done"
+	args := shapeArgs(e.Language, z.Name, a, v, fit)
 	if e.banned {
-		key = "editor.rectangle.exclusion_done"
+		return e.present(locale.Message{Key: "editor.rectangle.exclusion_done", Args: args})
 	}
-	return e.message(key, shapeArgs(e.Language, z.Name, a, v, fit))
+	return e.present(locale.Message{Key: "editor.rectangle.done", Args: args})
 }
 
 // wholeTile adds to the selected zone a polygon over tile t's whole square,
@@ -167,11 +166,11 @@ func (e *zoneEditor) wholeTile(c *floorCoverage, w *scene.World, t scene.Tile, s
 	z, ok := e.doc.Zone(e.zone)
 	switch {
 	case e.drawing:
-		return e.text("editor.tile.finish_first")
+		return e.present(locale.Message{Key: "editor.tile.finish_first"})
 	case !ok:
-		return e.text("editor.tile.create_first")
+		return e.present(locale.Message{Key: "editor.tile.create_first"})
 	case s.Bounds.Empty():
-		return e.message("editor.tile.no_geometry", map[string]string{"tile": t.Name()})
+		return e.present(locale.Message{Key: "editor.tile.no_geometry", Args: map[string]string{"tile": t.Name()}})
 	}
 	ox, oy := t.Origin()
 	x0, y0 := int(ox), int(oy)
@@ -182,7 +181,7 @@ func (e *zoneEditor) wholeTile(c *floorCoverage, w *scene.World, t scene.Tile, s
 	pts := []zone.Point{{X: x0, Y: y0, Z: floor}, {X: x1, Y: y0, Z: floor}, {X: x1, Y: y1, Z: floor}, {X: x0, Y: y1, Z: floor}}
 	fit := c.suggest(e, w, len(z.Shapes), pts, vmin, vmax, true, true)
 	if e.apply(zone.AddShape{Zone: e.zone, Banned: banned, Points: pts, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
-		return e.text("editor.tile.failed")
+		return e.present(locale.Message{Key: "editor.tile.failed"})
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
 	e.shape = len(z.Shapes)
@@ -191,20 +190,19 @@ func (e *zoneEditor) wholeTile(c *floorCoverage, w *scene.World, t scene.Tile, s
 		what = "Exclusão do tile inteiro"
 	}
 	log.Printf("zona: %s: %s %s: %d %d … %d %d, z %d..%d %s", z.Name, what, t.Name(), x0, y0, x1, y1, fit.zmin, fit.zmax, fit.note())
-	key := "editor.tile.done"
-	if banned {
-		key = "editor.tile.exclusion_done"
-	}
 	args := shapeArgs(e.Language, z.Name, pts[0], pts[2], fit)
 	args["tile"] = t.Name()
-	return e.message(key, args)
+	if banned {
+		return e.present(locale.Message{Key: "editor.tile.exclusion_done", Args: args})
+	}
+	return e.present(locale.Message{Key: "editor.tile.done", Args: args})
 }
 
 // wholeTile covers, in the selected zone, the tile in view: the one under
 // the viewport's centre, or under the camera when the centre meets nothing.
 func wholeTile(e *zoneEditor, c *floorCoverage, ts *tiles, cam *camera.Camera, vp image.Point, banned bool) string {
 	if ts.world == nil {
-		return e.text("editor.tile.open_first")
+		return e.present(locale.Message{Key: "editor.tile.open_first"})
 	}
 	at := worldPosition(ts.world, cam.Position)
 	if h, ok := pickAt(ts.world, cam, f32.Pt(float32(vp.X)/2, float32(vp.Y)/2), vp); ok {
@@ -212,7 +210,7 @@ func wholeTile(e *zoneEditor, c *floorCoverage, ts *tiles, cam *camera.Camera, v
 	}
 	t, s, ok := ts.sceneAt(at.X, at.Y)
 	if !ok {
-		return e.text("editor.tile.not_loaded")
+		return e.present(locale.Message{Key: "editor.tile.not_loaded"})
 	}
 	return e.wholeTile(c, ts.world, t, s, banned)
 }
@@ -225,17 +223,17 @@ func (e *zoneEditor) circleClick(s *scene.World, c *floorCoverage, v zone.Point)
 	if !e.anchored {
 		e.anchor, e.anchored = v, true
 		e.version++
-		return e.message("editor.circle.anchor", pointArgs(v))
+		return e.present(locale.Message{Key: "editor.circle.anchor", Args: pointArgs(v)})
 	}
 	a := e.anchor
 	r := radius(a, v)
 	if r < minCircleRadius {
-		return e.message("editor.circle.small_radius", map[string]string{"radius": intArg(r), "min": intArg(minCircleRadius)})
+		return e.present(locale.Message{Key: "editor.circle.small_radius", Args: map[string]string{"radius": intArg(r), "min": intArg(minCircleRadius)}})
 	}
 	pts, fit := e.placed(s, c, v, true)
 	z, _ := e.doc.Zone(e.zone)
 	if e.apply(zone.AddShape{Zone: e.zone, Banned: e.banned, Points: pts, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
-		return e.text("editor.circle.failed")
+		return e.present(locale.Message{Key: "editor.circle.failed"})
 	}
 	e.armed, e.anchored, e.hovering = false, false, false
 	e.shape = len(z.Shapes)
@@ -244,11 +242,11 @@ func (e *zoneEditor) circleClick(s *scene.World, c *floorCoverage, v zone.Point)
 		what = "Exclusão circular"
 	}
 	log.Printf("zona: %s: %s centro %d %d raio %d → polígono de %s, z %d..%d %s", z.Name, what, a.X, a.Y, r, inflect.Count(len(pts), "vértice", "vértices"), fit.zmin, fit.zmax, fit.note())
-	key := "editor.circle.done"
+	args := map[string]string{"name": z.Name, "radius": intArg(r), "vertices": intArg(len(pts)), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language), "__source": fit.sourceKey()}
 	if e.banned {
-		key = "editor.circle.exclusion_done"
+		return e.present(locale.Message{Key: "editor.circle.exclusion_done", Args: args})
 	}
-	return e.message(key, map[string]string{"name": z.Name, "radius": intArg(r), "vertices": intArg(len(pts)), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language), "__source": fit.sourceKey()})
+	return e.present(locale.Message{Key: "editor.circle.done", Args: args})
 }
 
 // restartClick adds v to the selected zone's restart points (player
@@ -256,7 +254,7 @@ func (e *zoneEditor) circleClick(s *scene.World, c *floorCoverage, v zone.Point)
 func (e *zoneEditor) restartClick(v zone.Point) string {
 	pk := e.tool == ui.ToolPKRestart
 	if e.apply(zone.AddRestartPoint{Zone: e.zone, PK: pk, Point: v}) != nil {
-		return e.text("editor.restart.failed")
+		return e.present(locale.Message{Key: "editor.restart.failed"})
 	}
 	z, _ := e.doc.Zone(e.zone)
 	name, n := "restart_point", len(z.RestartPoints)
@@ -264,7 +262,7 @@ func (e *zoneEditor) restartClick(v zone.Point) string {
 		name, n = "PKrestart_point", len(z.PKRestartPoints)
 	}
 	log.Printf("zona: %s: %s %d em %d %d %d", z.Name, name, n, v.X, v.Y, v.Z)
-	return e.message("editor.restart.done", map[string]string{"kind": name, "index": intArg(n), "name": z.Name, "x": intArg(v.X), "y": intArg(v.Y), "z": intArg(v.Z)})
+	return e.present(locale.Message{Key: "editor.restart.done", Args: map[string]string{"kind": name, "index": intArg(n), "name": z.Name, "x": intArg(v.X), "y": intArg(v.Y), "z": intArg(v.Z)}})
 }
 
 // radius is the circle radius from center c to v, in server units.
@@ -338,7 +336,7 @@ func (e *zoneEditor) hoverAt(s *scene.World, c *floorCoverage, h scene.Hit, ok b
 	}
 	e.ghostZ = fit
 	e.version++
-	return e.message("editor.preview", map[string]string{"hint": e.hint(), "__hint": e.hintKey(), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language), "__source": fit.sourceKey()})
+	return e.present(locale.Message{Key: "editor.preview", Args: map[string]string{"hint": e.hint(), "__hint": e.hintKey(), "min": intArg(fit.zmin), "max": intArg(fit.zmax), "source": fit.noteFor(e.Language), "__source": fit.sourceKey()}})
 }
 
 // preview is the rectangle or circle being placed: from the anchor to the

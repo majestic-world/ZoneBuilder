@@ -78,19 +78,19 @@ func (e *zoneEditor) listRequest(req any, s *scene.World, cam *camera.Camera) st
 		return e.selectZone(r.Zone, s, cam)
 	case ui.HideZones:
 		if e.apply(zone.SetHidden{Zones: r.Zones, Hidden: r.Hidden}) != nil {
-			return e.text("editor.visibility.failed")
+			return e.present(locale.Message{Key: "editor.visibility.failed"})
 		}
 		if len(r.Zones) == 1 {
 			z, _ := e.doc.Zone(r.Zones[0])
 			if r.Hidden {
-				return e.message("editor.visibility.hidden_one", map[string]string{"name": z.Name})
+				return e.present(locale.Message{Key: "editor.visibility.hidden_one", Args: map[string]string{"name": z.Name}})
 			}
-			return e.message("editor.visibility.shown_one", map[string]string{"name": z.Name})
+			return e.present(locale.Message{Key: "editor.visibility.shown_one", Args: map[string]string{"name": z.Name}})
 		}
 		if r.Hidden {
-			return e.plural("editor.visibility.hidden", len(r.Zones), nil)
+			return e.present(locale.Message{Key: "editor.visibility.hidden", Count: len(r.Zones), Plural: true, Args: nil})
 		}
-		return e.plural("editor.visibility.shown", len(r.Zones), nil)
+		return e.present(locale.Message{Key: "editor.visibility.shown", Count: len(r.Zones), Plural: true, Args: nil})
 	case ui.RenameZone:
 		return e.rename(r.Zone, r.Name)
 	case ui.DeleteZone:
@@ -115,14 +115,15 @@ func (e *zoneEditor) selectZone(id zone.ZoneID, s *scene.World, cam *camera.Came
 	if !ok {
 		return ""
 	}
-	key := "editor.zone.selected"
-	if e.drawing && id != e.zone {
-		key = "editor.zone.select_drawing"
-	} else {
+	drawingOther := e.drawing && id != e.zone
+	if !drawingOther {
 		e.zone, e.shape = id, 0
 	}
 	if s == nil {
-		return e.message(key, map[string]string{"name": z.Name})
+		if drawingOther {
+			return e.present(locale.Message{Key: "editor.zone.select_drawing"})
+		}
+		return e.present(locale.Message{Key: "editor.zone.selected", Args: map[string]string{"name": z.Name}})
 	}
 	b := geom.EmptyBox()
 	for _, sh := range z.Shapes {
@@ -131,14 +132,17 @@ func (e *zoneEditor) selectZone(id zone.ZoneID, s *scene.World, cam *camera.Came
 		}
 	}
 	if b.Empty() {
-		if key == "editor.zone.select_drawing" {
-			return e.text("editor.zone.select_drawing_no_frame")
+		if drawingOther {
+			return e.present(locale.Message{Key: "editor.zone.select_drawing_no_frame"})
 		}
-		return e.message("editor.zone.selected_no_frame", map[string]string{"name": z.Name})
+		return e.present(locale.Message{Key: "editor.zone.selected_no_frame", Args: map[string]string{"name": z.Name}})
 	}
 	cam.Frame(b)
 	log.Printf("zona: câmera em %s: %s", z.Name, formatPose(cam, s))
-	return e.message(key, map[string]string{"name": z.Name})
+	if drawingOther {
+		return e.present(locale.Message{Key: "editor.zone.select_drawing"})
+	}
+	return e.present(locale.Message{Key: "editor.zone.selected", Args: map[string]string{"name": z.Name}})
 }
 
 func (e *zoneEditor) rename(id zone.ZoneID, name string) string {
@@ -146,51 +150,51 @@ func (e *zoneEditor) rename(id zone.ZoneID, name string) string {
 	z, ok := e.doc.Zone(id)
 	switch {
 	case !ok:
-		return e.text("editor.zone.select_list")
+		return e.present(locale.Message{Key: "editor.zone.select_list"})
 	case name == "":
-		return e.text("editor.zone.rename_name")
+		return e.present(locale.Message{Key: "editor.zone.rename_name"})
 	case name == z.Name:
 		return ""
 	}
 	old := z.Name
 	if e.apply(zone.Rename{Zone: id, Name: name}) != nil {
-		return e.text("editor.zone.rename_failed")
+		return e.present(locale.Message{Key: "editor.zone.rename_failed"})
 	}
 	log.Printf("zona: %s renomeada para %s", old, name)
-	return e.message("editor.zone.renamed", map[string]string{"old": old, "name": name})
+	return e.present(locale.Message{Key: "editor.zone.renamed", Args: map[string]string{"old": old, "name": name}})
 }
 
 func (e *zoneEditor) deleteZone(id zone.ZoneID) string {
 	z, ok := e.doc.Zone(id)
 	if !ok {
-		return e.text("editor.zone.select_list")
+		return e.present(locale.Message{Key: "editor.zone.select_list"})
 	}
 	if e.apply(zone.DeleteZone{Zone: id}) != nil {
-		return e.text("editor.zone.delete_failed")
+		return e.present(locale.Message{Key: "editor.zone.delete_failed"})
 	}
 	if e.zone == id {
 		e.drawing, e.zone, e.shape = false, 0, 0
 	}
 	log.Printf("zona: %s apagada", z.Name)
-	return e.message("editor.zone.deleted", map[string]string{"name": z.Name})
+	return e.present(locale.Message{Key: "editor.zone.deleted", Args: map[string]string{"name": z.Name}})
 }
 
 func (e *zoneEditor) duplicate(id zone.ZoneID) string {
 	z, ok := e.doc.Zone(id)
 	switch {
 	case !ok:
-		return e.text("editor.zone.select_list")
+		return e.present(locale.Message{Key: "editor.zone.select_list"})
 	case e.drawing:
-		return e.text("editor.zone.duplicate_drawing")
+		return e.present(locale.Message{Key: "editor.zone.duplicate_drawing"})
 	}
 	dup := e.doc.NewZoneID()
 	if e.apply(zone.DuplicateZone{Zone: id, ID: dup}) != nil {
-		return e.text("editor.zone.duplicate_failed")
+		return e.present(locale.Message{Key: "editor.zone.duplicate_failed"})
 	}
 	e.zone, e.shape = dup, 0
 	c, _ := e.doc.Zone(dup)
 	log.Printf("zona: %s duplicada como %s", z.Name, c.Name)
-	return e.message("editor.zone.duplicated", map[string]string{"old": z.Name, "name": c.Name})
+	return e.present(locale.Message{Key: "editor.zone.duplicated", Args: map[string]string{"old": z.Name, "name": c.Name}})
 }
 
 // cycleColor steps a zone's colour: its type's, then each of zoneColors,
@@ -198,7 +202,7 @@ func (e *zoneEditor) duplicate(id zone.ZoneID) string {
 func (e *zoneEditor) cycleColor(id zone.ZoneID) string {
 	z, ok := e.doc.Zone(id)
 	if !ok {
-		return e.text("editor.zone.select_list")
+		return e.present(locale.Message{Key: "editor.zone.select_list"})
 	}
 	next := zone.Color{} // back to the type's
 	if i := slices.Index(zoneColors, z.Color); z.Color == (zone.Color{}) {
@@ -207,12 +211,12 @@ func (e *zoneEditor) cycleColor(id zone.ZoneID) string {
 		next = zoneColors[i+1]
 	}
 	if e.apply(zone.SetColor{Zone: id, Color: next}) != nil {
-		return e.text("editor.zone.color_failed")
+		return e.present(locale.Message{Key: "editor.zone.color_failed"})
 	}
 	if next == (zone.Color{}) {
-		return e.message("editor.zone.color_default", map[string]string{"name": z.Name})
+		return e.present(locale.Message{Key: "editor.zone.color_default", Args: map[string]string{"name": z.Name}})
 	}
-	return e.message("editor.zone.color_custom", map[string]string{"name": z.Name, "color": fmt.Sprintf("#%02X%02X%02X", next[0], next[1], next[2])})
+	return e.present(locale.Message{Key: "editor.zone.color_custom", Args: map[string]string{"name": z.Name, "color": fmt.Sprintf("#%02X%02X%02X", next[0], next[1], next[2])}})
 }
 
 // goTo frames the server point typed as "x y z" (spaces, commas or
@@ -221,18 +225,18 @@ func (e *zoneEditor) goTo(text string, s *scene.World, cam *camera.Camera) strin
 	p, err := parsePoint(text)
 	if err != nil {
 		if errors.Is(err, errPointFormat) {
-			return e.text("editor.goto.format")
+			return e.present(locale.Message{Key: "editor.goto.format"})
 		}
-		return e.message("editor.goto.invalid", map[string]string{"value": err.Error()})
+		return e.present(locale.Message{Key: "editor.goto.invalid", Args: map[string]string{"value": err.Error()}})
 	}
 	if s == nil {
-		return e.text("editor.goto.open_first")
+		return e.present(locale.Message{Key: "editor.goto.open_first"})
 	}
 	c := scene.ToRender(scene.FromServer(p).Sub(s.Origin))
 	h := geom.Vec3{X: goToHalfSize, Y: goToHalfSize, Z: goToHalfSize}
 	cam.Frame(geom.Box{Min: c.Sub(h), Max: c.Add(h)})
 	log.Printf("zona: câmera indo para %g %g %g: %s", p.X, p.Y, p.Z, formatPose(cam, s))
-	return e.message("editor.goto.done", map[string]string{"x": fmt.Sprint(p.X), "y": fmt.Sprint(p.Y), "z": fmt.Sprint(p.Z)})
+	return e.present(locale.Message{Key: "editor.goto.done", Args: map[string]string{"x": fmt.Sprint(p.X), "y": fmt.Sprint(p.Y), "z": fmt.Sprint(p.Z)}})
 }
 
 var errPointFormat = errors.New("point requires three coordinates")

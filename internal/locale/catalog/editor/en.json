@@ -4,6 +4,7 @@
   "editor.create.failed": "Could not create the zone",
   "editor.create.done": "Zone {name} created. {hint}",
   "editor.click.no_surface": "No surface under the cursor",
+  "editor.click.missed": "The click did not hit any surface",
   "editor.polygon.start_failed": "Could not start the polygon",
   "editor.vertex.add_failed": "Could not add the vertex",
   "editor.polygon.vertex": {"one": "{count} vertex: {x} {y} {z}", "other": "{count} vertices: {x} {y} {z}"},

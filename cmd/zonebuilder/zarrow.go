@@ -144,11 +144,11 @@ func (e *zoneEditor) arrowEvent(ev pointer.Event) string {
 			d.dz = dz
 			e.version++
 		}
-		key := "editor.arrow.raising"
+		args := map[string]string{"delta": intArg(abs(dz)), "step": intArg(e.step)}
 		if dz < 0 {
-			key = "editor.arrow.lowering"
+			return e.present(locale.Message{Key: "editor.arrow.lowering", Args: args})
 		}
-		return e.message(key, map[string]string{"delta": intArg(abs(dz)), "step": intArg(e.step)})
+		return e.present(locale.Message{Key: "editor.arrow.raising", Args: args})
 	case pointer.Release:
 		dz := d.dz
 		*d = zDrag{}
