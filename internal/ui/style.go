@@ -97,19 +97,6 @@ func fillRRect(gtx layout.Context, size image.Point, r unit.Dp, c, border color.
 	}
 }
 
-// shadow paints a soft drop shadow under the rounded rectangle of size:
-// rings of faint black growing outward, shifted down a little.
-func shadow(gtx layout.Context, size image.Point, r unit.Dp) {
-	const rings = 8
-	spread, drop := gtx.Dp(14), gtx.Dp(4)
-	radius := gtx.Dp(r)
-	for i := rings; i >= 1; i-- {
-		g := spread * i / rings
-		rect := image.Rect(-g, -g+drop, size.X+g, size.Y+g+drop)
-		paint.FillShape(gtx.Ops, color.NRGBA{A: 0x0B}, clip.UniformRRect(rect, radius+g).Op(gtx.Ops))
-	}
-}
-
 // pointerSink takes every pointer event over the area it is added to, so
 // a card floating over the viewport keeps the clicks, drags and wheel
 // that miss its controls from reaching the scene below.
@@ -133,13 +120,12 @@ func (k *pointerSink) add(gtx layout.Context, size image.Point) {
 	}
 }
 
-// card lays w out on a floating card: shadow, translucent surface,
-// hairline border, padding inset, and a pointer sink under it all.
+// card lays w out on a floating card: translucent surface, hairline
+// border, padding inset, and a pointer sink under it all.
 func card(gtx layout.Context, sink *pointerSink, inset layout.Inset, w layout.Widget) layout.Dimensions {
 	m := op.Record(gtx.Ops)
 	dims := inset.Layout(gtx, w)
 	call := m.Stop()
-	shadow(gtx, dims.Size, cardRadius)
 	fillRRect(gtx, dims.Size, cardRadius, cardSurface, hairline)
 	sink.add(gtx, dims.Size)
 	call.Add(gtx.Ops)

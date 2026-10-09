@@ -109,7 +109,6 @@ func (w *FloatWindow) Layout(gtx layout.Context, s *Shell, ic *icon.Icon, title 
 
 	defer op.Offset(w.pos).Push(gtx.Ops).Pop()
 	size := image.Pt(w.size.X, h)
-	shadow(gtx, size, cardRadius)
 	fillRRect(gtx, size, cardRadius, cardSurface, hairline)
 	// Take every pointer event over the window, so none reaches the
 	// viewport below; the controls laid out next sit on top of this area.
