@@ -40,23 +40,40 @@ type Spot struct{ X, Y, Z float64 }
 // it, as flat pieces. It holds no Z range; Classify sorts it by one. A
 // Profile is read-only once Measure returns it.
 type Profile struct {
-	// area is the outline's area; ground the floor area measured under it.
-	area, ground float64
+	// area is the outline's area; floored the part of it with floor on at
+	// least 1 layer.
+	area, floored float64
 	// lo and hi are the lowest and highest floor; measured is false when
 	// no floor lies under the outline.
 	lo, hi   Spot
 	measured bool
-	pieces   []piece
+	// layers is the most layers of floor in one column under the outline.
+	layers int
+	pieces []piece
 	// verts are the pieces' vertices, piece by piece.
 	verts []Spot
+	// clipped are the triangles that pieces cut by the outline come from,
+	// with each piece's extremes.
+	clipped []clipped
 }
 
 // piece is a flat polygon of floor inside the outline: verts[first :
-// first+n], its X/Y area and its Z extent.
+// first+n], its X/Y area, its Z extent and the surface it lies on. A
+// piece is a whole floor triangle (its 3 verts, counter-clockwise) when
+// clip is -1, else the part of clipped[clip].tri inside the outline.
 type piece struct {
 	first, n int32
+	clip     int32
+	surface  scene.Surface
 	area     float64
 	zlo, zhi float64
+}
+
+// clipped is the floor triangle a piece was cut from, counter-clockwise,
+// and the lowest and highest floor of that piece.
+type clipped struct {
+	tri    [3]Spot
+	lo, hi Spot
 }
 
 // Report is a Profile sorted by a Z range [zmin, zmax]. Areas are X/Y
@@ -73,15 +90,20 @@ type Report struct {
 	// negative when floor pierces its top.
 	FloorClearance, TopClearance float64
 	// Inside is the floor with zmin ≤ z ≤ zmax, Above the floor over zmax
-	// and Below the floor under zmin.
+	// and Below the floor under zmin, every layer counted: a bridge over
+	// the terrain adds its deck to the terrain under it.
 	Inside, Above, Below float64
-	// NoGround is the outline's area with no floor under it: an invisible
-	// terrain quad, a tile not loaded, off the map.
+	// NoGround is the outline's area with no floor on any layer: an
+	// invisible terrain quad no building floor covers, a tile not loaded,
+	// off the map.
 	NoGround float64
+	// Layers is the most layers of floor (terrain, a building's floor, a
+	// bridge) stacked in one column under the outline, 0 with no floor.
+	Layers int
 }
 
 // Total is the outline's area as the report splits it: the floor in each
-// state plus the area with no floor.
+// state, every layer counted, plus the area with no floor.
 func (r Report) Total() float64 { return r.Inside + r.Above + r.Below + r.NoGround }
 
 // Coverage is the fraction of Total that is floor inside the range, 0 for
@@ -113,6 +135,7 @@ func Measure(f Floor, o Outline) *Profile {
 	box.Min.Z, box.Max.Z = 0, 0
 	m := measurer{p: p, outline: o, lo: Point{X: float64(box.Min.X), Y: float64(box.Min.Y)}, hi: Point{X: float64(box.Max.X), Y: float64(box.Max.Y)}}
 	f.Floor(box, m.triangle)
+	p.stack(o)
 	return p
 }
 
@@ -123,11 +146,16 @@ type measurer struct {
 	lo, hi  Point   // the outline's X/Y box
 	// clip and spare are scratch polygons for Sutherland–Hodgman.
 	clip, spare []Point
+	// surface is the current triangle's; cut, when set, the clipped entry
+	// of the piece being cut from it, whose extremes extreme keeps too.
+	surface scene.Surface
+	cut     *clipped
 }
 
 // triangle adds the part of t inside the outline to the profile.
 func (m *measurer) triangle(t scene.FloorTriangle) {
 	a, b, c := spot(t.A), spot(t.B), spot(t.C)
+	m.surface = t.Surface
 	if max(a.X, b.X, c.X) < m.lo.X || min(a.X, b.X, c.X) > m.hi.X ||
 		max(a.Y, b.Y, c.Y) < m.lo.Y || min(a.Y, b.Y, c.Y) > m.hi.Y {
 		return
@@ -167,7 +195,12 @@ func (m *measurer) triangle(t scene.FloorTriangle) {
 	// Sutherland–Hodgman joins the parts of a concave outline by zero-area
 	// bridges whose corners may lie outside it: the extremes come from the
 	// true corners of triangle ∩ outline instead.
+	inf := math.Inf(1)
+	m.p.clipped = append(m.p.clipped, clipped{tri: tri, lo: Spot{Z: inf}, hi: Spot{Z: -inf}})
+	m.p.pieces[len(m.p.pieces)-1].clip = int32(len(m.p.clipped) - 1)
+	m.cut = &m.p.clipped[len(m.p.clipped)-1]
 	m.corners(tri, plane)
+	m.cut = nil
 }
 
 // whollyInside reports a triangle strictly inside the outline: its
@@ -229,16 +262,23 @@ func (m *measurer) add(vs []Spot, area float64) {
 // piece records verts[first:] as a piece of the given area.
 func (m *measurer) piece(first int, area float64) {
 	vs := m.p.verts[first:]
-	pc := piece{first: int32(first), n: int32(len(vs)), area: area, zlo: math.Inf(1), zhi: math.Inf(-1)}
+	pc := piece{first: int32(first), n: int32(len(vs)), clip: -1, surface: m.surface, area: area, zlo: math.Inf(1), zhi: math.Inf(-1)}
 	for _, q := range vs {
 		pc.zlo, pc.zhi = min(pc.zlo, q.Z), max(pc.zhi, q.Z)
 	}
 	m.p.pieces = append(m.p.pieces, pc)
-	m.p.ground += area
 }
 
 // extreme counts q in the lowest and highest floor.
 func (m *measurer) extreme(q Spot) {
+	if c := m.cut; c != nil {
+		if q.Z < c.lo.Z {
+			c.lo = q
+		}
+		if q.Z > c.hi.Z {
+			c.hi = q
+		}
+	}
 	p := m.p
 	if !p.measured {
 		p.lo, p.hi, p.measured = q, q, true
@@ -254,7 +294,7 @@ func (m *measurer) extreme(q Spot) {
 
 // Classify sorts the profile's floor by the Z range [zmin, zmax].
 func (p *Profile) Classify(zmin, zmax float64) Report {
-	r := Report{Measured: p.measured, GroundMin: p.lo, GroundMax: p.hi}
+	r := Report{Measured: p.measured, GroundMin: p.lo, GroundMax: p.hi, Layers: p.layers}
 	if p.measured {
 		r.FloorClearance, r.TopClearance = p.lo.Z-zmin, zmax-p.hi.Z
 	}
@@ -278,7 +318,7 @@ func (p *Profile) Classify(zmin, zmax float64) Report {
 			r.Inside += spotArea(slab)
 		}
 	}
-	r.NoGround = max(0, p.area-p.ground)
+	r.NoGround = max(0, p.area-p.floored)
 	if r.NoGround <= 1e-9*p.area {
 		r.NoGround = 0
 	}

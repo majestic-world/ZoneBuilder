@@ -201,7 +201,7 @@ func (s *Scene) placeMesh(ld *loader, ma *MeshActor, m, owner *l2pkg.Package, me
 				b.Indices = append(b.Indices, uint32(remap[v]))
 			}
 			b.Bounds.Union(box)
-			s.addPickable(SurfaceMesh, kept.Batch, kept.First, kept.Count, box)
+			s.addPickable(triangleSet{Surface: SurfaceMesh, Batch: kept.Batch, First: kept.First, Count: kept.Count, Bounds: box, Mirrored: xf.Scale.X*xf.Scale.Y*xf.Scale.Z < 0})
 		}
 		ma.Sections = append(ma.Sections, kept)
 	}
