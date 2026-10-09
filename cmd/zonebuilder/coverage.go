@@ -34,6 +34,35 @@ type coverageKey struct {
 	// scenes names the world's scenes, in order.
 	scenes     string
 	hideMeshes bool
+	// bans is the outlines of the zone's other banned shapes; their Z
+	// ranges are applied when classifying, so they are not in the key.
+	bans string
+}
+
+// zoneBans is the zone's banned shapes other than the shape at index
+// self, as shown (with any drag in progress), and the key of their
+// outlines.
+func zoneBans(e *zoneEditor, z zone.Zone, self int) ([]coverage.Ban, string) {
+	var bans []coverage.Ban
+	var key strings.Builder
+	for i, s := range z.Shapes {
+		if !s.Banned || i == self {
+			continue
+		}
+		pts := outline(s.Kind, e.shownPoints(z.ID, i, s.Points))
+		if len(pts) < 3 {
+			continue
+		}
+		zmin, zmax := e.shownZRange(z.ID, i, s)
+		b := coverage.Ban{Outline: make(coverage.Outline, len(pts)), ZMin: float64(zmin), ZMax: float64(zmax)}
+		for k, p := range pts {
+			b.Outline[k] = coverage.Point{X: float64(p.X), Y: float64(p.Y)}
+		}
+		bans = append(bans, b)
+		key.WriteString(outlineKey(pts))
+		key.WriteByte('|')
+	}
+	return bans, key.String()
 }
 
 // profileResult is a profile measured in the background.
@@ -56,6 +85,7 @@ type floorCoverage struct {
 	// report is profile classified by [zmin, zmax].
 	report     coverage.Report
 	zmin, zmax int
+	banZ       string
 	classified *coverage.Profile
 }
 
@@ -78,16 +108,19 @@ func (c *floorCoverage) current(e *zoneEditor, w *scene.World) (r coverage.Repor
 	if len(pts) < 3 {
 		return coverage.Report{}, false, false
 	}
-	key := coverageKey{shape: shapeRef{z.ID, e.shape}, outline: outlineKey(pts), world: w, scenes: scenesKey(w), hideMeshes: w.HideMeshes}
+	bans, bansKey := zoneBans(e, z, e.shape)
+	key := coverageKey{shape: shapeRef{z.ID, e.shape}, outline: outlineKey(pts), world: w, scenes: scenesKey(w), hideMeshes: w.HideMeshes, bans: bansKey}
 	if key != c.done && !c.running {
-		c.start(key, pts, w)
+		c.start(key, pts, bans, w)
 	}
 	if c.profile == nil || c.done.shape != key.shape || c.done.world != w {
 		return coverage.Report{}, true, false
 	}
 	zmin, zmax := e.shownZRange(z.ID, e.shape, sh)
-	if c.classified != c.profile || zmin != c.zmin || zmax != c.zmax {
-		c.report, c.classified, c.zmin, c.zmax = c.profile.Classify(float64(zmin), float64(zmax)), c.profile, zmin, zmax
+	banZ := fmt.Sprint(bans)
+	if c.classified != c.profile || zmin != c.zmin || zmax != c.zmax || banZ != c.banZ {
+		c.report = c.profile.WithBanRanges(bans).Classify(float64(zmin), float64(zmax))
+		c.classified, c.zmin, c.zmax, c.banZ = c.profile, zmin, zmax, banZ
 	}
 	return c.report, key != c.done, true
 }
@@ -95,7 +128,7 @@ func (c *floorCoverage) current(e *zoneEditor, w *scene.World) (r coverage.Repor
 // start measures key's profile in the background, on a world of the same
 // scenes: the event loop may add tiles to w or drop them meanwhile, and
 // the scenes themselves are only read.
-func (c *floorCoverage) start(key coverageKey, pts []zone.Point, w *scene.World) {
+func (c *floorCoverage) start(key coverageKey, pts []zone.Point, bans []coverage.Ban, w *scene.World) {
 	snap := scene.NewWorld(w.Origin)
 	for _, s := range w.Scenes() {
 		snap.Add(s)
@@ -108,7 +141,7 @@ func (c *floorCoverage) start(key coverageKey, pts []zone.Point, w *scene.World)
 	c.running = true
 	go func() {
 		began := time.Now()
-		p := coverage.Measure(snap, o)
+		p := coverage.Measure(snap, o, bans)
 		if d := time.Since(began); d > profileBudget {
 			log.Printf("cobertura: perfil do chão medido em %v, acima do orçamento de %v", d.Round(time.Millisecond), profileBudget)
 		}
@@ -162,7 +195,7 @@ func coverageText(r coverage.Report, measuring bool) string {
 	for _, a := range []struct {
 		name string
 		area float64
-	}{{"Dentro da faixa", r.Inside}, {"Acima do topo", r.Above}, {"Abaixo do piso", r.Below}, {"Sem chão", r.NoGround}} {
+	}{{"Dentro da faixa", r.Inside}, {"Acima do topo", r.Above}, {"Abaixo do piso", r.Below}, {"Excluída", r.Excluded}, {"Sem chão", r.NoGround}} {
 		lines = append(lines, fmt.Sprintf("%s: %s u² (%s)", a.name, units(roundF(a.area)), percent(a.area, total)))
 	}
 	return strings.Join(lines, "\n")

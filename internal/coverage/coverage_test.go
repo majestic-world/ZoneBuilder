@@ -39,7 +39,7 @@ func TestPyramidApexIsTheHighestGround(t *testing.T) {
 	apex := v(437, 611, 500)
 	a, b, c, d := v(-500, -500, 0), v(1500, -500, 0), v(1500, 1500, 0), v(-500, 1500, 0)
 	f := floor{tri(a, b, apex), tri(b, c, apex), tri(c, d, apex), tri(d, a, apex)}
-	r := coverage.Measure(f, square(0, 0, 1000, 1000)).Classify(-100, 100)
+	r := coverage.Measure(f, square(0, 0, 1000, 1000), nil).Classify(-100, 100)
 	if !r.Measured {
 		t.Fatal("no ground measured under the square")
 	}
@@ -69,7 +69,7 @@ func TestRampUnderConcaveOutlineAboveTopIsExact(t *testing.T) {
 	ramp := func(x, y float32) geom.Vec3 { return v(x, y, x+y) }
 	a, b, c, d := ramp(-100, -100), ramp(300, -100), ramp(300, 300), ramp(-100, 300)
 	f := floor{tri(a, b, c), tri(a, c, d)}
-	r := coverage.Measure(f, lShape).Classify(-1000, 150)
+	r := coverage.Measure(f, lShape, nil).Classify(-1000, 150)
 	if !near(r.Above, 18750) {
 		t.Errorf("area above the top %v, want 18750", r.Above)
 	}
@@ -110,7 +110,7 @@ func grid(z float32, holes ...[2]int) floor {
 // the floor there is inside the range. Catches a coverage that only
 // divides the floor found, so a hole looks covered.
 func TestInvisibleQuadIsNoGround(t *testing.T) {
-	r := coverage.Measure(grid(50, [2]int{1, 1}), square(50, 50, 250, 250)).Classify(0, 100)
+	r := coverage.Measure(grid(50, [2]int{1, 1}), square(50, 50, 250, 250), nil).Classify(0, 100)
 	if !near(r.NoGround, 100*100) {
 		t.Errorf("area with no ground %v, want 10000", r.NoGround)
 	}
@@ -130,7 +130,7 @@ func TestInsideAboveBelowAddUpToTheFloor(t *testing.T) {
 	ramp := func(x, y float32) geom.Vec3 { return v(x, y, x) }
 	a, b, c, d := ramp(-50, -50), ramp(250, -50), ramp(250, 250), ramp(-50, 250)
 	f := floor{tri(a, b, c), tri(a, c, d)}
-	r := coverage.Measure(f, square(0, 0, 200, 200)).Classify(30, 170)
+	r := coverage.Measure(f, square(0, 0, 200, 200), nil).Classify(30, 170)
 	if sum := r.Inside + r.Above + r.Below; !near(sum, 40000) {
 		t.Errorf("inside %v + above %v + below %v = %v, want the floor's 40000", r.Inside, r.Above, r.Below, sum)
 	}
@@ -153,7 +153,7 @@ func TestInsideAboveBelowAddUpToTheFloor(t *testing.T) {
 func TestNotchCornerIsNotGround(t *testing.T) {
 	plane := func(x, y float32) geom.Vec3 { return v(x, y, x-y) }
 	f := floor{tri(plane(125, 125), plane(1125, -875), plane(1125, 1125))}
-	r := coverage.Measure(f, lShape).Classify(-1000, 1000)
+	r := coverage.Measure(f, lShape, nil).Classify(-1000, 1000)
 	if lo := r.GroundMin; !near(lo.X, 150) || !near(lo.Y, 100) || !near(lo.Z, 50) {
 		t.Errorf("lowest ground %v %v %v, want 150 100 50", lo.X, lo.Y, lo.Z)
 	}
@@ -162,5 +162,55 @@ func TestNotchCornerIsNotGround(t *testing.T) {
 	}
 	if !near(r.Inside, 1250) || !near(r.NoGround, 30000-1250) {
 		t.Errorf("inside %v, no ground %v, want 1250 and 28750", r.Inside, r.NoGround)
+	}
+}
+
+// A flat floor at z = 100 (grid) under a shape [0, 300]² whose top is at
+// 50: all of it is above the top. A ban on the middle quad [100, 200]²
+// reaching z = 100 puts the floor under it in "excluded" instead: exactly,
+// since the ban follows the quad's edges. Catches a ban ignored, or its
+// floor counted twice.
+func TestBanExcludesFloorAboveTheTop(t *testing.T) {
+	ban := coverage.Ban{Outline: square(100, 100, 200, 200), ZMin: 0, ZMax: 200}
+	r := coverage.Measure(grid(100), square(0, 0, 300, 300), []coverage.Ban{ban}).Classify(-50, 50)
+	if !near(r.Excluded, 100*100) {
+		t.Errorf("excluded %v, want 10000", r.Excluded)
+	}
+	if !near(r.Above, 300*300-100*100) {
+		t.Errorf("above %v, want 80000", r.Above)
+	}
+}
+
+// The same ban with a Z range [300, 500] that does not reach the floor at
+// z = 100 excludes nothing; lowered to reach it, without measuring again
+// (WithBanRanges), it does. Catches a ban applied by X/Y alone.
+func TestBanOutOfZRangeExcludesNothing(t *testing.T) {
+	ban := coverage.Ban{Outline: square(100, 100, 200, 200), ZMin: 300, ZMax: 500}
+	p := coverage.Measure(grid(100), square(0, 0, 300, 300), []coverage.Ban{ban})
+	if r := p.Classify(-50, 50); r.Excluded != 0 || !near(r.Above, 300*300) {
+		t.Errorf("excluded %v, above %v, want 0 and 90000", r.Excluded, r.Above)
+	}
+	ban.ZMin = 0
+	if r := p.WithBanRanges([]coverage.Ban{ban}).Classify(-50, 50); !near(r.Excluded, 100*100) {
+		t.Errorf("excluded %v after lowering the ban, want 10000", r.Excluded)
+	}
+}
+
+// Under a flat floor at z = 0 missing its middle quad, with a ban off the
+// quads' edges (so pieces straddle its outline), inside + above + below +
+// excluded is still the measured floor and Total the outline's area.
+// Catches a piece counted in 2 states, or in none.
+func TestStatesAddUpWithABan(t *testing.T) {
+	ban := coverage.Ban{Outline: coverage.Outline{{X: 70, Y: 20}, {X: 230, Y: 40}, {X: 180, Y: 210}}, ZMin: -10, ZMax: 10}
+	r := coverage.Measure(grid(0, [2]int{1, 1}), square(10, 10, 290, 290), []coverage.Ban{ban}).Classify(5, 50)
+	ground := 280.0*280 - 100*100
+	if sum := r.Inside + r.Above + r.Below + r.Excluded; !near(sum, ground) {
+		t.Errorf("inside %v + above %v + below %v + excluded %v = %v, want %v", r.Inside, r.Above, r.Below, r.Excluded, sum, ground)
+	}
+	if r.Excluded <= 0 || r.Below <= 0 {
+		t.Errorf("excluded %v, below %v, want both > 0", r.Excluded, r.Below)
+	}
+	if !near(r.Total(), 280*280) {
+		t.Errorf("total %v, want 78400", r.Total())
 	}
 }
