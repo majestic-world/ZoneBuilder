@@ -1,8 +1,8 @@
 # 02: Preferência e controle de idioma
 
-**What to build:** guardar `pt-BR`/`en` em configuração do usuário; ausência/inválido -> pt-BR. O loop da janela controla o idioma, oferece seletor PT-BR / EN compacto, acessível e sempre visível no alto fora do inspetor, com opção ativa evidente. Persistir imediatamente, preservar idioma da sessão e mostrar aviso localizado se escrita falhar. Nunca alterar projeto, XML, foco/editor, seleção, ferramenta, janelas, rolagem nem disparar trabalho ao alternar. Facilitar apresentação reativa no `Shell` sem recriar widgets.
+**What to build:** guardar `pt-BR`/`en` em configuração do usuário; ausência/inválido -> pt-BR. O loop da janela controla o idioma, oferece seletor PT-BR / EN compacto, acessível e sempre visível no alto fora do inspetor, com opção ativa evidente. Persistir imediatamente, preservar idioma da sessão e mostrar aviso localizado se escrita falhar. Nunca alterar projeto, XML, foco/editor, seleção, ferramenta, janelas, rolagem nem disparar trabalho ao alternar. Facilitar apresentação reativa no `Shell` sem recriar widgets. Contrato compartilhado com 01: `locale.Language` (`string`), constantes `locale.PtBR`/`locale.En`, função `locale.Normalize(string) Language`; o seletor pode avançar em paralelo.
 
-**Blocked by:** 01
+**Blocked by:** None (can start immediately; shared locale contract above)
 
 **Status:** ready-for-agent
 
