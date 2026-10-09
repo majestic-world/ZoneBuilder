@@ -306,9 +306,10 @@ func (e *zoneEditor) nextShape() int {
 
 // hoverAt tracks the surface point under the cursor (h, when ok) while a
 // rectangle or circle is anchored, and places the preview shape on s;
-// while the preview's floor is being measured, it takes the range again
-// from c, so it changes when the profile comes in. It returns the status
-// line when the preview's range changed, else "".
+// while the preview's floor is being measured, or after the panel's Faixa
+// nova changed, it takes the range again from c, so the preview stays
+// what a click adds. It returns the status line when the preview's range
+// changed, else "".
 func (e *zoneEditor) hoverAt(s *scene.World, c *floorCoverage, h scene.Hit, ok bool) string {
 	ok = ok && s != nil && e.armed && e.anchored
 	p := zone.Point{}
@@ -316,7 +317,8 @@ func (e *zoneEditor) hoverAt(s *scene.World, c *floorCoverage, h scene.Hit, ok b
 		p = serverPoint(h)
 	}
 	moved := ok != e.hovering || p != e.hover
-	if !moved && !(ok && e.ghostZ.from == zMeasuring) {
+	stale := e.ghostZ.from == zMeasuring || (e.ghostZ.from == zByVertices) != e.fromVertices
+	if !moved && !(ok && stale) {
 		return ""
 	}
 	e.hover, e.hovering = p, ok

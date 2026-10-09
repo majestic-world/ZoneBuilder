@@ -17,17 +17,28 @@ import (
 // meant to reach.
 const GroundReach = 1024
 
-// reaches is the layer rule of spec D5 for one piece: whether pc is floor
-// of the Z range [zmin, zmax]. A BSP or mesh piece is when it crosses the
-// range or lies within GroundReach of it, else it is another layer.
-// Terrain is judged as a block, once per range (terrainCounts), and
-// passed in as terrain. Fit fits a range by it and Classify reports by
-// it.
-func reaches(pc *piece, zmin, zmax float64, terrain bool) bool {
+// reaches is the layer rule of spec D5 for one BSP or mesh piece: whether
+// pc is floor of the Z range [zmin, zmax], that is, crosses the range or
+// lies within GroundReach of it; else it is another layer.
+func reaches(pc *piece, zmin, zmax float64) bool {
+	return pc.zhi >= zmin-GroundReach && pc.zlo <= zmax+GroundReach
+}
+
+// counts is the layer rule for any piece: reaches for a BSP or mesh
+// piece; a terrain piece counts when terrain, terrainCounts for the range,
+// since the terrain is judged as a block, once per range. Fit fits a range
+// by it and Classify reports by it.
+func counts(pc *piece, zmin, zmax float64, terrain bool) bool {
 	if pc.surface == scene.SurfaceTerrain {
 		return terrain
 	}
-	return pc.zhi >= zmin-GroundReach && pc.zlo <= zmax+GroundReach
+	return reaches(pc, zmin, zmax)
+}
+
+// TerrainSpan is the lowest and highest terrain under the outline, ok
+// false when there is none.
+func (p *Profile) TerrainSpan() (lo, hi float64, ok bool) {
+	return p.terrainLo, p.terrainHi, p.terrainLo <= p.terrainHi
 }
 
 // terrainCounts is the layer rule for the terrain under the outline (spec
@@ -60,7 +71,7 @@ func (p *Profile) builtReaches(zmin, zmax float64) bool {
 	}
 	for _, i := range p.bannedBuilt {
 		pc := &p.pieces[i]
-		if reaches(pc, zmin, zmax, false) && !p.excluded(pc) {
+		if reaches(pc, zmin, zmax) && !p.excluded(pc) {
 			return true
 		}
 	}
@@ -140,7 +151,7 @@ func (p *Profile) ground(zmin, zmax float64) Ground {
 	terrain := p.terrainCounts(zmin, zmax)
 	for i := range p.pieces {
 		pc := &p.pieces[i]
-		if (pc.nbans > 0 && p.excluded(pc)) || !reaches(pc, zmin, zmax, terrain) {
+		if (pc.nbans > 0 && p.excluded(pc)) || !counts(pc, zmin, zmax, terrain) {
 			continue
 		}
 		if g.Measured && pc.zlo >= g.Min.Z && pc.zhi <= g.Max.Z {
@@ -177,14 +188,10 @@ func (p *Profile) others(zmin, zmax float64, terrain bool) []Layer {
 	var out []Layer
 	add := func(l lowPiece) {
 		pc := &p.pieces[l.piece]
-		if reaches(pc, zmin, zmax, false) || (pc.nbans > 0 && p.excluded(pc)) {
+		if reaches(pc, zmin, zmax) || (pc.nbans > 0 && p.excluded(pc)) {
 			return
 		}
-		if n := len(out); n > 0 && pc.zlo-out[n-1].High < LayerGap {
-			out[n-1].High = max(out[n-1].High, pc.zhi)
-			return
-		}
-		out = append(out, Layer{pc.zlo, pc.zhi})
+		out = appendLayer(out, Layer{pc.zlo, pc.zhi})
 	}
 	for _, l := range p.byLow[:under] {
 		add(l)
@@ -218,15 +225,22 @@ func (p *Profile) terrainLeftOut() bool {
 func withLayer(ls []Layer, l Layer) []Layer {
 	i, _ := slices.BinarySearchFunc(ls, l.Low, func(x Layer, z float64) int { return cmp.Compare(x.Low, z) })
 	ls = slices.Insert(ls, i, l)
-	out := ls[:1]
-	for _, x := range ls[1:] {
-		if last := &out[len(out)-1]; x.Low-last.High < LayerGap {
-			last.High = max(last.High, x.High)
-			continue
-		}
-		out = append(out, x)
+	out := ls[:0]
+	for _, x := range ls {
+		out = appendLayer(out, x)
 	}
 	return out
+}
+
+// appendLayer is layers out, lowest first, with l, whose lowest floor is
+// not under theirs, added at the end: merged into the last layer when
+// closer to it than LayerGap in Z.
+func appendLayer(out []Layer, l Layer) []Layer {
+	if n := len(out); n > 0 && l.Low-out[n-1].High < LayerGap {
+		out[n-1].High = max(out[n-1].High, l.High)
+		return out
+	}
+	return append(out, l)
 }
 
 // indexReach fills what terrainCounts reads, after sortByLow: the

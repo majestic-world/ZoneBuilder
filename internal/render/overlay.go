@@ -229,7 +229,7 @@ func (o *zoneOverlay) set(shapes []ZoneShape) {
 			continue
 		}
 		c := s.Color
-		face := [4]float32{c[0], c[1], c[2], wallAlpha}
+		wall := [4]float32{c[0], c[1], c[2], wallAlpha}
 		edge := [4]float32{c[0], c[1], c[2], 1}
 		if s.Problem {
 			edge = problemColor
@@ -246,7 +246,7 @@ func (o *zoneOverlay) set(shapes []ZoneShape) {
 			for i := range n {
 				a, b := client[i], client[(i+1)%n]
 				for _, v := range [6][3]float32{at(a, zmin), at(b, zmin), at(b, zmax), at(a, zmin), at(b, zmax), at(a, zmax)} {
-					tris = append(tris, overlayVertex{Pos: v, Color: face, Base: zmin})
+					tris = append(tris, overlayVertex{Pos: v, Color: wall, Base: zmin})
 				}
 				for _, l := range [3][2]overlayVertex{
 					segment(at(a, zmin), at(b, zmin), edge),
