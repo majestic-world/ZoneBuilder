@@ -44,6 +44,9 @@ type ZoneList struct {
 	// frame; Selected is the selected zone's ID (0: none).
 	Rows     []ZoneRow
 	Selected zone.ZoneID
+	// LeftOut is how many of the selected zone's shapes the viewport
+	// leaves out of its footprint on the ground, set by the window loop.
+	LeftOut int
 
 	Search widget.Editor
 	// TypeFilter is the shown type's index in zone.Types, -1 for all.
@@ -330,6 +333,9 @@ func (s *Shell) selectedZone() []layout.FlexChild {
 			s.button(&l.Color, secondaryButton, icon.Palette, "Cor"),
 			s.button(&l.Delete, dangerButton, icon.Trash2, "Apagar"),
 		)),
+	}
+	if l.LeftOut > 0 {
+		children = append(children, layout.Rigid(s.errorLabel("Pegada parcial: "+inflect.Count(l.LeftOut, "shape fora", "shapes fora")+" do desenho")))
 	}
 	if s.Height.Zone != "" && s.Height.Window.Closed {
 		children = append(children, layout.Rigid(s.spaced(s.fullButton(&s.Height.Reopen, secondaryButton, icon.ArrowUp, "Mostrar janela de altura"))))

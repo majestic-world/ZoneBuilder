@@ -174,9 +174,12 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		probe   cursorProbe
 		zones   = newZoneEditor()
 		// zonesShown is the zones.version the renderer last got;
-		// groundShown is what its ground marking was last built for.
+		// groundShown is what its ground marking was last built for;
+		// groundMark was last built for groundBuilt.
 		zonesShown  = -1
 		groundShown = groundKey{version: -1}
+		groundBuilt = groundKey{version: -1}
+		groundMark  render.Ground
 	)
 	defer func() { g.release() }()
 	if proj != "" {
@@ -341,9 +344,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				}
 			}
 			if shell.Ground.Toggled(gtx) {
-				status = "Chão oculto"
+				status = "Grade do chão oculta"
 				if shell.Ground.On {
-					status = fmt.Sprintf("Chão: grade das células do terreno, linha forte a cada %d, e a área da zona selecionada", render.GridMajor)
+					status = fmt.Sprintf("Chão: grade das células do terreno, linha forte a cada %d", render.GridMajor)
 				}
 			}
 			moving := fly.Step(&cam, gtx.Now)
@@ -358,6 +361,11 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			shell.Zone.Info = zones.info()
 			sel, _ = zones.selectedZone()
 			shell.Zones.Rows, shell.Zones.Selected = zones.rows(), sel.ID
+			if k := (groundKey{version: zones.version, zone: zones.zone, on: shell.Ground.On}); k != groundBuilt {
+				groundMark = zones.ground(shell.Ground.On)
+				shell.Zones.LeftOut = render.GroundLeftOut(groundMark)
+				groundBuilt = k
+			}
 			if rows, ok := zones.problemRows(); ok {
 				shell.Problems.Rows = rows
 			}
@@ -401,9 +409,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				g.renderer.SetZones(zones.overlay())
 				zonesShown = zones.version
 			}
-			if k := (groundKey{version: zones.version, zone: zones.zone, on: shell.Ground.On}); k != groundShown {
-				g.renderer.SetGround(zones.ground(shell.Ground.On))
-				groundShown = k
+			if groundShown != groundBuilt {
+				g.renderer.SetGround(groundMark)
+				groundShown = groundBuilt
 			}
 
 			g.ctx.WaitClient() // lets ANGLE pick up a window resize

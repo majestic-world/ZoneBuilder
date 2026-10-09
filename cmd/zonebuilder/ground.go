@@ -28,15 +28,12 @@ type groundKey struct {
 	on      bool
 }
 
-// ground is what the renderer marks on the ground while on is set: the
-// terrain grid and the selected zone's footprint, its closed shapes as
-// shown (a drag in progress included). The polygon being drawn is still
-// open and has no footprint.
-func (e *zoneEditor) ground(on bool) render.Ground {
-	if !on {
-		return render.Ground{}
-	}
-	g := render.Ground{Grid: true}
+// ground is what the renderer marks on the ground: the terrain grid while
+// grid is set (the Chão switch), and always the selected zone's
+// footprint, its closed shapes as shown (a drag in progress included).
+// The polygon being drawn is still open and has no footprint.
+func (e *zoneEditor) ground(grid bool) render.Ground {
+	g := render.Ground{Grid: grid}
 	z, ok := e.doc.Zone(e.zone)
 	if !ok || z.Hidden {
 		return g
