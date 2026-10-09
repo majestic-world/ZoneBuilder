@@ -21,8 +21,9 @@ type EditPanel struct {
 	// or the ground under them (zone.DefaultZMargin unless changed).
 	Margin widget.Editor
 	// Shape titles the current shape's controls; empty hides them.
-	// Measure is the shape's size on the ground under it.
-	Shape, Measure string
+	// Measure is the shape's size on the ground under it; Coverage, one
+	// line per row, is how its Z range covers the floor under it.
+	Shape, Measure, Coverage string
 	// ZRange is "zmin zmax"; SetZRange (or Enter) applies it, GroundZ
 	// recomputes it from the ground under the vertices.
 	ZRange       widget.Editor
@@ -86,6 +87,7 @@ func (s *Shell) editPanel() []layout.FlexChild {
 		children = append(children,
 			layout.Rigid(s.dimLabel(p.Shape)),
 			layout.Rigid(s.dimLabel(p.Measure)),
+			layout.Rigid(s.dimLabel(p.Coverage)),
 			layout.Rigid(s.fieldLabel("Faixa Z: zmin zmax")),
 			layout.Rigid(s.fieldButton(&p.ZRange, "zmin zmax", nil, s.button(&p.SetZRange, secondaryButton, nil, "Aplicar"))),
 			layout.Rigid(s.spaced(s.fullButton(&p.GroundZ, secondaryButton, icon.Mountain, "Recalcular pelo chão"))),
