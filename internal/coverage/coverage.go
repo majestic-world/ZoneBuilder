@@ -541,7 +541,7 @@ func (p *Profile) Classify(zmin, zmax float64) Report {
 		r.FloorClearance, r.TopClearance = r.GroundMin.Z-zmin, zmax-r.GroundMax.Z
 	}
 	if r.Other > 0 {
-		r.Others = p.others(zmin, zmax, true)
+		r.Others = p.others(zmin, zmax)
 	}
 	r.NoGround = max(0, p.area-p.floored)
 	if r.NoGround <= 1e-9*p.area {

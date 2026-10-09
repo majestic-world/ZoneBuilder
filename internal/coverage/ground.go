@@ -19,8 +19,7 @@ const GroundReach = 1024
 // reaches is the layer rule of spec D5: whether piece pc is floor of the Z
 // range [zmin, zmax]. Terrain always is; a BSP or mesh piece is when it
 // crosses the range or lies within GroundReach of it, else it is another
-// layer. Fit fits a range by it and Classify reports by it, so a fitted
-// range never reports floor it was fitted without.
+// layer. Fit fits a range by it and Classify reports by it.
 func reaches(pc *piece, zmin, zmax float64) bool {
 	return pc.surface == scene.SurfaceTerrain || (pc.zhi >= zmin-GroundReach && pc.zlo <= zmax+GroundReach)
 }
@@ -35,8 +34,6 @@ type Ground struct {
 	// Others are the BSP and mesh floors left out, as layers: pieces
 	// closer than LayerGap in Z are one layer. Lowest first.
 	Others []Layer
-	// counted is how many pieces count.
-	counted int
 }
 
 // Layer is a span of floor in Z: from its lowest to its highest point.
@@ -55,45 +52,39 @@ const (
 // the profile's outline (spec D5): the floor margin units below the
 // lowest floor that counts, the top margin units above the highest,
 // rounded outwards to whole units so the clearance is never under margin.
-// Which BSP and mesh floor counts is judged from the range the fit ends
-// with, as Classify judges it: a side moved by the fit may bring more of
-// it within GroundReach, so the fit is taken again until no more floor
-// counts. It gives the fitted range and the floor it spans; the range is
-// [zmin, zmax] unchanged when no floor counts (g.Measured false). Excluded
-// floor counts as any other: a ban's range is about the floor it cuts
-// out, not about this range.
+// Which BSP and mesh floor counts is judged once, from [zmin, zmax], so a
+// tower's floors within GroundReach pull the range but not the roof
+// above them. Classify judges from the fitted range, so a BSP or mesh
+// layer beyond reach of [zmin, zmax] but within reach of the fitted range
+// is reported above or below it, with its warning, right after the fit;
+// fitting again takes it in. That is spec D5's rule: the user decides.
+// Floor a ban excludes is not counted, as Classify does not. It gives the
+// fitted range and the floor it spans; the range is [zmin, zmax]
+// unchanged when no floor counts (g.Measured false).
 func (p *Profile) Fit(zmin, zmax, margin int, sides Side) (lo, hi int, g Ground) {
 	lo, hi = zmin, zmax
 	g = p.ground(float64(zmin), float64(zmax))
-	for g.Measured {
-		lo, hi = zmin, zmax
-		if sides&FloorSide != 0 {
-			lo = int(math.Floor(g.Min.Z)) - margin
-		}
-		if sides&TopSide != 0 {
-			hi = int(math.Ceil(g.Max.Z)) + margin
-		}
-		// Every piece that counts lies within [lo, hi] or within reach of
-		// the side kept, so it still counts from there: the pieces that
-		// count only grow, and the fit ends.
-		next := p.ground(float64(lo), float64(hi))
-		if next.counted <= g.counted {
-			break
-		}
-		g = next
+	if !g.Measured {
+		return lo, hi, g
+	}
+	if sides&FloorSide != 0 {
+		lo = int(math.Floor(g.Min.Z)) - margin
+	}
+	if sides&TopSide != 0 {
+		hi = int(math.Ceil(g.Max.Z)) + margin
 	}
 	return lo, hi, g
 }
 
-// ground is the floor of the Z range [zmin, zmax] by the layer rule.
+// ground is the floor of the Z range [zmin, zmax] by the layer rule, the
+// excluded floor left out.
 func (p *Profile) ground(zmin, zmax float64) Ground {
 	var g Ground
 	for i := range p.pieces {
 		pc := &p.pieces[i]
-		if !reaches(pc, zmin, zmax) {
+		if (pc.nbans > 0 && p.excluded(pc)) || !reaches(pc, zmin, zmax) {
 			continue
 		}
-		g.counted++
 		if g.Measured && pc.zlo >= g.Min.Z && pc.zhi <= g.Max.Z {
 			continue
 		}
@@ -109,16 +100,16 @@ func (p *Profile) ground(zmin, zmax float64) Ground {
 			g.Max = hi
 		}
 	}
-	g.Others = p.others(zmin, zmax, false)
+	g.Others = p.others(zmin, zmax)
 	return g
 }
 
 // others are the BSP and mesh floors the layer rule leaves out of the Z
-// range [zmin, zmax], as layers, lowest first; with unbanned, only those
-// no ban excludes. They are read off byLow, the pieces sorted by their
-// lowest floor: the pieces under the range's reach are a prefix of it and
-// those over it a suffix, so a drag of the range skips the floor between.
-func (p *Profile) others(zmin, zmax float64, unbanned bool) []Layer {
+// range [zmin, zmax], as layers, lowest first; excluded floor is not
+// among them. They are read off byLow, the pieces sorted by their lowest
+// floor: the pieces under the range's reach are a prefix of it and those
+// over it a suffix, so a drag of the range skips the floor between.
+func (p *Profile) others(zmin, zmax float64) []Layer {
 	under, _ := slices.BinarySearchFunc(p.byLow, zmin-GroundReach, func(l lowPiece, z float64) int {
 		return cmp.Compare(l.zlo, z)
 	})
@@ -132,7 +123,7 @@ func (p *Profile) others(zmin, zmax float64, unbanned bool) []Layer {
 	var out []Layer
 	add := func(l lowPiece) {
 		pc := &p.pieces[l.piece]
-		if reaches(pc, zmin, zmax) || (unbanned && pc.nbans > 0 && p.excluded(pc)) {
+		if reaches(pc, zmin, zmax) || (pc.nbans > 0 && p.excluded(pc)) {
 			return
 		}
 		if n := len(out); n > 0 && pc.zlo-out[n-1].High < LayerGap {

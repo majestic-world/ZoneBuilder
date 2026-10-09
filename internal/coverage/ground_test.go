@@ -77,23 +77,39 @@ func TestFarRoofIsAnotherLayerOfTheFittedRange(t *testing.T) {
 	}
 }
 
-// Under a square over a terrain hill rising to 600, with a BSP floor at
-// 1500 over a corner of it, a range fitted from [-256, 256] tops at 856
-// at first; from there the floor at 1500 lies within GroundReach, so the
-// fit takes it too and tops at 1756, and the range it ends with reports
-// no floor above its top. Catches a fit judged only from the range before
-// it, whose own range then reaches floor above its top ("chão acima do
-// topo" right after "Recalcular pelo chão").
-func TestFitTakesTheFloorItsOwnRangeReaches(t *testing.T) {
-	apex := v(500, 500, 600)
-	a, b, c, d := v(0, 0, 0), v(1000, 0, 0), v(1000, 1000, 0), v(0, 1000, 0)
-	f := append(floor{tri(a, b, apex), tri(b, c, apex), tri(c, d, apex), tri(d, a, apex)}, bspQuad(100, 100, 200, 200, 1500)...)
-	p := coverage.Measure(f, square(0, 0, 1000, 1000), nil)
-	zmin, zmax, g := p.Fit(-256, 256, 256, coverage.BothSides)
-	if zmin != -256 || zmax != 1756 || len(g.Others) != 0 {
-		t.Fatalf("fitted range %d … %d leaving out %v, want -256 … 1756 leaving out nothing", zmin, zmax, g.Others)
+// Over flat terrain at 0, a tower's BSP floors stand 600 apart from 856
+// up to its roof at 3256, 3000 over the range [-256, 256]. One fit from
+// that range takes the floor at 856, the only one within GroundReach, and
+// tops at 1112; the roof and the floors between are left out as layers.
+// Catches a fit that chains through stacked floors each within reach of
+// the last (fitting again from its own range until nothing more counts),
+// which pulls the tower's roof (spec D5: "o telhado de uma torre não
+// estica a faixa").
+func TestOneFitDoesNotClimbATowerToItsRoof(t *testing.T) {
+	f := grid(0)
+	for z := float32(856); z <= 3256; z += 600 {
+		f = append(f, bspQuad(0, 0, 100, 300, z)...)
 	}
-	if r := p.Classify(float64(zmin), float64(zmax)); r.Above != 0 || r.Other != 0 || len(r.Warnings) != 0 {
-		t.Errorf("above %v, other layers %v, warnings %v; want 0, 0, none", r.Above, r.Other, kinds(r.Warnings))
+	zmin, zmax, g := coverage.Measure(f, square(0, 0, 300, 300), nil).Fit(-256, 256, 256, coverage.BothSides)
+	if zmin != -256 || zmax != 1112 || g.Max.Z != 856 {
+		t.Errorf("fitted range %d … %d over floor up to %v, want -256 … 1112 over the floor at 856", zmin, zmax, g.Max.Z)
+	}
+	if len(g.Others) != 4 || g.Others[3].Low != 3256 {
+		t.Errorf("other layers %v, want the 3 floors and the roof at 3256", g.Others)
+	}
+}
+
+// A hill under a ban whose range holds it does not set the top fitted
+// over flat floor at 0: 256, the margin over the flat floor, not 656 over
+// the hill's apex, which it is without the ban. Catches a fit that counts
+// excluded floor, so "Topo ao chão" lifts the top to a peak the zone cuts
+// out.
+func TestExcludedHillDoesNotSetTheFittedTop(t *testing.T) {
+	o := square(0, 0, 1000, 1000)
+	if _, zmax, _ := coverage.Measure(hillOnFlat(), o, []coverage.Ban{hillBan}).Fit(-100, 100, 256, coverage.TopSide); zmax != 256 {
+		t.Errorf("top fitted under the ban %d, want 256", zmax)
+	}
+	if _, zmax, _ := coverage.Measure(hillOnFlat(), o, nil).Fit(-100, 100, 256, coverage.TopSide); zmax != 656 {
+		t.Errorf("top fitted without the ban %d, want 656", zmax)
 	}
 }
