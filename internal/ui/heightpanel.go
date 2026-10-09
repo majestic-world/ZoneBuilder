@@ -28,6 +28,9 @@ type HeightPanel struct {
 	// Zone describes the selected zone's floor, top and height; empty
 	// hides the window.
 	Zone string
+	// Ruler is the zone's vertical scale over its floor, drawn above
+	// Coverage; a zero Ruler hides it.
+	Ruler Ruler
 	// Coverage, one line per row, is how the zone's Z ranges cover the
 	// floor under its included shapes; empty hides it.
 	Coverage string
@@ -53,7 +56,7 @@ func (p *HeightPanel) init() {
 		e.SingleLine, e.Submit = true, true
 	}
 	p.Step.SetText(strconv.Itoa(DefaultZStep))
-	p.Window.Width, p.Window.Height, p.Window.Left, p.Window.Top = 290, 540, 112, 84
+	p.Window.Width, p.Window.Height, p.Window.Left, p.Window.Top = 350, 660, 112, 84
 }
 
 // StepZ is Step as a positive number of units, DefaultZStep when the field
@@ -97,6 +100,7 @@ func (s *Shell) heightWindow(gtx layout.Context) layout.Dimensions {
 		apply := func(c *widget.Clickable) layout.Widget { return s.button(c, secondaryButton, nil, "Aplicar") }
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(s.dimLabel(p.Zone)),
+			layout.Rigid(s.ruler(p.Ruler)),
 			layout.Rigid(s.dimLabel(p.Coverage)),
 			layout.Rigid(layout.Spacer{Height: unit.Dp(4)}.Layout),
 			layout.Rigid(s.fieldLabel("Passo (PageUp/PageDown no viewport)")),
