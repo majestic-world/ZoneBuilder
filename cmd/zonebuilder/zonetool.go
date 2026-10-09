@@ -238,7 +238,8 @@ func (e *zoneEditor) info() []string {
 
 // overlay is every shape and restart point for the renderer's zone
 // overlay, plus the preview of the rectangle or circle being placed.
-func (e *zoneEditor) overlay() []render.ZoneShape {
+// ground is the floor line along the current shape's walls.
+func (e *zoneEditor) overlay(ground []geom.Vec3) []render.ZoneShape {
 	var shapes []render.ZoneShape
 	for _, z := range e.doc.Zones() {
 		color := linearColor(z.DisplayColor())
@@ -270,6 +271,9 @@ func (e *zoneEditor) overlay() []render.ZoneShape {
 			// A rectangle's edges have no midpoint handles: it stays 2
 			// corners, so no vertex can be inserted into it.
 			rs.Midpoints = current && !rect
+			if current {
+				rs.Ground = ground
+			}
 			if open {
 				rs.Closed, rs.Marked = false, 0
 			}
