@@ -11,6 +11,7 @@ import (
 	"gioui.org/widget/material"
 
 	appicon "zonebuilder/assets/icon"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/ui/icon"
 )
 
@@ -35,6 +36,8 @@ var logo = func() *icon.Icon {
 // and XML windows.
 type Shell struct {
 	Theme    *material.Theme
+	// Language controls the presentation of this shell without replacing its widgets.
+	Language locale.Language
 	Viewport Viewport
 	// Client is the client folder (the folder above Maps); Browse opens
 	// the folder picker for it.
@@ -97,14 +100,15 @@ type Shell struct {
 	Cursor, Click, Tiles string
 
 	list                                    widget.List
+	languageButtons [2]widget.Clickable
 	brandSink, dockSink, barSink, inspector pointerSink
-	statusSink, messageSink                 pointerSink
+	languageSink, statusSink, messageSink pointerSink
 }
 
 // NewShell returns a shell with single-line fields holding client and
 // tile.
 func NewShell(th *material.Theme, client, tile string) *Shell {
-	s := &Shell{Theme: th}
+	s := &Shell{Theme: th, Language: locale.PtBR}
 	s.Client.SingleLine = true
 	s.Client.SetText(client)
 	s.Tile.SingleLine = true
@@ -125,6 +129,16 @@ func (s *Shell) OpenRequested(gtx layout.Context) bool {
 	return requested(gtx, &s.Tile, &s.Open)
 }
 
+// LanguageRequested reports a new choice from the always-visible selector.
+func (s *Shell) LanguageRequested(gtx layout.Context) (locale.Language, bool) {
+	for i, lang := range [...]locale.Language{locale.PtBR, locale.En} {
+		if s.languageButtons[i].Clicked(gtx) && s.Language != lang {
+			return lang, true
+		}
+	}
+	return "", false
+}
+
 // Layout lays the window out and returns the viewport rectangle in window
 // pixels (origin top-left): all of it, as the cards float over the scene.
 // Nothing is painted under the viewport but the cards, so the 3D content
@@ -141,7 +155,8 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 
 	m := gtx.Dp(floatMargin)
 	brand := at(gtx, image.Pt(m, m), s.brand)
-	dock := at(gtx, image.Pt(m, m+brand.Y+gtx.Dp(12)), s.dock)
+	language := at(gtx, image.Pt(m, m+brand.Y+gtx.Dp(8)), s.languageSelector)
+	dock := at(gtx, image.Pt(m, m+brand.Y+gtx.Dp(8)+language.Y+gtx.Dp(12)), s.dock)
 
 	iw := gtx.Dp(InspectorWidth)
 	ix := area.X - m - iw
@@ -192,6 +207,25 @@ func (s *Shell) brand(gtx layout.Context) layout.Dimensions {
 					layout.Rigid(s.text("Editor de zonas · Lineage II", captionSize, font.Normal, dimText, 1)),
 				)
 			}),
+		)
+	})
+}
+
+// languageSelector is separate from the inspector's scrolling column and
+// claims pointer input only over its own card.
+func (s *Shell) languageSelector(gtx layout.Context) layout.Dimensions {
+	return card(gtx, &s.languageSink, layout.UniformInset(unit.Dp(5)), func(gtx layout.Context) layout.Dimensions {
+		option := func(i int, lang locale.Language, label string) layout.FlexChild {
+			kind := secondaryButton
+			if s.Language == lang {
+				kind = primaryButton
+			}
+			return layout.Rigid(s.button(&s.languageButtons[i], kind, nil, label))
+		}
+		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			option(0, locale.PtBR, "PT-BR"),
+			layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
+			option(1, locale.En, "EN"),
 		)
 	})
 }

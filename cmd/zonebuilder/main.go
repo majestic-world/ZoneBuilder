@@ -158,6 +158,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 	defer runtime.UnlockOSThread()
 
 	shell := ui.NewShell(ui.NewTheme(), fields.client, fields.tile)
+	shell.Language = sess.cfg.Language
 	shell.Project.RecentMaps = sess.cfg.RecentMaps
 
 	var (
@@ -459,6 +460,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				renderer = g.renderer
 			}
 			shell.Loading, shell.Progress = tiles.progress(renderer)
+			if lang, ok := shell.LanguageRequested(gtx); ok {
+				status = sess.chooseLanguage(shell, lang)
+			}
 
 			shell.Message = status
 			rect := shell.Layout(gtx)
