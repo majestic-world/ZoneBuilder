@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"image/color"
 	"log"
 	"math"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
+	"zonebuilder/internal/ui"
 	"zonebuilder/internal/zone"
 )
 
@@ -42,6 +44,7 @@ type coverageKey struct {
 type profileResult struct {
 	key     coverageKey
 	profile *coverage.Profile
+	hist    coverage.Histogram
 }
 
 // floorCoverage keeps the floor profiles of the selected zone's shapes:
@@ -60,6 +63,8 @@ type shapeCoverage struct {
 	// done is the key profile was measured for.
 	done    coverageKey
 	profile *coverage.Profile
+	// hist is profile's floor area by Z, for the height window's ruler.
+	hist coverage.Histogram
 	// report is profile classified by [zmin, zmax]; fit is the floor
 	// that range should span (coverage.Profile.Ground).
 	report     coverage.Report
@@ -168,7 +173,7 @@ func (c *floorCoverage) profileNow(e *zoneEditor, w *scene.World, id zone.ZoneID
 	began := time.Now()
 	p := coverage.Measure(w, coverageOutline(pts))
 	log.Printf("cobertura: perfil do shape %d medido na hora em %v", i+1, time.Since(began).Round(time.Millisecond))
-	c.shapes[ref] = &shapeCoverage{done: key, profile: p}
+	c.shapes[ref] = &shapeCoverage{done: key, profile: p, hist: p.Histogram()}
 	return p
 }
 
@@ -195,10 +200,11 @@ func (c *floorCoverage) start(key coverageKey, pts []zone.Point, w *scene.World)
 	go func() {
 		began := time.Now()
 		p := coverage.Measure(snap, o)
+		h := p.Histogram()
 		if d := time.Since(began); d > profileBudget {
 			log.Printf("cobertura: perfil do chão medido em %v, acima do orçamento de %v", d.Round(time.Millisecond), profileBudget)
 		}
-		c.results <- profileResult{key, p}
+		c.results <- profileResult{key, p, h}
 		c.win.Invalidate()
 	}()
 }
@@ -209,7 +215,7 @@ func (c *floorCoverage) receive(e *zoneEditor) {
 	select {
 	case r := <-c.results:
 		c.running = false
-		c.shapes[r.key.shape] = &shapeCoverage{done: r.key, profile: r.profile}
+		c.shapes[r.key.shape] = &shapeCoverage{done: r.key, profile: r.profile, hist: r.hist}
 	default:
 	}
 	for ref := range c.shapes {
@@ -287,17 +293,96 @@ func othersText(others []coverage.Layer) string {
 	return fmt.Sprintf("Outras camadas: %d (%s)", len(others), strings.Join(zs, "; "))
 }
 
-// heightWindow is the height window's coverage lines for e's selected
-// zone over w, "" when there is none.
-func (c *floorCoverage) heightWindow(e *zoneEditor, w *scene.World) string {
+// rulerRows is how many histogram bars the height window's ruler draws
+// over its Z span.
+const rulerRows = 48
+
+// heightWindow fills p's coverage of e's selected zone over w (spec D7):
+// the ruler and the text lines under it, both empty when there is none.
+func (c *floorCoverage) heightWindow(e *zoneEditor, w *scene.World, p *ui.HeightPanel) {
+	p.Coverage, p.Ruler = "", ui.Ruler{}
 	r, measuring, ok := c.zone(e, w)
 	if !ok {
 		if measuring {
-			return "Cobertura da zona: medindo…"
+			p.Coverage = "Cobertura da zona: medindo…"
 		}
-		return ""
+		return
 	}
-	return coverageText("Cobertura da zona (soma dos shapes)", "Nenhum chão medido sob a zona", r, measuring)
+	title := "Cobertura da zona (soma dos shapes)"
+	if measuring {
+		title += ": medindo…"
+	}
+	lines := []string{title}
+	if r.Measured {
+		lines = append(lines,
+			fmt.Sprintf("Chão sob a zona: %s … %s", units(roundF(r.GroundMin.Z)), units(roundF(r.GroundMax.Z))),
+			fmt.Sprintf("Folga do piso: %s · Folga do topo: %s", clearance(r.FloorClearance), clearance(r.TopClearance)),
+		)
+		p.Ruler = c.ruler(e, w, r)
+	} else {
+		lines = append(lines, "Nenhum chão medido sob a zona")
+	}
+	total := r.Total()
+	lines = append(lines, fmt.Sprintf("Cobertura %s · acima %s · abaixo %s · sem chão %s",
+		percent(r.Inside, total), percent(r.Above, total), percent(r.Below, total), percent(r.NoGround, total)))
+	p.Coverage = strings.Join(lines, "\n")
+}
+
+// clearance writes a clearance, marked "(fura)" when the floor pierces
+// that side of the range.
+func clearance(v float64) string {
+	if n := roundF(v); n < 0 {
+		return "−" + units(-n) + " (fura)"
+	}
+	return units(roundF(v))
+}
+
+// ruler is the height window's ruler for e's selected zone over w, whose
+// summed report is r: Z from the lowest of the range and the floor to the
+// highest, padded; the range bar from the lowest zmin to the highest zmax;
+// each row's floor by state, every shape's histogram split by its own
+// range; and marks at the lowest and highest floor with their clearances.
+// Only the split depends on the range, so a Z drag redraws it every frame.
+func (c *floorCoverage) ruler(e *zoneEditor, w *scene.World, r coverage.Report) ui.Ruler {
+	z, _ := e.doc.Zone(e.zone)
+	type part struct {
+		hist       coverage.Histogram
+		zmin, zmax float64
+	}
+	var parts []part
+	zmin, zmax := math.Inf(1), math.Inf(-1)
+	for i, sh := range z.Shapes {
+		s := c.shapes[shapeRef{z.ID, i}]
+		if sh.Banned || s == nil || s.done.world != w {
+			continue
+		}
+		lo, hi := e.shownZRange(z.ID, i, sh)
+		parts = append(parts, part{s.hist, float64(lo), float64(hi)})
+		zmin, zmax = min(zmin, float64(lo)), max(zmax, float64(hi))
+	}
+	if len(parts) == 0 {
+		return ui.Ruler{}
+	}
+	lo, hi := min(zmin, r.GroundMin.Z), max(zmax, r.GroundMax.Z)
+	pad := max(32, 0.06*(hi-lo))
+	zc := z.DisplayColor()
+	u := ui.Ruler{Lo: lo - pad, Hi: hi + pad, ZMin: zmin, ZMax: zmax, Color: color.NRGBA{R: zc[0], G: zc[1], B: zc[2], A: 0xFF}}
+	u.Bars = make([]ui.RulerBar, rulerRows)
+	step := (u.Hi - u.Lo) / rulerRows
+	for i := range u.Bars {
+		b := &u.Bars[i]
+		z0 := u.Lo + float64(i)*step
+		for _, p := range parts {
+			in, above, below := p.hist.Split(z0, z0+step, p.zmin, p.zmax)
+			b.Inside, b.Above, b.Below = b.Inside+in, b.Above+above, b.Below+below
+		}
+	}
+	top, floor := roundF(r.TopClearance), roundF(r.FloorClearance)
+	u.Marks = []ui.RulerMark{
+		{Z: r.GroundMax.Z, Text: fmt.Sprintf("%s topo %s", units(roundF(r.GroundMax.Z)), signed(top)), Alert: top < 0},
+		{Z: r.GroundMin.Z, Text: fmt.Sprintf("%s piso %s", units(roundF(r.GroundMin.Z)), signed(floor)), Alert: floor < 0},
+	}
+	return u
 }
 
 // coverageText writes report r under title, marked as still being
