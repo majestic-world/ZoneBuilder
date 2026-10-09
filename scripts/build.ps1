@@ -10,6 +10,9 @@ extensions the app needs). The app logs the ANGLE version and the
 extensions it found at startup and refuses to start without the required
 ones.
 
+The version in the window title is APP_VERSION from .env at the repository
+root, linked into main.version.
+
 .EXAMPLE
 ./scripts/build.ps1
 & './bin/Zone Builder.exe'
@@ -26,11 +29,25 @@ foreach ($dll in $dlls) {
     }
 }
 
+$envFile = Join-Path $root '.env'
+if (-not (Test-Path $envFile)) {
+    throw ".env not found in $root (it must set APP_VERSION)"
+}
+$version = $null
+foreach ($line in Get-Content $envFile) {
+    if ($line -match '^\s*APP_VERSION\s*=\s*"?([^"#\s]+)"?\s*(#.*)?$') {
+        $version = $Matches[1]
+    }
+}
+if (-not $version) {
+    throw "APP_VERSION not set in $envFile"
+}
+
 New-Item -ItemType Directory -Force -Path $bin | Out-Null
 $env:CGO_ENABLED = '0'
 Push-Location $root
 try {
-    go build -o (Join-Path $bin 'Zone Builder.exe') ./cmd/zonebuilder
+    go build -ldflags "-X main.version=$version" -o (Join-Path $bin 'Zone Builder.exe') ./cmd/zonebuilder
     if ($LASTEXITCODE -ne 0) { throw "go build failed ($LASTEXITCODE)" }
 } finally {
     Pop-Location
@@ -45,4 +62,4 @@ foreach ($dll in $dlls) {
     }
     Copy-Item -Force $src $bin
 }
-Write-Host "Built $bin\Zone Builder.exe"
+Write-Host "Built $bin\Zone Builder.exe (v$version)"

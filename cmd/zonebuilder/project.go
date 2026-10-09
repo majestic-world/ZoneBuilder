@@ -180,9 +180,9 @@ func (s *session) name() string {
 	return filepath.Base(s.path)
 }
 
-// windowTitle names the window after the project file at path.
+// windowTitle is the app title followed by the project file at path.
 func windowTitle(path string) string {
-	return "Zone Builder - " + filepath.Base(path)
+	return appTitle() + " - " + filepath.Base(path)
 }
 
 // tileNames are the names of tiles, for the project file.

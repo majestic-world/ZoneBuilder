@@ -39,6 +39,16 @@ import (
 	"zonebuilder/internal/zonexml"
 )
 
+// version is the app version, set at build time from APP_VERSION in .env
+// by scripts/build.ps1 (-ldflags "-X main.version=..."); a plain go build
+// leaves it "dev".
+var version = "dev"
+
+// appTitle is the window title before a project is saved or opened.
+func appTitle() string {
+	return "Zone Builder v" + version + " - By Mk"
+}
+
 func main() {
 	client := flag.String("client", "", "pasta do cliente (acima de Maps) que o campo traz preenchida; vazio usa a da configuração do usuário, depois ZB_CLIENT")
 	tile := flag.String("tile", "", "tile que o campo traz preenchido; vazio usa o mapa mais recente, depois 22_22")
@@ -61,7 +71,7 @@ func main() {
 	}
 	go func() {
 		w := new(app.Window)
-		w.Option(app.Title("Zone Builder"), app.Size(unit.Dp(1280), unit.Dp(800)), app.CustomRenderer(true))
+		w.Option(app.Title(appTitle()), app.Size(unit.Dp(1280), unit.Dp(800)), app.CustomRenderer(true))
 		if err := run(w, sess, fields, *proj, start, *fps); err != nil {
 			log.Fatal(err)
 		}
