@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"zonebuilder/internal/locale"
 )
 
 // MaxRecentMaps is how many recent maps the config keeps.
@@ -25,6 +27,8 @@ type Config struct {
 	// Project is the last project file saved or opened; the project file
 	// dialogs start in its folder.
 	Project string
+	// Language is the interface language; it never belongs to a project.
+	Language locale.Language
 }
 
 // ConfigPath is the config file: ZoneBuilder\config.json under the user's
@@ -39,7 +43,7 @@ func ConfigPath() (string, error) {
 
 // LoadConfig reads the config at path; a missing file is an empty config.
 func LoadConfig(path string) (Config, error) {
-	var c Config
+	c := Config{Language: locale.PtBR}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return c, nil
@@ -50,6 +54,7 @@ func LoadConfig(path string) (Config, error) {
 	if err := json.Unmarshal(data, &c); err != nil {
 		return Config{}, fmt.Errorf("configuração: %s: %w", path, err)
 	}
+	c.Language = locale.Normalize(string(c.Language))
 	return c, nil
 }
 

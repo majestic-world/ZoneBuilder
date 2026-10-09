@@ -10,6 +10,7 @@ import (
 	"gioui.org/layout"
 
 	"zonebuilder/internal/inflect"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/project"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
@@ -21,6 +22,7 @@ import (
 // the app pre-fills on its next start.
 type session struct {
 	cfgPath string
+	cfgErr error
 	cfg     project.Config
 	// path is the project file; "" until the first save or open.
 	path string
@@ -44,8 +46,12 @@ func loadSession() *session {
 		s.cfg, err = project.LoadConfig(s.cfgPath)
 	}
 	if err != nil {
+		if s.cfgPath == "" {
+			s.cfgErr = err
+		}
 		log.Printf("configuração: %v", err)
 	}
+	s.cfg.Language = locale.Normalize(string(s.cfg.Language))
 	return s
 }
 
@@ -56,6 +62,28 @@ func (s *session) saveConfig() {
 	if err := s.cfg.Save(s.cfgPath); err != nil {
 		log.Printf("configuração: %v", err)
 	}
+}
+
+// chooseLanguage changes only the user preference and the shell presentation;
+// a failed write does not roll back the choice for the current session.
+func (s *session) chooseLanguage(shell *ui.Shell, lang locale.Language) string {
+	lang = locale.Normalize(string(lang))
+	s.cfg.Language = lang
+	shell.Language = lang
+	var err error
+	if s.cfgPath == "" {
+		err = s.cfgErr
+		if err == nil {
+			err = fmt.Errorf("config path unavailable")
+		}
+	} else {
+		err = s.cfg.Save(s.cfgPath)
+	}
+	if err != nil {
+		log.Printf("configuração: %v", err)
+		return fmt.Sprintf("%s: %v", locale.Text(lang, "app.preference.unsaved"), err)
+	}
+	return ""
 }
 
 // mapOpened records that tiles opened from client.

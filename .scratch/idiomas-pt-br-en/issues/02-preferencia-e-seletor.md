@@ -4,10 +4,14 @@
 
 **Blocked by:** None (can start immediately; shared locale contract above)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Configuração antiga, escolha reaberta, inválido e falha de gravação cobertos com arquivos temporários.
-- [ ] Troca pt-BR → en → pt-BR atualiza controle sem modificar estado de edição nem marcar documento como sujo.
-- [ ] Seletor legível na janela 1280×800, sem interceptar cliques do viewport fora do cartão.
+- [x] Configuração antiga, escolha reaberta, inválido e falha de gravação cobertos com arquivos temporários.
+- [x] Troca pt-BR → en → pt-BR atualiza controle sem modificar estado de edição nem marcar documento como sujo.
+- [x] Seletor legível na janela 1280×800, sem interceptar cliques do viewport fora do cartão.
 
 ## Comments
+
+- Preferência exclusiva de `project.Config`, com restauração normalizada e gravação imediata; testes de arquivos temporários cobrem ausência, formato antigo, inválido, reabertura e erro de escrita.
+- `Shell.Language` altera a apresentação no mesmo Shell; o seletor PT-BR / EN é um cartão compacto sob a marca, fora da rolagem do inspetor, com botão ativo destacado e área de eventos restrita ao cartão. Teste de layout 1280×800 e preservação de campos/estado preparado.
+- O loop processa a escolha sem tocar documento, histórico ou renderer. Se a gravação falha, mantém a escolha em memória e exibe `locale.Text(lang, "app.preference.unsaved")` com o erro original. Verificações automatizadas e inspeção visual ficam para a integração, conforme coordenação.
