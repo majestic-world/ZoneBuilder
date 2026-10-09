@@ -25,7 +25,7 @@ type floorWarning struct {
 type warningsKey struct {
 	version    int
 	world      *scene.World
-	scenes     string
+	scenes     uint64
 	hideMeshes bool
 	received   int
 }
@@ -74,9 +74,9 @@ func warningText(w floorWarning) string {
 	var s string
 	switch w.Kind {
 	case coverage.AboveTop:
-		s = fmt.Sprintf("chão acima do topo (folga %s, %s do chão)", signed(roundF(w.Clearance)), percent(w.Share, 1))
+		s = fmt.Sprintf("chão acima do topo (folga %s, %s do chão)", signed(roundF(w.Clearance)), share(w.Share))
 	case coverage.BelowFloor:
-		s = fmt.Sprintf("chão abaixo do piso (folga %s, %s do chão)", signed(roundF(w.Clearance)), percent(w.Share, 1))
+		s = fmt.Sprintf("chão abaixo do piso (folga %s, %s do chão)", signed(roundF(w.Clearance)), share(w.Share))
 	case coverage.TightTop:
 		s = fmt.Sprintf("folga apertada no topo: %s, abaixo de %d", signed(roundF(w.Clearance)), coverage.MinClearance)
 	case coverage.TightFloor:

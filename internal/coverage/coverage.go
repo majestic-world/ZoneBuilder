@@ -45,13 +45,12 @@ type Profile struct {
 	// area is the outline's area; floored the part of it with floor on at
 	// least 1 layer.
 	area, floored float64
-	// lo and hi are the lowest and highest floor; measured is false when
-	// no floor lies under the outline.
-	lo, hi   Spot
-	measured bool
 	// layers is the most layers of floor in one column under the outline.
 	layers int
 	pieces []piece
+	// byLow is the BSP and mesh pieces, lowest floor first: what the
+	// layer rule reads its left-out layers from.
+	byLow []lowPiece
 	// verts are the pieces' vertices, piece by piece.
 	verts []Spot
 	// clipped are the triangles that pieces cut by the outline come from,
@@ -96,6 +95,7 @@ type piece struct {
 	clip     int32
 	surface  scene.Surface
 	area     float64
+	// zlo and zhi are its lowest and highest floor (Profile.span).
 	zlo, zhi float64
 	// cz is the Z at the piece's centroid; bans indexes banned[bans :
 	// bans+nbans].
@@ -111,25 +111,35 @@ type clipped struct {
 }
 
 // Report is a Profile sorted by a Z range [zmin, zmax]. Areas are X/Y
-// areas in server units².
+// areas in server units². The floor of the range is the floor neither
+// excluded by a ban (spec D1) nor another layer by the layer rule (spec
+// D5, reaches): only it is sorted into Inside, Above and Below and gives
+// the extremes, the clearances and the warnings.
 type Report struct {
-	// Measured is false when no floor lies under the outline; GroundMin,
+	// Measured is false when the range has no floor under the outline:
+	// none at all, or all of it excluded or in other layers. GroundMin,
 	// GroundMax and the clearances are then meaningless.
 	Measured bool
-	// GroundMin and GroundMax are the lowest and highest floor under the
-	// outline.
+	// GroundMin and GroundMax are the lowest and highest floor of the
+	// range under the outline.
 	GroundMin, GroundMax Spot
 	// FloorClearance is GroundMin.Z − zmin, negative when floor lies
 	// below the shape's floor; TopClearance is zmax − GroundMax.Z,
 	// negative when floor pierces its top.
 	FloorClearance, TopClearance float64
 	// Inside is the floor with zmin ≤ z ≤ zmax, Above the floor over zmax
-	// and Below the floor under zmin, every layer counted: a bridge over
-	// the terrain adds its deck to the terrain under it.
+	// and Below the floor under zmin, every layer of the range counted: a
+	// bridge over the terrain adds its deck to the terrain under it.
 	Inside, Above, Below float64
 	// Excluded is the floor whose piece centroid lies under a ban and
 	// within its Z range; it is in none of Inside, Above, Below.
 	Excluded float64
+	// Other is the BSP and mesh floor the layer rule leaves out: a roof
+	// or a tree canopy far over the range, a cave far under it. Others
+	// are its layers, lowest first. It is in none of Inside, Above,
+	// Below, nor Excluded.
+	Other  float64
+	Others []Layer
 	// NoGround is the outline's area with no floor on any layer: an
 	// invisible terrain quad no building floor covers, a tile not loaded,
 	// off the map.
@@ -142,15 +152,16 @@ type Report struct {
 	// i. Where the edge has no floor there is a gap; where floors overlap,
 	// spans overlap.
 	Edges [][]Span
-	// Warnings are the ways the range fits the floor badly (spec D6),
-	// judged by the floor no ban excludes. Sum leaves them out: they are
-	// per shape.
+	// Warnings are the ways the range fits its floor badly (spec D6).
+	// Sum leaves them and Others out: they are per shape.
 	Warnings []Warning
 }
 
 // Total is the outline's area as the report splits it: the floor in each
 // state, every layer counted, plus the area with no floor.
-func (r Report) Total() float64 { return r.Inside + r.Above + r.Below + r.Excluded + r.NoGround }
+func (r Report) Total() float64 {
+	return r.Inside + r.Above + r.Below + r.Excluded + r.Other + r.NoGround
+}
 
 // Coverage is the fraction of Total that is floor inside the range, 0 for
 // an empty outline. Area with no floor counts against it, never as
@@ -166,8 +177,8 @@ func (r Report) Coverage() float64 {
 // classified by its own Z range (spec D3): their areas summed, so floor
 // under 2 overlapping shapes counts twice ("soma dos shapes"), the lowest
 // and highest floor under any of them, the worst clearance of each side
-// and the most layers. Shapes with no floor measured add their area with
-// no ground and nothing else.
+// and the most layers. Shapes whose range has no floor add their areas
+// and nothing else.
 func Sum(rs ...Report) Report {
 	var z Report
 	for _, r := range rs {
@@ -175,6 +186,7 @@ func Sum(rs ...Report) Report {
 		z.Above += r.Above
 		z.Below += r.Below
 		z.Excluded += r.Excluded
+		z.Other += r.Other
 		z.NoGround += r.NoGround
 		z.Layers = max(z.Layers, r.Layers)
 		if !r.Measured {
@@ -226,6 +238,7 @@ func Measure(f Floor, o Outline, bans []Ban) *Profile {
 	p.edges = make([][]Span, len(edges))
 	f.Floor(box, m.triangle)
 	p.stack(o)
+	p.sortByLow()
 	for _, spans := range p.edges {
 		slices.SortFunc(spans, func(a, b Span) int { return cmp.Compare(a.From.D, b.From.D) })
 	}
@@ -308,9 +321,13 @@ func (m *measurer) triangle(t scene.FloorTriangle) {
 	// true corners of triangle ∩ outline instead.
 	inf := math.Inf(1)
 	m.p.clipped = append(m.p.clipped, clipped{tri: tri, lo: Spot{Z: inf}, hi: Spot{Z: -inf}})
-	m.p.pieces[len(m.p.pieces)-1].clip = int32(len(m.p.clipped) - 1)
+	pc := &m.p.pieces[len(m.p.pieces)-1]
+	pc.clip = int32(len(m.p.clipped) - 1)
 	m.cut = &m.p.clipped[len(m.p.clipped)-1]
 	m.corners(tri, plane)
+	if c := m.cut; c.lo.Z <= c.hi.Z {
+		pc.zlo, pc.zhi = c.lo.Z, c.hi.Z
+	}
 	m.cut = nil
 }
 
@@ -409,9 +426,6 @@ func (m *measurer) add(vs []Spot, area float64) {
 	first := len(m.p.verts)
 	m.p.verts = append(m.p.verts, vs...)
 	m.piece(first, area)
-	for _, q := range vs {
-		m.extreme(q)
-	}
 }
 
 // piece records verts[first:] as a piece of the given area.
@@ -456,7 +470,7 @@ func centroid(vs []Spot) Spot {
 
 // excluded reports pc's centroid under one of its bans and within its Z
 // range.
-func (p *Profile) excluded(pc piece) bool {
+func (p *Profile) excluded(pc *piece) bool {
 	for _, i := range p.banned[pc.bans : pc.bans+pc.nbans] {
 		if z := p.banZ[i]; pc.cz >= z[0] && pc.cz <= z[1] {
 			return true
@@ -465,44 +479,45 @@ func (p *Profile) excluded(pc piece) bool {
 	return false
 }
 
-// extreme counts q in the lowest and highest floor.
+// extreme counts q in the lowest and highest floor of the piece being
+// cut.
 func (m *measurer) extreme(q Spot) {
-	if c := m.cut; c != nil {
-		if q.Z < c.lo.Z {
-			c.lo = q
-		}
-		if q.Z > c.hi.Z {
-			c.hi = q
-		}
+	c := m.cut
+	if q.Z < c.lo.Z {
+		c.lo = q
 	}
-	p := m.p
-	if !p.measured {
-		p.lo, p.hi, p.measured = q, q, true
-		return
-	}
-	if q.Z < p.lo.Z {
-		p.lo = q
-	}
-	if q.Z > p.hi.Z {
-		p.hi = q
+	if q.Z > c.hi.Z {
+		c.hi = q
 	}
 }
 
-// Classify sorts the profile's floor by the Z range [zmin, zmax].
+// Classify sorts the profile's floor by the Z range [zmin, zmax]: the
+// excluded floor and the other layers apart, the floor of the range into
+// Inside, Above and Below.
 func (p *Profile) Classify(zmin, zmax float64) Report {
-	r := Report{Measured: p.measured, GroundMin: p.lo, GroundMax: p.hi, Layers: p.layers, Edges: p.edges}
-	if p.measured {
-		r.FloorClearance, r.TopClearance = p.lo.Z-zmin, zmax-p.hi.Z
-	}
-	// lo and hi are the lowest and highest floor no ban excludes.
-	lo, hi, free := p.lo, p.hi, p.measured
-	excluded := false
+	r := Report{Layers: p.layers, Edges: p.edges}
 	var cut, slab []Spot // scratch polygons
-	for _, pc := range p.pieces {
-		if pc.nbans > 0 && p.excluded(pc) {
+	for i := range p.pieces {
+		pc := &p.pieces[i]
+		switch {
+		case pc.nbans > 0 && p.excluded(pc):
 			r.Excluded += pc.area
-			excluded = true
 			continue
+		case !reaches(pc, zmin, zmax):
+			r.Other += pc.area
+			continue
+		}
+		if !r.Measured || pc.zlo < r.GroundMin.Z || pc.zhi > r.GroundMax.Z {
+			lo, hi := p.span(pc)
+			switch {
+			case !r.Measured:
+				r.GroundMin, r.GroundMax, r.Measured = lo, hi, true
+			case lo.Z < r.GroundMin.Z:
+				r.GroundMin = lo
+			}
+			if hi.Z > r.GroundMax.Z {
+				r.GroundMax = hi
+			}
 		}
 		switch {
 		case pc.zlo >= zmin && pc.zhi <= zmax:
@@ -522,43 +537,18 @@ func (p *Profile) Classify(zmin, zmax float64) Report {
 			r.Inside += spotArea(slab)
 		}
 	}
+	if r.Measured {
+		r.FloorClearance, r.TopClearance = r.GroundMin.Z-zmin, zmax-r.GroundMax.Z
+	}
+	if r.Other > 0 {
+		r.Others = p.others(zmin, zmax)
+	}
 	r.NoGround = max(0, p.area-p.floored)
 	if r.NoGround <= 1e-9*p.area {
 		r.NoGround = 0
 	}
-	if excluded {
-		lo, hi, free = p.freeExtremes()
-	}
-	r.Warnings = warnings(r, zmin, zmax, lo, hi, free)
+	r.Warnings = warnings(r)
 	return r
-}
-
-// freeExtremes is the lowest and highest floor of the pieces no ban
-// excludes; free is false when every piece is excluded.
-func (p *Profile) freeExtremes() (lo, hi Spot, free bool) {
-	lo, hi = Spot{Z: math.Inf(1)}, Spot{Z: math.Inf(-1)}
-	take := func(l, h Spot) {
-		if l.Z < lo.Z {
-			lo = l
-		}
-		if h.Z > hi.Z {
-			hi = h
-		}
-	}
-	for _, pc := range p.pieces {
-		if pc.nbans > 0 && p.excluded(pc) {
-			continue
-		}
-		if pc.clip >= 0 {
-			c := p.clipped[pc.clip]
-			take(c.lo, c.hi)
-			continue
-		}
-		for _, q := range p.verts[pc.first : pc.first+pc.n] {
-			take(q, q)
-		}
-	}
-	return lo, hi, lo.Z <= hi.Z
 }
 
 // clipZ appends to out the part of flat polygon vs with z ≥ level (above)

@@ -109,28 +109,49 @@ func TestHoleWarnsNoGround(t *testing.T) {
 	}
 }
 
-// A hill under an exclusion whose range holds it warns of nothing, though
-// it pierces the shape's top; without the exclusion it warns. Catches
-// warnings judged by the extremes of all floor, excluded included.
-func TestExclusionOverAHillDoesNotWarn(t *testing.T) {
-	// Flat floor at 0 over [-100, 1100]² around a pyramid on [400, 600]²
-	// with its apex at 400.
+// hillOnFlat is flat floor at 0 over [-100, 1100]² around a pyramid on
+// [400, 600]² with its apex at 400; hillBan is an exclusion over the hill
+// whose range holds it.
+func hillOnFlat() floor {
 	o00, o10, o11, o01 := v(-100, -100, 0), v(1100, -100, 0), v(1100, 1100, 0), v(-100, 1100, 0)
 	h00, h10, h11, h01 := v(400, 400, 0), v(600, 400, 0), v(600, 600, 0), v(400, 600, 0)
 	apex := v(500, 500, 400)
-	f := floor{
+	return floor{
 		tri(o00, o10, h10), tri(o00, h10, h00),
 		tri(o10, o11, h11), tri(o10, h11, h10),
 		tri(o11, o01, h01), tri(o11, h01, h11),
 		tri(o01, o00, h00), tri(o01, h00, h01),
 		tri(h00, h10, apex), tri(h10, h11, apex), tri(h11, h01, apex), tri(h01, h00, apex),
 	}
+}
+
+var hillBan = coverage.Ban{Outline: square(300, 300, 700, 700), ZMin: -1000, ZMax: 1000}
+
+// A hill under an exclusion whose range holds it warns of nothing, though
+// it pierces the shape's top; without the exclusion it warns. Catches
+// warnings judged by the extremes of all floor, excluded included.
+func TestExclusionOverAHillDoesNotWarn(t *testing.T) {
 	o := square(0, 0, 1000, 1000)
-	ban := coverage.Ban{Outline: square(300, 300, 700, 700), ZMin: -1000, ZMax: 1000}
-	if ws := coverage.Measure(f, o, []coverage.Ban{ban}).Classify(-100, 100).Warnings; len(ws) != 0 {
+	if ws := coverage.Measure(hillOnFlat(), o, []coverage.Ban{hillBan}).Classify(-100, 100).Warnings; len(ws) != 0 {
 		t.Errorf("hill under the exclusion: warnings %+v, want none", ws)
 	}
-	if ws := coverage.Measure(f, o, nil).Classify(-100, 100).Warnings; len(ws) != 1 || ws[0].Kind != coverage.AboveTop {
+	if ws := coverage.Measure(hillOnFlat(), o, nil).Classify(-100, 100).Warnings; len(ws) != 1 || ws[0].Kind != coverage.AboveTop {
 		t.Errorf("hill without the exclusion: warnings %v, want AboveTop", kinds(ws))
+	}
+}
+
+// Under the same exclusion, the report's highest floor is the flat floor
+// around the hill, at 0, with a top clearance of 100: the floor the
+// warnings judge. Catches extremes and clearances taken from all floor,
+// excluded included, which put a red "topo −300" pin and a "(fura)" on
+// the inspector and the ruler over a hill that is not a failure (spec D1),
+// where no warning points.
+func TestExcludedHillIsNotTheHighestFloor(t *testing.T) {
+	r := coverage.Measure(hillOnFlat(), square(0, 0, 1000, 1000), []coverage.Ban{hillBan}).Classify(-100, 100)
+	if !r.Measured || r.GroundMax.Z != 0 || r.TopClearance != 100 {
+		t.Errorf("highest floor %v, top clearance %v; want z 0, 100", r.GroundMax, r.TopClearance)
+	}
+	if r.GroundMin.Z != 0 || r.FloorClearance != 100 {
+		t.Errorf("lowest floor %v, floor clearance %v; want z 0, 100", r.GroundMin, r.FloorClearance)
 	}
 }

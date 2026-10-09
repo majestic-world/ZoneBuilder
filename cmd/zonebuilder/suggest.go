@@ -1,9 +1,7 @@
 package main
 
 import (
-	"log"
 	"math"
-	"time"
 
 	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/scene"
@@ -51,65 +49,41 @@ func (z zSuggestion) note() string {
 // suggest is the Z range for shape i of e's selected zone, being added
 // with outline pts over w (spec D5): margin below the lowest and above the
 // highest floor under its whole area that the layer rule counts
-// (coverage.Profile.Ground). The rule measures BSP and mesh floors from
-// the range the shape would get without them: vmin…vmax, from its
-// vertices, or, with fromTerrain, the terrain under the outline plus the
-// margin (the whole tile, whose vertices lie on nothing). vmin…vmax is
-// the range itself when part of the outline lies off w's tiles, when no
-// floor counts, and, unless now, while the outline's profile is measured
-// in the background; now measures it on the spot.
+// (coverage.Profile.Fit). The rule measures BSP and mesh floors from the
+// range the shape would get without them: vmin…vmax, from its vertices,
+// or, with fromTerrain, the terrain under the outline plus the margin (the
+// whole tile, whose vertices lie on nothing). vmin…vmax is the range
+// itself when part of the outline lies off w's tiles, when no floor
+// counts, and, unless now, while the outline's profile is measured in the
+// background; now measures it on the spot. The profile is kept as shape
+// i's, the index the shape has once added.
 func (c *floorCoverage) suggest(e *zoneEditor, w *scene.World, i int, pts []zone.Point, vmin, vmax int, fromTerrain, now bool) zSuggestion {
 	z := zSuggestion{zmin: vmin, zmax: vmax, vmin: vmin, vmax: vmax}
 	if w == nil || offTiles(w, coverageOutline(pts)) {
 		z.from = zOffTiles
 		return z
 	}
-	p := c.newProfile(e, w, i, pts, now)
+	p := c.profile(e, w, shapeRef{e.zone, i}, pts, now)
 	if p == nil {
 		z.from = zMeasuring
 		return z
 	}
-	lo, hi := float64(vmin), float64(vmax)
+	lo, hi := vmin, vmax
 	if fromTerrain {
-		var ok bool
-		if lo, hi, ok = terrainSpan(p); !ok {
+		tlo, thi, ok := terrainSpan(p)
+		if !ok {
 			z.from = zNoFloor
 			return z
 		}
-		lo, hi = lo-float64(e.margin), hi+float64(e.margin)
+		lo, hi = int(math.Floor(tlo))-e.margin, int(math.Ceil(thi))+e.margin
 	}
-	g := p.Ground(lo, hi)
+	zmin, zmax, g := p.Fit(lo, hi, e.margin, coverage.BothSides)
 	if !g.Measured {
 		z.from = zNoFloor
 		return z
 	}
-	z.zmin, z.zmax = g.Range(e.margin)
-	z.from = zByFloor
+	z.zmin, z.zmax, z.from = zmin, zmax, zByFloor
 	return z
-}
-
-// newProfile is the floor profile of shape i of e's selected zone, being
-// added with outline pts over w: the one kept when it is for pts, else
-// measured on the spot when now, else nil and measured in the background
-// once nothing else is. It is kept as shape i's, the index the shape has
-// once added, so the shape needs no measuring again.
-func (c *floorCoverage) newProfile(e *zoneEditor, w *scene.World, i int, pts []zone.Point, now bool) *coverage.Profile {
-	c.receive(e)
-	key, bans := newCoverageKey(e, shapeRef{e.zone, i}, pts, w)
-	if s := c.shapes[key.shape]; s != nil && s.done == key {
-		return s.profile
-	}
-	if !now {
-		if !c.running {
-			c.start(key, pts, bans, w)
-		}
-		return nil
-	}
-	began := time.Now()
-	p := coverage.Measure(w, coverageOutline(pts), bans)
-	log.Printf("cobertura: perfil do shape novo medido na hora em %v", time.Since(began).Round(time.Millisecond))
-	c.shapes[key.shape] = &shapeCoverage{done: key, profile: p, hist: p.Histogram()}
-	return p
 }
 
 // offSlack is how much of an outline's area, in server units², may lie

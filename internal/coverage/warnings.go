@@ -35,7 +35,8 @@ const (
 )
 
 // Warning is a way a shape's range fits the floor badly that does not
-// block compiling (spec D6). Floor a ban excludes is never warned of.
+// block compiling (spec D6). Floor a ban excludes, and the other layers
+// of the layer rule, are never warned of.
 type Warning struct {
 	Kind WarningKind
 	// At is the worst floor: the highest for AboveTop and TightTop, the
@@ -50,18 +51,17 @@ type Warning struct {
 	Area float64
 }
 
-// warnings is the warnings of report r, classified by [zmin, zmax], whose
-// floor no ban excludes lies from lo to hi (free false when there is
-// none).
-func warnings(r Report, zmin, zmax float64, lo, hi Spot, free bool) []Warning {
+// warnings is the warnings of report r, judged by the floor of its range
+// (Report).
+func warnings(r Report) []Warning {
 	var ws []Warning
-	if free {
+	if r.Measured {
 		var above, below float64
 		if floor := r.Inside + r.Above + r.Below + r.Excluded; floor > 0 {
 			above, below = r.Above/floor, r.Below/floor
 		}
-		ws = side(ws, AboveTop, TightTop, hi, zmax-hi.Z, above)
-		ws = side(ws, BelowFloor, TightFloor, lo, lo.Z-zmin, below)
+		ws = side(ws, AboveTop, TightTop, r.GroundMax, r.TopClearance, above)
+		ws = side(ws, BelowFloor, TightFloor, r.GroundMin, r.FloorClearance, below)
 	}
 	if r.NoGround > 0 {
 		ws = append(ws, Warning{Kind: NoGround, Area: r.NoGround})
