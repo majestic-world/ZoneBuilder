@@ -104,8 +104,5 @@ func (s *Shell) editPanel() []layout.FlexChild {
 			row(s.button(&p.InsertAfter, "Inserir na aresta"), s.button(&p.RemoveVertex, "Apagar vértice")),
 		)
 	}
-	children = append(children,
-		layout.Rigid(s.label("Arraste um vértice para movê-lo; Ctrl+arrastar move o shape; clique no meio de uma aresta insere vértice; Delete apaga; arraste a seta azul (ou PageUp/PageDown) para subir ou descer a zona; Ctrl+Z desfaz, Ctrl+Y refaz")),
-	)
 	return children
 }
