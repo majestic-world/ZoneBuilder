@@ -146,7 +146,7 @@ func (s *Shell) dockButton(gtx layout.Context, ic *icon.Icon, name string, armed
 	case hovered:
 		bg, ink = controlHover, textColor
 	}
-	fillRRect(gtx, size, unit.Dp(10), bg, border)
+	fillRRect(gtx, size, unit.Dp(6), bg, border)
 	n := gtx.Dp(20)
 	at(gtx, image.Pt((size.X-n)/2, gtx.Dp(9)), func(gtx layout.Context) layout.Dimensions { return ic.Layout(gtx, 20, ink) })
 	call, txt := measure(gtx, s.text(name, captionSize, font.Medium, ink, 1))

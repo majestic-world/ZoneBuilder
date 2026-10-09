@@ -57,7 +57,7 @@ var (
 // The metrics, in dp: cards, controls and the gaps between them.
 const (
 	cardRadius    = unit.Dp(14)
-	controlRadius = unit.Dp(8)
+	controlRadius = unit.Dp(4)
 	controlHeight = unit.Dp(32)
 	iconSize      = unit.Dp(16)
 	cardPadding   = unit.Dp(16)
@@ -413,13 +413,13 @@ func checkMark(gtx layout.Context, on, hovered bool) layout.Dimensions {
 	size := image.Pt(n, n)
 	switch {
 	case on:
-		fillRRect(gtx, size, 4, accent, color.NRGBA{})
+		fillRRect(gtx, size, 3, accent, color.NRGBA{})
 		off := (n - gtx.Dp(12)) / 2
 		at(gtx, image.Pt(off, off), func(gtx layout.Context) layout.Dimensions { return icon.Check.Layout(gtx, 12, white) })
 	case hovered:
-		fillRRect(gtx, size, 4, controlHover, strongLine)
+		fillRRect(gtx, size, 3, controlHover, strongLine)
 	default:
-		fillRRect(gtx, size, 4, controlFill, strongLine)
+		fillRRect(gtx, size, 3, controlFill, strongLine)
 	}
 	pointerCursor(gtx, size)
 	return layout.Dimensions{Size: size}
@@ -436,7 +436,7 @@ func (s *Shell) chip(c *widget.Clickable, txt string, current bool) layout.Widge
 			call, content := measure(gtx, s.text(txt, smallSize, font.Medium, ink, 1))
 			h := gtx.Dp(26)
 			size := image.Pt(content.X+gtx.Dp(24), h)
-			fillRRect(gtx, size, unit.Dp(13), bg, border)
+			fillRRect(gtx, size, controlRadius, bg, border)
 			off := op.Offset(image.Pt(gtx.Dp(12), (h-content.Y)/2)).Push(gtx.Ops)
 			call.Add(gtx.Ops)
 			off.Pop()
@@ -493,9 +493,9 @@ func (s *Shell) listItem(c *widget.Clickable, txt string, current bool) layout.W
 			size := image.Pt(gtx.Constraints.Max.X, content.Y)
 			switch {
 			case current:
-				fillRRect(gtx, size, 6, accentSoft, color.NRGBA{})
+				fillRRect(gtx, size, controlRadius, accentSoft, color.NRGBA{})
 			case c.Hovered():
-				fillRRect(gtx, size, 6, controlHover, color.NRGBA{})
+				fillRRect(gtx, size, controlRadius, controlHover, color.NRGBA{})
 			}
 			call.Add(gtx.Ops)
 			pointerCursor(gtx, size)
