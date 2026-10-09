@@ -3,7 +3,6 @@ package scene
 import (
 	"cmp"
 	"math"
-	"slices"
 
 	"zonebuilder/internal/geom"
 )
@@ -26,13 +25,27 @@ const waterTouchSlack = 0.01
 // static mesh fountain finds the volume, and a click on the dry bank next
 // to it does not (spec D3).
 func (w *World) PickWater(r Ray, maxDist float32) (*WaterVolume, float32, bool) {
+	return pickWater(w.waterVolumes(true), r, maxDist)
+}
+
+// PickUnsupportedWater is the Unsupported water volume r enters first
+// within maxDist, as PickWater finds the selectable ones: a click that
+// selects no water says why the volume under it can't be selected.
+func (w *World) PickUnsupportedWater(r Ray, maxDist float32) (*WaterVolume, bool) {
+	v, _, ok := pickWater(w.waterVolumes(false), r, maxDist)
+	return v, ok
+}
+
+// pickWater is the volume of vs that r enters first within maxDist, and
+// how far along r it enters.
+func pickWater(vs []*WaterVolume, r Ray, maxDist float32) (*WaterVolume, float32, bool) {
 	if r.Dir.Dot(r.Dir) == 0 {
 		return nil, 0, false
 	}
 	r.Dir = r.Dir.Normalize()
 	var best *WaterVolume
 	bestEntry := float64(maxDist) + waterPickSlack
-	for _, v := range w.selectableWater() {
+	for _, v := range vs {
 		if t, ok := v.entry(r); ok && t < bestEntry {
 			best, bestEntry = v, t
 		}
@@ -44,11 +57,12 @@ func (w *World) PickWater(r Ray, maxDist float32) (*WaterVolume, float32, bool) 
 }
 
 // entry is the distance along r (unit Dir) at which it enters v, 0 when
-// it starts inside; false when it misses v. Each face's plane cuts the
-// ray's parameter range [enter, exit]: the ray enters through the faces
-// it crosses inwards and leaves through the others.
+// it starts inside; false when it misses v, or v has too few faces to
+// close a solid. Each face's plane cuts the ray's parameter range [enter,
+// exit]: the ray enters through the faces it crosses inwards and leaves
+// through the others.
 func (v *WaterVolume) entry(r Ray) (float64, bool) {
-	if len(v.Planes) == 0 {
+	if len(v.Planes) < minSolidFaces {
 		return 0, false
 	}
 	ox, oy, oz := float64(r.Origin.X), float64(r.Origin.Y), float64(r.Origin.Z)
@@ -88,7 +102,7 @@ const waterBodySlack = 1
 // at most 1 apart) with the same top (within 1), in the world's order. It
 // crosses the tiles' scenes, as water does.
 func (w *World) WaterBody(v *WaterVolume) []*WaterVolume {
-	all := w.selectableWater()
+	all := w.waterVolumes(true)
 	in := map[*WaterVolume]bool{v: true}
 	for queue := []*WaterVolume{v}; len(queue) > 0; queue = queue[1:] {
 		for _, o := range all {
@@ -110,13 +124,13 @@ func (w *World) WaterBody(v *WaterVolume) []*WaterVolume {
 	return body
 }
 
-// selectableWater is every water volume of the world a click may select:
-// all but the Unsupported ones.
-func (w *World) selectableWater() []*WaterVolume {
+// waterVolumes is every water volume of the world a click may select
+// (supported), or every Unsupported one.
+func (w *World) waterVolumes(supported bool) []*WaterVolume {
 	var all []*WaterVolume
 	for _, s := range w.scenes {
 		for i := range s.WaterVolumes {
-			if v := &s.WaterVolumes[i]; v.Unsupported == "" {
+			if v := &s.WaterVolumes[i]; (v.Unsupported == "") == supported {
 				all = append(all, v)
 			}
 		}
@@ -159,28 +173,9 @@ func (v *WaterVolume) Footprint() []geom.Vec3 {
 	if len(pts) == 0 {
 		return nil
 	}
-	slices.SortFunc(pts, func(a, b geom.Vec3) int {
-		if c := cmp.Compare(a.X, b.X); c != 0 {
-			return c
-		}
-		return cmp.Compare(a.Y, b.Y)
-	})
-	// Andrew's monotone chain: the lower hull left to right, then the
-	// upper hull back, each dropping points that do not turn left.
-	hull := make([]geom.Vec3, 0, len(pts)+1)
-	for pass := range 2 {
-		start := len(hull)
-		for _, p := range pts {
-			for len(hull) >= start+2 && cross(hull[len(hull)-2], hull[len(hull)-1], p) <= 0 {
-				hull = hull[:len(hull)-1]
-			}
-			hull = append(hull, p)
-		}
-		hull = hull[:len(hull)-1] // the chain's last point starts the other
-		if pass == 0 {
-			slices.Reverse(pts)
-		}
-	}
+	hull := geom.Hull(pts, func(a, b geom.Vec3) int {
+		return cmp.Or(cmp.Compare(a.X, b.X), cmp.Compare(a.Y, b.Y))
+	}, cross)
 	top := v.Top()
 	for k := range hull {
 		hull[k].Z = top

@@ -5,8 +5,9 @@ import (
 	"testing"
 
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
-	"zonebuilder/internal/unreal"
+	"zonebuilder/internal/scene/scenetest"
 	"zonebuilder/internal/water"
 	"zonebuilder/internal/zone"
 )
@@ -22,35 +23,16 @@ const ox, oy = 65536, 196608
 // corners are c[0..3] and top corners c[4..7], counter-clockwise seen from
 // above, each corner given relative to the tile's origin.
 func volume(t *testing.T, export int, name string, c [8]geom.Vec3) scene.WaterVolume {
-	t.Helper()
-	m := &unreal.Model{Vectors: [][3]float32{{0, 0, 1}}, Surfs: []unreal.BSPSurf{{}}}
-	for _, p := range c {
-		m.Points = append(m.Points, [3]float32{p.X + ox, p.Y + oy, p.Z})
+	for k := range c {
+		c[k] = c[k].Add(geom.Vec3{X: ox, Y: oy})
 	}
-	for _, f := range [][4]int32{
-		{3, 2, 1, 0}, {4, 5, 6, 7}, // bottom, top
-		{0, 1, 5, 4}, {1, 2, 6, 5}, {2, 3, 7, 6}, {3, 0, 4, 7},
-	} {
-		m.Nodes = append(m.Nodes, unreal.BSPNode{VertPool: int32(len(m.Verts)), NumVertices: 4})
-		for _, k := range f {
-			m.Verts = append(m.Verts, unreal.BSPVert{Point: k})
-		}
-	}
-	one := unreal.Scale{Scale: geom.Vec3{X: 1, Y: 1, Z: 1}}
-	v, err := scene.NewWaterVolume(tile, export, name, &unreal.Brush{MainScale: one, PostScale: one}, m)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return v
+	return scenetest.Volume(t, tile, export, name, scenetest.UnitBrush(), scenetest.Hexahedron(c))
 }
 
 // box is the axis-aligned volume over x0..x1, y0..y1 (tile-relative),
 // from bottom to top.
 func box(t *testing.T, export int, name string, x0, y0, x1, y1, bottom, top float32) scene.WaterVolume {
-	return volume(t, export, name, [8]geom.Vec3{
-		{X: x0, Y: y0, Z: bottom}, {X: x1, Y: y0, Z: bottom}, {X: x1, Y: y1, Z: bottom}, {X: x0, Y: y1, Z: bottom},
-		{X: x0, Y: y0, Z: top}, {X: x1, Y: y0, Z: top}, {X: x1, Y: y1, Z: top}, {X: x0, Y: y1, Z: top},
-	})
+	return volume(t, export, name, scenetest.Box(geom.Vec3{X: x0, Y: y0, Z: bottom}, geom.Vec3{X: x1, Y: y1, Z: top}))
 }
 
 func kinds(ws []water.Warning) []water.WarningKind {
@@ -203,6 +185,6 @@ func TestCompiledZonesHaveNoProblem(t *testing.T) {
 	}
 	files, err := doc.Compile(ids)
 	if err != nil || len(files) != 1 {
-		t.Errorf("Compile = %d files, %v; want 1 file (zonebuilder_water.xml), no error", len(files), err)
+		t.Errorf("Compile = %s, %v; want 1 file (zonebuilder_water.xml), no error", inflect.Count(len(files), "file", "files"), err)
 	}
 }

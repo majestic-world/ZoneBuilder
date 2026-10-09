@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/l2pkg"
 )
 
@@ -38,7 +39,7 @@ func TestWaterVolumeScaleDecodesAsTaggedStruct(t *testing.T) {
 	for _, name := range []string{"MainScale", "PostScale"} {
 		m := props.Maps(name)
 		if len(m) != 1 {
-			t.Errorf("%s: %d property lists, want 1", name, len(m))
+			t.Errorf("%s: %s, want 1", name, inflect.Count(len(m), "property list", "property lists"))
 			continue
 		}
 		scale, ok := m[0].Vector("Scale")

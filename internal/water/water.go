@@ -4,9 +4,14 @@ package water
 
 import (
 	"cmp"
+	"fmt"
+	"maps"
 	"math"
 	"slices"
+	"strings"
 
+	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/zone"
 )
@@ -42,17 +47,18 @@ type Plan struct {
 	Warnings []Warning
 }
 
-// WarningKind is one of the D7 warnings.
+// WarningKind is one of the D7 warnings, in the order the status line
+// gives them.
 type WarningKind int
 
 const (
-	// Approximate: the volume has a slanted wall or top, so its prism
-	// covers it with room to spare.
-	Approximate WarningKind = iota + 1
 	// Overlap: the volume crosses, in XY and Z, a live volume with another
 	// top left out of the selection; where they cross, the server uses the
 	// higher top of the two.
-	Overlap
+	Overlap WarningKind = iota + 1
+	// Approximate: the volume has a slanted wall or top, so its prism
+	// covers it with room to spare.
+	Approximate
 	// OutsideTile: the volume reaches past its own tile, so the zone enters
 	// the neighbour tile.
 	OutsideTile
@@ -67,7 +73,7 @@ type Warning struct {
 	Other string
 }
 
-// String is the warning for the status bar and the log, in pt-BR.
+// String is the warning for the log, in pt-BR.
 func (w Warning) String() string {
 	switch w.Kind {
 	case Approximate:
@@ -77,7 +83,40 @@ func (w Warning) String() string {
 	case OutsideTile:
 		return w.Volume + ": o volume passa do próprio tile, e a zona entra no tile vizinho"
 	}
-	return w.Volume + ": aviso desconhecido"
+	return fmt.Sprintf("%s: aviso desconhecido (tipo %d)", w.Volume, w.Kind)
+}
+
+// Status is the status line's sentence, in pt-BR, about ws: the warnings
+// of kind k, in the order Compile gave them. It names each volume once.
+func (k WarningKind) Status(ws []Warning) string {
+	var volumes []string
+	for _, w := range ws {
+		if !slices.Contains(volumes, w.Volume) {
+			volumes = append(volumes, w.Volume)
+		}
+	}
+	switch k {
+	case Overlap:
+		crossings := make([]string, len(volumes))
+		for i, v := range volumes {
+			// "25_25 WaterVolume7" crossing "25_25 WaterVolume9" reads as
+			// just WaterVolume9.
+			tile, _, _ := strings.Cut(v, " ")
+			var others []string
+			for _, w := range ws {
+				if w.Volume == v {
+					others = append(others, strings.TrimPrefix(w.Other, tile+" "))
+				}
+			}
+			crossings[i] = v + " cruza " + inflect.List(others)
+		}
+		return "Água sobreposta: " + strings.Join(crossings, "; ") + " (o servidor usa o maior topo)"
+	case Approximate:
+		return "Aproximada, parede ou topo inclinado: " + inflect.List(volumes)
+	case OutsideTile:
+		return "Passa do próprio tile: " + inflect.List(volumes)
+	}
+	return fmt.Sprintf("Aviso desconhecido (tipo %d): %s", k, inflect.List(volumes))
 }
 
 // prism is the server prism of a volume: its rounded convex XY footprint and
@@ -87,18 +126,27 @@ type prism struct {
 	zmin, zmax int
 }
 
+// prismOf rounds v's footprint to the server's whole units and hulls it
+// again, as rounding may leave points repeated or collinear.
 func prismOf(v *scene.WaterVolume) prism {
-	var pts [][2]int
-	for _, f := range v.Faces {
-		for _, p := range f {
-			pts = append(pts, [2]int{round(p.X), round(p.Y)})
-		}
+	fp := v.Footprint()
+	pts := make([][2]int, len(fp))
+	for k, p := range fp {
+		pts[k] = [2]int{round(p.X), round(p.Y)}
 	}
 	return prism{
-		ring: hull(pts),
+		ring: geom.Hull(pts, func(a, b [2]int) int {
+			return cmp.Or(cmp.Compare(a[0], b[0]), cmp.Compare(a[1], b[1]))
+		}, cross),
 		zmin: round(v.Bottom()) + ServerZOffset,
 		zmax: round(v.Top()) + ServerZOffset,
 	}
+}
+
+// cross is the Z of (a-o)×(b-o), exact in integers: positive when o, a, b
+// turn left.
+func cross(o, a, b [2]int) float64 {
+	return float64(int64(a[0]-o[0])*int64(b[1]-o[1]) - int64(a[1]-o[1])*int64(b[0]-o[0]))
 }
 
 func round(x float32) int { return int(math.Round(float64(x))) }
@@ -137,7 +185,10 @@ func Compile(selected, live []scene.WaterVolume, doc *zone.Document) []Plan {
 	}
 
 	var plans []Plan
-	for top, vols := range groups {
+	// Sorted tops reserve the zone IDs in the same order every run, so the
+	// same selection saves the same project.
+	for _, top := range slices.Sorted(maps.Keys(groups)) {
+		vols := groups[top]
 		slices.SortFunc(vols, func(a, b scene.WaterVolume) int {
 			return cmp.Or(naturalCompare(a.Name, b.Name), naturalCompare(a.Tile.Name(), b.Tile.Name()))
 		})
@@ -236,36 +287,6 @@ func project(r [][2]int, nx, ny int64) (lo, hi int64) {
 		lo, hi = min(lo, d), max(hi, d)
 	}
 	return lo, hi
-}
-
-// hull is the convex hull of pts, counter-clockwise from the lowest X (then
-// lowest Y), without repeated or collinear points (Andrew's monotone chain).
-func hull(pts [][2]int) [][2]int {
-	pts = slices.Clone(pts)
-	slices.SortFunc(pts, func(a, b [2]int) int { return cmp.Or(cmp.Compare(a[0], b[0]), cmp.Compare(a[1], b[1])) })
-	pts = slices.Compact(pts)
-	if len(pts) < 3 {
-		return pts
-	}
-	cross := func(o, a, b [2]int) int64 {
-		return int64(a[0]-o[0])*int64(b[1]-o[1]) - int64(a[1]-o[1])*int64(b[0]-o[0])
-	}
-	h := make([][2]int, 0, 2*len(pts))
-	for _, p := range pts {
-		for len(h) >= 2 && cross(h[len(h)-2], h[len(h)-1], p) <= 0 {
-			h = h[:len(h)-1]
-		}
-		h = append(h, p)
-	}
-	lower := len(h) + 1
-	for i := len(pts) - 2; i >= 0; i-- {
-		p := pts[i]
-		for len(h) >= lower && cross(h[len(h)-2], h[len(h)-1], p) <= 0 {
-			h = h[:len(h)-1]
-		}
-		h = append(h, p)
-	}
-	return h[:len(h)-1]
 }
 
 // naturalCompare orders strings with their digit runs compared as numbers:
