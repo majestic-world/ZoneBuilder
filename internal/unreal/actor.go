@@ -80,19 +80,25 @@ func ReadActor(p *l2pkg.Package, i int) (*Actor, error) {
 
 // Transform is the actor's local-to-world transform:
 // position = Location - PrePivot, scale = DrawScale3D * DrawScale, and the
-// rotation as the Euler angles UE2-Studio feeds GLM's quaternion
-// constructor (Rotator::vector in crates/package-engine/src/actor.rs).
+// rotation of rotatorQuat.
 func (a *Actor) Transform() Transform {
-	const toRadians = math.Pi / 32768
 	return Transform{
 		Position: a.Location.Sub(a.PrePivot),
-		Rotation: newGLMQuat(
-			-float64(a.Rotation.Roll)*toRadians,
-			-float64(a.Rotation.Pitch)*toRadians,
-			float64(a.Rotation.Yaw)*toRadians,
-		),
-		Scale: a.DrawScale3D.Scale(a.DrawScale),
+		Rotation: rotatorQuat(a.Rotation),
+		Scale:    a.DrawScale3D.Scale(a.DrawScale),
 	}
+}
+
+// rotatorQuat is the rotation of r as the Euler angles UE2-Studio feeds
+// GLM's quaternion constructor (Rotator::vector in
+// crates/package-engine/src/actor.rs).
+func rotatorQuat(r l2pkg.Rotator) Quat {
+	const toRadians = math.Pi / 32768
+	return newGLMQuat(
+		-float64(r.Roll)*toRadians,
+		-float64(r.Pitch)*toRadians,
+		float64(r.Yaw)*toRadians,
+	)
 }
 
 // Transform places local mesh points in the world, all in Unreal's basis:

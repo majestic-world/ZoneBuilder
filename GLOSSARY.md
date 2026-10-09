@@ -38,3 +38,16 @@ Fração da área de chão sob o contorno que fica dentro da faixa Z.
 
 **Pior ponto**:
 O `x y z` do chão com a menor folga, separado para o piso (chão mais baixo) e para o topo (chão mais alto). É onde ficam os pinos e para onde os avisos levam a câmera.
+
+## Água
+
+**Volume de água**:
+Um ator `WaterVolume` vivo do mapa (em `Level.Actors`, sem `bDeleteMe`): brush convexo lido de todas as faces BSP do Model dele, em coordenadas do cliente. No código, `scene.WaterVolume`; identificado por tile e export.
+_Evite_: superfície de água (é o material desenhado no pass Water; 70 superfícies não têm volume nenhum), lago (não é termo do código).
+
+**Topo**:
+O maior Z das faces do volume, a superfície da água no cliente. Vira o `zmax` da zona com `water.ServerZOffset` (−30, ADR 0005, pendente da medição em jogo), nunca com o +32 de `scene.ToServer`. Volumes de topos diferentes viram zonas diferentes.
+_Evite_: superfície, nível da água.
+
+**Exata / aproximada**:
+Exata: paredes verticais e topo e fundo horizontais, então o prisma do servidor é o próprio volume. Aproximada: parede ou topo inclinado, e o prisma cobre o volume com sobra; a compilação avisa.

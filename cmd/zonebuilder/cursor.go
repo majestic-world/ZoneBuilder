@@ -24,15 +24,19 @@ type cursorProbe struct {
 	inside   bool
 	press    f32.Point
 	pressing bool
+	// button is the one button the press being tracked holds.
+	button pointer.Buttons
 	// clicked is set after the first click; clickHit tells whether it hit.
 	clicked  bool
 	clickHit bool
 	click    scene.Hit
 }
 
-// handle tracks one viewport pointer event and reports whether it ends a
-// click: a primary-button press released without dragging.
-func (c *cursorProbe) handle(e pointer.Event) bool {
+// handle tracks one viewport pointer event and reports the button of the
+// click it ends, 0 for none: a press of the primary or the secondary
+// button alone, released without dragging. Pressing both (the lift)
+// is no click.
+func (c *cursorProbe) handle(e pointer.Event) pointer.Buttons {
 	switch e.Kind {
 	case pointer.Move, pointer.Drag, pointer.Enter:
 		c.cursor, c.inside = e.Position, true
@@ -43,16 +47,20 @@ func (c *cursorProbe) handle(e pointer.Event) bool {
 		c.inside, c.pressing = false, false
 	case pointer.Press:
 		c.cursor, c.inside = e.Position, true
-		c.press, c.pressing = e.Position, e.Buttons == pointer.ButtonPrimary
+		c.press, c.button = e.Position, e.Buttons
+		c.pressing = e.Buttons == pointer.ButtonPrimary || e.Buttons == pointer.ButtonSecondary
 	case pointer.Release:
 		click := c.pressing && e.Buttons == 0 && dist(e.Position, c.press) <= clickSlop
 		c.pressing = false
-		if click {
+		if !click {
+			return 0
+		}
+		if c.button == pointer.ButtonPrimary {
 			c.clicked = true
 		}
-		return click
+		return c.button
 	}
-	return false
+	return 0
 }
 
 // status is the status pill's text: the server position under the cursor
@@ -75,8 +83,13 @@ func (c *cursorProbe) status(s *scene.World, cam *camera.Camera, viewport image.
 
 // pickAt picks s through viewport pixel p.
 func pickAt(s *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point) (scene.Hit, bool) {
+	return s.Pick(rayAt(s, cam, p, viewport))
+}
+
+// rayAt is the world ray through viewport pixel p, with a unit Dir.
+func rayAt(s *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point) scene.Ray {
 	o, d := cam.Ray(p.X, p.Y, viewport.X, viewport.Y)
-	return s.Pick(scene.Ray{Origin: worldPosition(s, o), Dir: scene.ToRender(d)})
+	return scene.Ray{Origin: worldPosition(s, o), Dir: scene.ToRender(d)}
 }
 
 func describeHit(h scene.Hit, ok bool) string {

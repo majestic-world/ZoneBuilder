@@ -1,6 +1,17 @@
-Status: needs-triage
+Status: resolved
 
 # Zona de água a partir do WaterVolume
+
+## Resolução
+
+Tickets 01–04 e 06 entregues; o 05 (verificação em jogo) fica aberto para o usuário.
+
+- **01:** `scene.WaterVolume` lido das faces BSP do brush, com `unreal.ReadBrush`/`BrushTransform` e `Scale` aninhado em `l2pkg`. 674 volumes vivos em 202 tiles (os 673 da sonda mais `17_13_classic`).
+- **02:** `World.PickWater` (raio × poliedro convexo); seleção em `cmd/zonebuilder/water.go`, com prismas no overlay e status `Água: N volumes · topo T (servidor T') · exata|aproximada`. Depois da entrega, o clique passou a selecionar só o volume clicado (decisão 2) e `World.WaterBody` saiu.
+- **03:** `internal/water`. Desvio de D5: a assinatura é `water.Compile(selected, live []scene.WaterVolume, doc *zone.Document) []Plan`, porque o aviso de sobreposição precisa dos volumes fora da seleção e o plano precisa do ID da zona existente ou de um novo. ADR 0005 com `water.ServerZOffset = -30`, **pendente da medição em jogo** (ticket 05).
+- **04:** `ui.ContextMenu` (o menu do projeto passou a usá-lo) e o item **Compilar zona de água**: 1 passo de desfazer, compila só as zonas da água, abre a janela de XML; status com os avisos e a nota dos 62 abaixo da água.
+- **06:** `GLOSSARY.md` (seção Água), `README.md` (seção Zona de água) e `docs/plan.md` (fato do `WaterVolume`, `internal/water` no fluxo e na estrutura).
+- **Code review:** planos das faces orientados pela média dos vértices (cunha), IDs de zona em ordem determinística, 1 envoltória convexa (`geom.Hull`), frases dos avisos ao lado de `water.WarningKind`, construtor de teste em `internal/scene/scenetest`, menus de app em `internal/ui/menus.go`, e clique em volume `Unsupported` mostra `Volume X_Y WaterVolumeN não suportado: <motivo>`.
 
 ## Problem Statement
 
@@ -44,9 +55,9 @@ Feitas com uma sonda descartável sobre os 233 tiles `X_Y.unr` do cliente Fafuri
 
 ## Solution
 
-1. Sem ferramenta armada, o usuário clica na água. O volume sob o clique e os volumes encostados nele com o mesmo topo (o **corpo d'água**) ficam selecionados: o prisma de cada um aparece destacado em azul e a barra de status diz `Água: 8 volumes · topo −3780 (servidor −3810) · exata`.
-2. Ctrl+clique tira ou põe um volume avulso na seleção. Esc ou clique fora da água limpa a seleção.
-3. Botão direito sobre a água abre um menu com **"Compilar zona de água"**. Se o clique cai em água fora da seleção, ela é selecionada antes.
+1. Sem ferramenta armada, o usuário clica na água. Só o volume sob o clique fica selecionado: o prisma dele aparece destacado em azul e a barra de status diz `Água: 1 volume · topo −3780 (servidor −3810) · exata`.
+2. Ctrl+clique põe outro volume na seleção ou tira um que já está nela. Esc ou clique fora da água limpa a seleção.
+3. Botão direito sobre a água abre um menu com **"Compilar zona de água"**. Se o clique cai num volume fora da seleção, ele passa a ser a seleção sozinho.
 4. A ação cria a zona `water` no projeto (1 passo de desfazer), compila só ela e abre a janela de XML com o botão de copiar. A zona fica na lista de zonas, editável e salva no `.zbproj`, como qualquer outra.
 
 ## Termos
@@ -54,7 +65,6 @@ Feitas com uma sonda descartável sobre os 233 tiles `X_Y.unr` do cliente Fafuri
 | Termo | Definição |
 | --- | --- |
 | Volume de água | Um ator `WaterVolume` vivo do mapa: brush convexo, lido das faces BSP do Model dele, em coordenadas do cliente. |
-| Corpo d'água | Volumes de água que se tocam em XY (folga ≤ 1) e têm o mesmo topo (±1). É o que o clique seleciona. |
 | Topo | Maior Z das faces do volume. Vira o `zmax` da zona depois do offset de D6. |
 | Exata / aproximada | Exata: paredes verticais e topo e fundo horizontais, então o prisma do servidor é o próprio volume. Aproximada: o prisma cobre o volume com sobra (parede inclinada ou topo inclinado). |
 
@@ -84,7 +94,7 @@ Feitas com uma sonda descartável sobre os 233 tiles `X_Y.unr` do cliente Fafuri
   - Clicar na superfície, no fundo visto através da água ou numa fonte de static mesh seleciona o volume. Clicar na margem seca não seleciona.
   - Com a câmera dentro do volume, a entrada é 0 e o clique seleciona a água onde a câmera está.
 - **Quando:** só no clique esquerdo sem ferramenta armada e fora das alças de vértice. É o caminho em que `zones.click` hoje devolve `""` (`cmd/zonebuilder/zonetool.go:110-113`), então nada que já existe muda.
-- **Corpo d'água:** o clique expande a seleção para os volumes conectados (D-Termos), também entre tiles carregados. Ctrl+clique alterna um volume avulso.
+- **Seleção:** o clique seleciona só o volume clicado. Ctrl+clique alterna outro volume, também entre tiles carregados.
 - **Destaque:** cada volume vira um `render.ZoneShape` (`internal/render/overlay.go:16-41`) com a pegada, o fundo e o topo do volume passados por `ToServer`. O overlay aplica `FromServer` e o prisma cai exatamente sobre o volume do cliente, sem renderer novo. A cor é a de `zone.Water` em `zone/appearance.go`. Volume aproximado ganha a marca de problema (`Problem`).
 - **Estado:** `cmd/zonebuilder/water.go` (novo) guarda a seleção por `(tile, export)`. A troca ou o descarregamento de tile limpa os volumes que sumiram.
 - **Status:** `Água: N volumes · topo T (servidor T') · exata|aproximada`. Clicar em água sem volume dá `Esta água não tem WaterVolume no mapa`, que é o caso das 70 superfícies sem volume.
@@ -159,13 +169,12 @@ Cada teste nomeia o bug concreto que pegaria. Não se testa cor, texto de painel
 - **Seams sintéticos:**
   - `BrushTransform` com `PrePivot`, `MainScale`, rotação de 90° e `PostScale` não uniforme leva um vértice conhecido ao ponto esperado. Pega a ordem das operações.
   - Raio × poliedro convexo: entra pelo topo, passa ao lado, nasce dentro (entrada 0), raspa uma aresta, e um volume atrás do chão (entrada além de `maxDist`) não é escolhido.
-  - Corpo d'água: 3 caixas encostadas com o mesmo topo formam 1 corpo; uma 4ª encostada com outro topo fica fora.
   - Agrupamento por topo: 2 topos dão 2 zonas, e cada polígono mantém o próprio `zmin`.
   - Envoltória: hexaedro com parede inclinada vira pegada convexa sem pontos colineares e marca "aproximada".
   - Nome existente: o plano não cria zona e devolve o ID existente.
   - Os comandos de um plano com 3 volumes são desfeitos com 1 `Undo`.
 - **Smoke no app:**
-  - 22_22: clicar no mar de Giran, conferir os 8 prismas e o status, clicar com o botão direito, compilar, copiar o XML e conferir 1 zona com 8 polígonos.
+  - 22_22: clicar no mar de Giran (1 prisma), Ctrl+clicar nos outros 7 volumes, conferir os 8 prismas e o status, clicar com o botão direito, compilar, copiar o XML e conferir 1 zona com 8 polígonos.
   - 22_24: clicar na fonte alta (`WaterVolume26`), Ctrl+clicar na baixa (`WaterVolume27`) e compilar: 2 zonas.
   - 25_25: compilar só o `WaterVolume9` (topo −3788), que é cruzado pelo `WaterVolume7` (topo −3020), e ver o aviso de água sobreposta.
   - Compilar de novo a mesma água: nenhuma zona nova, e o status diz que compilou a versão do projeto.
@@ -189,10 +198,11 @@ Cada teste nomeia o bug concreto que pegaria. Não se testa cor, texto de painel
 - Desenhar todos os volumes do mapa (o "mostrar volumes" do UnrealEd).
 - Outros volumes (`PhysicsVolume`, `BlockingVolume`) e outros tipos de zona gerados a partir deles.
 
-## Decisões a aprovar
+## Decisões aprovadas
 
-Antes de mover os tickets para `ready-for-agent`:
+Aprovadas pelo usuário em 2026-10-09, todas na opção recomendada:
 
-1. **Offset de Z (D6):** −30, como o datapack (recomendado), ou +32, como o ADR 0003.
-2. **O clique seleciona o corpo d'água inteiro (D3)**, com Ctrl+clique para volumes avulsos (recomendado), ou só o volume clicado.
-3. **A ação cria a zona no projeto (D5)** antes de compilar (recomendado), ou só gera o XML sem tocar no projeto.
+1. **Offset de Z (D6):** −30, como o datapack.
+2. **O clique seleciona só o volume clicado (D3)**, com Ctrl+clique para pôr ou tirar outros. Na primeira entrega o clique selecionava o corpo d'água inteiro (volumes encostados com o mesmo topo); o usuário pediu a troca depois de usar, porque desmarcar com Ctrl dava mais trabalho que marcar.
+3. **A ação cria a zona no projeto (D5)** antes de compilar.
+4. **Ticket 06 sem o 05:** as docs saem com o −30 marcado como pendente da medição em jogo; o ticket 05 fica aberto para o usuário.

@@ -10,6 +10,7 @@ Editor desktop de zonas para servidores de Lineage II. O Zone Builder abre os ma
 - Edita vértices, shapes, faixa Z, altura da zona, tipo e parâmetros `<set>`, com desfazer e refazer.
 - Com o botão **Chão** ligado, desenha a grade das células do terreno, com uma linha forte a cada 8 células. O comprimento de cada aresta aparece no viewport, e o tamanho, a área e o perímetro do shape aparecem no inspetor.
 - Mostra, sem precisar ligar nada, se a faixa Z da zona selecionada cobre o chão dentro do contorno: cores no chão, a linha do chão nas paredes, pinos no pior ponto, números no inspetor, uma régua na janela de altura e avisos no painel de problemas. Veja [Cobertura vertical](#cobertura-vertical).
+- Gera a zona `water` direto do `WaterVolume` do cliente: clique na água, botão direito, **Compilar zona de água**. Veja [Zona de água](#zona-de-água).
 - Mostra os problemas de cada zona enquanto você edita, como polígono que se cruza, nome repetido ou faixa Z invertida, e bloqueia a compilação até corrigir. Os avisos de chão aparecem na mesma lista, mas não bloqueiam.
 - Compila as zonas selecionadas em um arquivo por tipo (`zonebuilder_<tipo>.xml`) e mostra o XML numa janela com botão de copiar.
 - Guarda o trabalho em projetos `.zbproj`, inclusive zonas ainda incompletas.
@@ -140,6 +141,34 @@ O chão excluído e o das outras camadas não geram aviso. Sem um tile aberto n�
 **Regra das camadas.** O terreno sempre conta. Um piso de BSP ou de static mesh só puxa a faixa quando cruza a faixa atual ou fica a até 1024 unidades dela; os outros aparecem como "outras camadas". Assim o telhado de uma torre ou uma caverna muito abaixo não esticam a faixa de uma zona de rua. O chão excluído também não puxa. Com o botão **Static meshes** desligado, meshes não entram na medição.
 
 A regra é aplicada uma vez, a partir da faixa de antes do clique. **Consequência aceita:** logo depois de um ajuste, uma camada que estava longe da faixa antiga mas fica perto da nova aparece como acima ou abaixo da faixa, com aviso; apertar o botão de novo a puxa para dentro. Repita só se essa camada deve mesmo fazer parte da zona.
+
+## Zona de água
+
+O servidor só conhece a água pela zona `water`, e o `zmax` dela é a superfície: decide onde o personagem nada, perde fôlego e onde a boia de pesca fica. O app gera essa zona a partir dos `WaterVolume` do mapa, sem desenhar à mão. Os termos (volume de água, topo, exata/aproximada) estão em [`GLOSSARY.md`](GLOSSARY.md).
+
+1. Sem ferramenta armada, clique na água. Só o volume sob o clique fica selecionado, com o prisma destacado, e o status diz, por exemplo, `Água: 1 volume · topo -3780 (servidor -3810) · exata`. Clicar na superfície, no fundo visto através da água ou numa fonte de static mesh seleciona o volume; a margem seca não.
+2. Ctrl+clique põe outro volume na seleção, ou tira um que já está nela; o status soma todos, por exemplo `Água: 8 volumes`. Esc ou clique fora da água limpa a seleção. Água sem `WaterVolume` dá `Esta água não tem WaterVolume no mapa` e não é selecionável. Um volume que o app não suporta (brush com cisalhamento, `SheerRate ≠ 0`) também não é selecionável: o clique, esquerdo ou direito, nele dá `Volume 22_22 WaterVolumeN não suportado: <motivo>`, e o log lista esses volumes ao abrir o tile.
+3. Clique com o botão direito (sem arrastar) sobre a água: abre o menu com **Compilar zona de água**. Um volume fora da seleção passa a ser a seleção sozinho; um volume já selecionado mantém a seleção. Fora da água o botão direito não abre menu, e arrastar com ele continua girando a câmera. O menu fecha com Esc, com clique fora ou ao escolher o item. Com um polígono aberto, o item fica desabilitado: `Feche o polígono aberto antes de compilar a zona de água`.
+4. O item cria as zonas no projeto (1 passo de desfazer: Ctrl+Z remove todas), compila só elas, sem mexer nas marcas de compilação da lista, e abre a janela de XML. As zonas ficam na lista, editáveis e salvas no `.zbproj`.
+
+O que sai:
+
+- **1 zona por topo**, com 1 polígono por volume: a envoltória convexa XY das faces, com o `zmin` e o `zmax` do próprio volume. O servidor usa o maior `zmax` dos shapes de uma zona, então topos diferentes nunca dividem a mesma zona.
+- **Nome `[X_Y_<volume>]`**: o tile e o volume de menor nome do grupo, por exemplo `[22_22_WaterVolume0]`. Não colide com os nomes do datapack (`[22_22_water1]`).
+- **Z = Z do cliente − 30** (`water.ServerZOffset`), como as zonas de água do datapack. **Pendente da medição em jogo** ([ADR 0005](docs/adr/0005-agua-30-abaixo-do-volume.md)). Por isso a zona compilada aparece no viewport com o topo 62 abaixo da água, e o status avisa: `No viewport o topo fica 62 abaixo da água (ADR 0005)`.
+- Se o nome já existe no projeto, nada é criado e a versão do projeto é compilada: `Zona [22_22_WaterVolume0] já existe no projeto: compilada a versão do projeto`. Suas edições nunca são sobrescritas.
+
+Avisos, no status e no log, sem bloquear a compilação:
+
+| Aviso | Quando |
+|---|---|
+| `Água sobreposta: … cruza … (o servidor usa o maior topo)` | um volume selecionado cruza em XY e Z outro volume vivo, de topo diferente, que ficou fora da seleção |
+| `Aproximada, parede ou topo inclinado: …` | o volume não é exato |
+| `Passa do próprio tile: …` | o volume passa do tile dele; a zona entra no tile vizinho |
+
+**Remova a zona de água antiga do datapack no mesmo lugar.** A zona nova tem outro nome e não a sobrescreve, e onde as duas se cruzam o servidor usa o maior `zmax` das duas. Enquanto a antiga estiver em `water.xml`, a nova não vale ali.
+
+Fora do escopo: água sem `WaterVolume` (superfície decorativa, mar aberto feito com a ferramenta Tile inteiro) e outros volumes.
 
 ## Licenças de terceiros
 
