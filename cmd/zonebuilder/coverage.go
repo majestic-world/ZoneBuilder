@@ -43,15 +43,20 @@ type profileResult struct {
 	profile *coverage.Profile
 }
 
-// floorCoverage keeps the floor profile of the current shape: measured in
-// the background, one at a time, for the latest key; classified by the
-// shape's Z range on the event loop. Every method runs on the event loop.
+// floorCoverage keeps the floor profiles of the selected zone's shapes:
+// measured in the background, one at a time, each for its latest key;
+// classified by each shape's Z range on the event loop. Every method runs
+// on the event loop.
 type floorCoverage struct {
 	win     *app.Window
 	results chan profileResult
 	running bool
-	// done is the key profile was measured for; profile is nil before the
-	// first one.
+	shapes  map[shapeRef]*shapeCoverage
+}
+
+// shapeCoverage is the latest profile of one shape and its report.
+type shapeCoverage struct {
+	// done is the key profile was measured for.
 	done    coverageKey
 	profile *coverage.Profile
 	// report is profile classified by [zmin, zmax].
@@ -64,7 +69,7 @@ type floorCoverage struct {
 }
 
 func newFloorCoverage(win *app.Window) *floorCoverage {
-	return &floorCoverage{win: win, results: make(chan profileResult, 1)}
+	return &floorCoverage{win: win, results: make(chan profileResult, 1), shapes: map[shapeRef]*shapeCoverage{}}
 }
 
 // current is the floor coverage of e's current shape over w: its report
@@ -73,27 +78,66 @@ func newFloorCoverage(win *app.Window) *floorCoverage {
 // closed shape or no world, or when the shape's first profile is not in
 // yet: a report of another shape is never given.
 func (c *floorCoverage) current(e *zoneEditor, w *scene.World) (r coverage.Report, measuring, ok bool) {
-	c.receive()
+	c.receive(e)
 	z, sh, found := e.currentShape()
 	if !found || e.drawing || w == nil {
 		return coverage.Report{}, false, false
 	}
-	pts := outline(sh.Kind, e.shownPoints(z.ID, e.shape, sh.Points))
+	return c.shape(e, w, z.ID, e.shape, sh)
+}
+
+// zone is the floor coverage of the selected zone over w: the sum of its
+// included shapes' reports (coverage.Sum) and whether any of them is
+// still being measured. ok is false when the zone has no closed included
+// shape or no world, or while any of them has no profile yet.
+func (c *floorCoverage) zone(e *zoneEditor, w *scene.World) (r coverage.Report, measuring, ok bool) {
+	c.receive(e)
+	z, found := e.doc.Zone(e.zone)
+	if !found || e.drawing || w == nil {
+		return coverage.Report{}, false, false
+	}
+	var rs []coverage.Report
+	ok = true
+	for i, sh := range z.Shapes {
+		if sh.Banned {
+			continue
+		}
+		r, m, shapeOK := c.shape(e, w, z.ID, i, sh)
+		if !shapeOK && !m {
+			continue // an open polygon: no outline yet
+		}
+		measuring = measuring || m
+		ok = ok && shapeOK
+		rs = append(rs, r)
+	}
+	if len(rs) == 0 || !ok {
+		return coverage.Report{}, measuring, false
+	}
+	return coverage.Sum(rs...), measuring, true
+}
+
+// shape is the floor coverage of shape i of zone id over w, as current
+// gives it, measuring it in the background when its profile is stale and
+// nothing else is being measured.
+func (c *floorCoverage) shape(e *zoneEditor, w *scene.World, id zone.ZoneID, i int, sh zone.Shape) (r coverage.Report, measuring, ok bool) {
+	pts := outline(sh.Kind, e.shownPoints(id, i, sh.Points))
 	if len(pts) < 3 {
 		return coverage.Report{}, false, false
 	}
-	key := coverageKey{shape: shapeRef{z.ID, e.shape}, outline: outlineKey(pts), world: w, scenes: scenesKey(w), hideMeshes: w.HideMeshes}
-	if key != c.done && !c.running {
+	ref := shapeRef{id, i}
+	key := coverageKey{shape: ref, outline: outlineKey(pts), world: w, scenes: scenesKey(w), hideMeshes: w.HideMeshes}
+	s := c.shapes[ref]
+	if (s == nil || key != s.done) && !c.running {
 		c.start(key, pts, w)
 	}
-	if c.profile == nil || c.done.shape != key.shape || c.done.world != w {
+	if s == nil || s.done.world != w {
 		return coverage.Report{}, true, false
 	}
-	zmin, zmax := e.shownZRange(z.ID, e.shape, sh)
-	if c.classified != c.profile || zmin != c.zmin || zmax != c.zmax {
-		c.report, c.classified, c.zmin, c.zmax = c.profile.Classify(float64(zmin), float64(zmax)), c.profile, zmin, zmax
+	zmin, zmax := e.shownZRange(id, i, sh)
+	if s.classified != s.profile || zmin != s.zmin || zmax != s.zmax {
+		s.report, s.classified, s.zmin, s.zmax = s.profile.Classify(float64(zmin), float64(zmax)), s.profile, zmin, zmax
 	}
-	return c.report, key != c.done, true
+	return s.report, key != s.done, true
 }
 
 // start measures key's profile in the background, on a world of the same
@@ -121,13 +165,19 @@ func (c *floorCoverage) start(key coverageKey, pts []zone.Point, w *scene.World)
 	}()
 }
 
-// receive takes the profile measured in the background, if it is in.
-func (c *floorCoverage) receive() {
+// receive takes the profile measured in the background, if it is in, and
+// forgets the profiles of shapes outside e's selected zone.
+func (c *floorCoverage) receive(e *zoneEditor) {
 	select {
 	case r := <-c.results:
 		c.running = false
-		c.done, c.profile = r.key, r.profile
+		c.shapes[r.key.shape] = &shapeCoverage{done: r.key, profile: r.profile}
 	default:
+	}
+	for ref := range c.shapes {
+		if ref.zone != e.zone {
+			delete(c.shapes, ref)
+		}
 	}
 }
 
@@ -141,18 +191,19 @@ func (c *floorCoverage) groundLine(e *zoneEditor, w *scene.World) ([]geom.Vec3, 
 	if !ok || measuring {
 		return nil, nil
 	}
-	if c.lined != c.profile {
-		c.ground = nil
-		for _, spans := range r.Edges {
-			for _, s := range spans {
-				c.ground = append(c.ground,
-					geom.Vec3{X: float32(s.From.X), Y: float32(s.From.Y), Z: float32(s.From.Z)},
-					geom.Vec3{X: float32(s.To.X), Y: float32(s.To.Y), Z: float32(s.To.Z)})
+	s := c.shapes[shapeRef{e.zone, e.shape}]
+	if s.lined != s.profile {
+		s.ground = nil
+		for _, sp := range r.Edges {
+			for _, g := range sp {
+				s.ground = append(s.ground,
+					geom.Vec3{X: float32(g.From.X), Y: float32(g.From.Y), Z: float32(g.From.Z)},
+					geom.Vec3{X: float32(g.To.X), Y: float32(g.To.Y), Z: float32(g.To.Z)})
 			}
 		}
-		c.lined = c.profile
+		s.lined = s.profile
 	}
-	return c.ground, c.profile
+	return s.ground, s.profile
 }
 
 // inspector is the inspector's coverage lines for e's current shape over
@@ -165,13 +216,26 @@ func (c *floorCoverage) inspector(e *zoneEditor, w *scene.World) string {
 		}
 		return ""
 	}
-	return coverageText(r, measuring)
+	return coverageText("Cobertura do chão (terreno)", "Nenhum chão medido sob o shape", r, measuring)
 }
 
-// coverageText writes report r for the inspector, marked as still being
-// measured when measuring.
-func coverageText(r coverage.Report, measuring bool) string {
-	title := "Cobertura do chão (terreno)"
+// heightWindow is the height window's coverage lines for e's selected
+// zone over w, "" when there is none.
+func (c *floorCoverage) heightWindow(e *zoneEditor, w *scene.World) string {
+	r, measuring, ok := c.zone(e, w)
+	if !ok {
+		if measuring {
+			return "Cobertura da zona: medindo…"
+		}
+		return ""
+	}
+	return coverageText("Cobertura da zona (soma dos shapes)", "Nenhum chão medido sob a zona", r, measuring)
+}
+
+// coverageText writes report r under title, marked as still being
+// measured when measuring; none replaces the floor lines when r has no
+// floor.
+func coverageText(title, none string, r coverage.Report, measuring bool) string {
 	if measuring {
 		title += ": medindo…"
 	}
@@ -184,7 +248,7 @@ func coverageText(r coverage.Report, measuring bool) string {
 			fmt.Sprintf("Folga do piso: %s · folga do topo: %s", units(roundF(r.FloorClearance)), units(roundF(r.TopClearance))),
 		)
 	} else {
-		lines = append(lines, "Nenhum chão medido sob o shape")
+		lines = append(lines, none)
 	}
 	total := r.Total()
 	for _, a := range []struct {
