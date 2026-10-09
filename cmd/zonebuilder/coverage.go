@@ -11,6 +11,7 @@ import (
 
 	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/zone"
 )
@@ -216,7 +217,7 @@ func (c *floorCoverage) inspector(e *zoneEditor, w *scene.World) string {
 		}
 		return ""
 	}
-	return coverageText("Cobertura do chão (terreno)", "Nenhum chão medido sob o shape", r, measuring)
+	return coverageText("Cobertura do chão", "Nenhum chão medido sob o shape", r, measuring)
 }
 
 // heightWindow is the height window's coverage lines for e's selected
@@ -246,6 +247,7 @@ func coverageText(title, none string, r coverage.Report, measuring bool) string 
 			fmt.Sprintf("Chão mais baixo: %d %d %d", roundF(lo.X), roundF(lo.Y), roundF(lo.Z)),
 			fmt.Sprintf("Chão mais alto: %d %d %d", roundF(hi.X), roundF(hi.Y), roundF(hi.Z)),
 			fmt.Sprintf("Folga do piso: %s · folga do topo: %s", units(roundF(r.FloorClearance)), units(roundF(r.TopClearance))),
+			"Chão em "+inflect.Count(r.Layers, "camada", "camadas"),
 		)
 	} else {
 		lines = append(lines, none)

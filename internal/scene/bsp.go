@@ -120,7 +120,7 @@ func (s *Scene) addBSP(ld *loader, m *l2pkg.Package, t Tile, footprint *geom.Box
 			Index: k, PolyFlags: surf.PolyFlags,
 			Batch: batch, First: first, Count: len(g.idx), Bounds: box,
 		})
-		s.addPickable(SurfaceBSP, batch, first, len(g.idx), box)
+		s.addPickable(triangleSet{Surface: SurfaceBSP, Batch: batch, First: first, Count: len(g.idx), Bounds: box, Normal: vec(model.Vectors[surf.Normal])})
 	}
 	return nil
 }

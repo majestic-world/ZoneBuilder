@@ -15,15 +15,22 @@ type triangleSet struct {
 	First, Count int
 	// Bounds is the world AABB of the set's vertices.
 	Bounds geom.Box
+	// Mirrored marks a mesh actor placed with a mirroring scale, whose
+	// triangles wind the other way round: their right-hand normal faces
+	// in instead of out.
+	Mirrored bool
+	// Normal is the plane normal a BSP surface's triangles share, zero for
+	// a mesh: a triangle's facing then comes from its winding.
+	Normal geom.Vec3
 }
 
-// addPickable registers indices [first, first+count) of batch as one
-// pickable set of the given surface kind, bounded by bounds.
-func (s *Scene) addPickable(surface Surface, batch, first, count int, bounds geom.Box) {
-	if count == 0 {
+// addPickable registers set, a run of indices of one batch, as pickable;
+// an empty set is dropped.
+func (s *Scene) addPickable(set triangleSet) {
+	if set.Count == 0 {
 		return
 	}
-	s.pickables = append(s.pickables, triangleSet{Surface: surface, Batch: batch, First: first, Count: count, Bounds: bounds})
+	s.pickables = append(s.pickables, set)
 }
 
 // pickTriangles improves best with the nearest triangle of every pickable

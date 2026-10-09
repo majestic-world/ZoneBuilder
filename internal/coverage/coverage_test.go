@@ -122,6 +122,62 @@ func TestInvisibleQuadIsNoGround(t *testing.T) {
 	}
 }
 
+// bspQuad is a flat BSP floor at height z over [x0, x1] × [y0, y1].
+func bspQuad(x0, y0, x1, y1, z float32) floor {
+	a, b, c, d := v(x0, y0, z), v(x1, y0, z), v(x1, y1, z), v(x0, y1, z)
+	return floor{
+		{A: a, B: b, C: c, Surface: scene.SurfaceBSP},
+		{A: a, B: c, C: d, Surface: scene.SurfaceBSP},
+	}
+}
+
+// A bridge at z 500 across a square of flat terrain at z 0 makes 2 layers
+// under the square, and with a top at 300 its 100 × 300 deck inside the
+// square is floor above the top while the terrain under it stays inside:
+// the areas add up to more than the square. Catches layers counted per
+// surface kind instead of per column, a bridge dropped from the extremes,
+// or the terrain under a bridge taken as hidden by it.
+func TestBridgeOverTerrainIsASecondLayerAboveTheTop(t *testing.T) {
+	f := append(grid(0), bspQuad(100, -50, 200, 350, 500)...)
+	r := coverage.Measure(f, square(0, 0, 300, 300)).Classify(-100, 300)
+	if r.Layers != 2 {
+		t.Errorf("%d layers, want 2", r.Layers)
+	}
+	if !near(r.Above, 100*300) {
+		t.Errorf("floor above the top %v, want 30000", r.Above)
+	}
+	if !near(r.Inside, 300*300) || r.Below != 0 || r.NoGround != 0 {
+		t.Errorf("inside %v, below %v, no ground %v; want 90000, 0, 0", r.Inside, r.Below, r.NoGround)
+	}
+	if r.GroundMax.Z != 500 || r.TopClearance != -200 {
+		t.Errorf("highest floor %v, top clearance %v; want z 500, -200", r.GroundMax, r.TopClearance)
+	}
+}
+
+// Flat terrain alone is 1 layer.
+func TestTerrainAloneIsOneLayer(t *testing.T) {
+	if n := coverage.Measure(grid(0), square(0, 0, 300, 300)).Classify(-100, 100).Layers; n != 1 {
+		t.Errorf("%d layers, want 1", n)
+	}
+}
+
+// A terrain hole elsewhere stays no ground when a bridge spans the square
+// (the bridge's area must not make up for it), and a building floor laid
+// over a hole, as the maps cut the terrain under a building, is floor and
+// 1 layer. Catches no ground taken as the outline's area minus all the
+// floor's area, which layers overcount.
+func TestHoleIsNoGroundUnlessAFloorCoversIt(t *testing.T) {
+	bridged := append(grid(0, [2]int{0, 0}), bspQuad(100, -50, 200, 350, 500)...)
+	if r := coverage.Measure(bridged, square(0, 0, 300, 300)).Classify(-100, 600); !near(r.NoGround, 100*100) {
+		t.Errorf("bridge elsewhere: no ground %v, want 10000", r.NoGround)
+	}
+	built := append(grid(0, [2]int{0, 0}), bspQuad(0, 0, 100, 100, 20)...)
+	r := coverage.Measure(built, square(0, 0, 300, 300)).Classify(-100, 100)
+	if r.NoGround != 0 || !near(r.Inside, 300*300) || r.Layers != 1 {
+		t.Errorf("floor over the hole: no ground %v, inside %v, %d layers; want 0, 90000, 1", r.NoGround, r.Inside, r.Layers)
+	}
+}
+
 // Under a square fully floored by a ramp z = x that both its top and its
 // floor cut, inside + above + below add up to the square's 40 000 units²,
 // and each is the strip its formula gives. Catches a piece counted in 2
