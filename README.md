@@ -8,8 +8,9 @@ Editor desktop de zonas para servidores de Lineage II. O Zone Builder abre os ma
 - Cria zonas por polígono, retângulo, círculo ou o tile inteiro, inclusive exclusões (`banned_polygon`), e adiciona restart points e PK restart points.
 - Cada clique cai no ponto visível sob o cursor, em coordenadas do servidor.
 - Edita vértices, shapes, faixa Z, altura da zona, tipo e parâmetros `<set>`, com desfazer e refazer.
-- Com o botão **Chão** ligado, desenha a grade das células do terreno, uma linha forte a cada 8 células, e marca no chão o espaço que a zona selecionada ocupa. O chão dentro da faixa Z fica tingido com a cor da zona, o chão fora dela fica hachurado e o contorno é desenhado sobre o terreno. O comprimento de cada aresta aparece no viewport, e o tamanho, a área e o perímetro do shape aparecem no inspetor.
-- Mostra os problemas de cada zona enquanto você edita, como polígono que se cruza, nome repetido ou faixa Z invertida, e bloqueia a compilação até corrigir.
+- Com o botão **Chão** ligado, desenha a grade das células do terreno, com uma linha forte a cada 8 células. O comprimento de cada aresta aparece no viewport, e o tamanho, a área e o perímetro do shape aparecem no inspetor.
+- Mostra, sem precisar ligar nada, se a faixa Z da zona selecionada cobre o chão dentro do contorno: cores no chão, a linha do chão nas paredes, pinos no pior ponto, números no inspetor, uma régua na janela de altura e avisos no painel de problemas. Veja [Cobertura vertical](#cobertura-vertical).
+- Mostra os problemas de cada zona enquanto você edita, como polígono que se cruza, nome repetido ou faixa Z invertida, e bloqueia a compilação até corrigir. Os avisos de chão aparecem na mesma lista, mas não bloqueiam.
 - Compila as zonas selecionadas em um arquivo por tipo (`zonebuilder_<tipo>.xml`) e mostra o XML numa janela com botão de copiar.
 - Guarda o trabalho em projetos `.zbproj`, inclusive zonas ainda incompletas.
 
@@ -64,6 +65,81 @@ Controles do viewport:
 | Delete | apagar o vértice selecionado |
 | Esc | soltar a ferramenta |
 | Ctrl+Z, Ctrl+Y | desfazer e refazer |
+
+## Cobertura vertical
+
+O servidor só considera um personagem dentro da zona quando o `x y` dele está no contorno **e** o `z` está entre `zmin` e `zmax`. Chão fora dessa faixa é chão fora da zona: o XML compila, mas a zona não vale ali em jogo. O app mede o chão sob cada shape e mostra o resultado na zona selecionada, com o botão **Chão** ligado ou não. Os termos (chão, camada, folga, cobertura, pior ponto) estão definidos em [`GLOSSARY.md`](GLOSSARY.md), e as decisões, no [ADR 0004](docs/adr/0004-chao-medido-e-avisos-sem-bloqueio.md).
+
+### No viewport
+
+| O que aparece | Significado |
+|---|---|
+| Chão tingido com a cor da zona | chão dentro do contorno e dentro da faixa Z: coberto |
+| Hachura laranja (diagonal num sentido) | chão acima do topo (`zmax`): um morro ou piso que fura o topo |
+| Hachura azul (diagonal no outro sentido) | chão abaixo do piso (`zmin`): um vale ou piso que passa por baixo |
+| Buraco, sem tinta | chão dentro de uma exclusão |
+| Linha laranja no chão | onde o chão cruza o topo (`z = zmax`): fronteira exata da parte acima |
+| Linha azul no chão | onde o chão cruza o piso (`z = zmin`): fronteira exata da parte abaixo |
+| Linha na cor da aresta, em cada parede do prisma | o chão ao longo daquela aresta, do shape selecionado; some enquanto o shape é medido de novo |
+| Aresta ou linha sólida | parte visível |
+| Aresta ou linha tracejada, faces com listras fracas | parte do prisma enterrada ou atrás da cena, vista através do terreno |
+| Pino com rótulo `topo +412` | chão mais alto do shape e a folga do topo nele |
+| Pino com rótulo `piso −96` | chão mais baixo do shape e a folga do piso nele |
+| Rótulo vermelho | folga negativa: o chão sai da faixa naquele ponto |
+
+Clicar no rótulo de um pino leva a câmera ao ponto. O shader desenha a pegada de até 8 shapes e 128 pontos; acima disso, o inspetor diz "Pegada parcial: N shapes fora do desenho". Os números não têm esse limite.
+
+### Números
+
+O inspetor mostra, para o shape selecionado:
+
+- **Chão mais baixo** e **Chão mais alto**, com `x y z`;
+- **Folga do piso** (`chãoMin − zmin`) e **folga do topo** (`zmax − chãoMax`). Negativa quer dizer que fura e aparece como `−96 (fura)`;
+- **Chão em N camadas**: o maior número de superfícies empilhadas numa coluna (terreno, piso de prédio, ponte);
+- a área de chão, em unidades² e em % do chão sob o contorno: **Dentro da faixa**, **Acima do topo**, **Abaixo do piso**, **Excluída** (dentro de uma exclusão da zona e na faixa Z dela), **Em outras camadas** e **Sem chão** (quad invisível, tile não carregado, fora do mapa);
+- **Outras camadas**, com o Z de cada uma: pisos de BSP ou mesh longe demais da faixa para contar (veja a regra das camadas abaixo).
+
+Enquanto um contorno é medido, os números anteriores ficam com a marca "medindo…". Arrastar a seta Z ou mudar a faixa atualiza números, cores e pinos no mesmo frame.
+
+### Régua da janela de altura
+
+A janela **Altura da zona** traz uma régua vertical, que não depende do ângulo da câmera:
+
+- a barra na cor da zona é a faixa Z, do menor `zmin` ao maior `zmax` dos shapes;
+- ao lado, o histograma da área de chão por Z, com as mesmas cores do chão: tinta dentro, laranja acima, azul abaixo;
+- as marcas `piso` e `topo` ficam no chão mais baixo e no mais alto, com a folga escrita, em vermelho quando negativa.
+
+Embaixo, 3 linhas somam os shapes da zona (shapes que se sobrepõem contam a área em dobro):
+
+```
+Chão sob a zona: 1.204 … 1.980
+Folga do piso: 248 · Folga do topo: −96 (fura)
+Cobertura 97,3% · acima 2,7% · abaixo 0% · sem chão 0%
+```
+
+### Avisos
+
+O painel de problemas lista os avisos de chão depois dos erros, com outro ícone. **Eles não bloqueiam a compilação**: há casos legítimos de chão fora da faixa, como uma zona só no andar de cima ou uma área em tiles que não foram abertos. Clicar num aviso seleciona a zona e o shape e leva a câmera ao pior ponto.
+
+| Aviso | Quando |
+|---|---|
+| Chão acima do topo | pelo menos 1% do chão acima do topo, ou folga do topo menor que −16 |
+| Chão abaixo do piso | pelo menos 1% do chão abaixo do piso, ou folga do piso menor que −16 |
+| Folga apertada | folga do piso ou do topo entre 0 e 32 |
+| Área sem chão medido | parte do contorno sem chão, por exemplo num tile que não está aberto |
+
+O chão excluído e o das outras camadas não geram aviso. Sem um tile aberto não há avisos.
+
+### Ajustar ao chão
+
+- **Recalcular pelo chão**, no inspetor, põe `zmin` no chão mais baixo menos a folga Z e `zmax` no chão mais alto mais a folga (padrão 256), olhando o chão da área inteira, não só os vértices.
+- **Piso ao chão** e **Topo ao chão**, na janela de altura, mexem só num lado, em todos os shapes incluídos da zona. As exclusões ficam com a faixa delas. Shapes sem chão medido, ou em que o lado novo passaria do outro, ficam como estão e são contados na mensagem.
+- Cada botão é 1 passo de desfazer.
+- Ao criar um retângulo, círculo, polígono ou tile inteiro, a faixa sugerida sai do chão da área da mesma forma. A mensagem diz de onde ela veio: "pelo chão da área", ou "pelos vértices" quando parte da área está fora dos tiles carregados ou não há chão medido.
+
+**Regra das camadas.** O terreno sempre conta. Um piso de BSP ou de static mesh só puxa a faixa quando cruza a faixa atual ou fica a até 1024 unidades dela; os outros aparecem como "outras camadas". Assim o telhado de uma torre ou uma caverna muito abaixo não esticam a faixa de uma zona de rua. O chão excluído também não puxa. Com o botão **Static meshes** desligado, meshes não entram na medição.
+
+A regra é aplicada uma vez, a partir da faixa de antes do clique. **Consequência aceita:** logo depois de um ajuste, uma camada que estava longe da faixa antiga mas fica perto da nova aparece como acima ou abaixo da faixa, com aviso; apertar o botão de novo a puxa para dentro. Repita só se essa camada deve mesmo fazer parte da zona.
 
 ## Licenças de terceiros
 
