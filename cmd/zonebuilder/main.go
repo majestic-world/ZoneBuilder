@@ -377,9 +377,6 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				shell.Zones.LeftOut = render.GroundLeftOut(groundMark)
 				groundBuilt = k
 			}
-			if rows, ok := zones.problemRows(); ok {
-				shell.Problems.Rows = rows
-			}
 			if msg := zones.panel(gtx, &shell.Edit, tiles.world, cover); msg != "" {
 				status = msg
 			}
@@ -394,6 +391,11 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				shell.EdgeLabels = zones.edgeLabels(tiles.world, &cam, shell.Viewport.Size())
 			}
 			pins = cover.pins(zones, tiles.world)
+			// After the selected zone's coverage asked for its profiles, so
+			// they are measured first.
+			if rows, ok := zones.problemRows(cover.warnings(zones, tiles.world)); ok {
+				shell.Problems.Rows = rows
+			}
 			shell.Pins = nil
 			if tiles.world != nil {
 				shell.Pins = pinLabels(pins, tiles.world, &cam, shell.Viewport.Size())

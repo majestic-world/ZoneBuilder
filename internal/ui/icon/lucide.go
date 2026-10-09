@@ -39,6 +39,7 @@ var (
 	ChevronLeft       = lucide("chevron-left")
 	ChevronRight      = lucide("chevron-right")
 	Circle            = lucide("circle")
+	CircleAlert       = lucide("circle-alert")
 	CircleCheck       = lucide("circle-check")
 	CodeXML           = lucide("code-xml")
 	Copy              = lucide("copy")
