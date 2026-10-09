@@ -14,6 +14,7 @@ import (
 
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/inflect"
+	"zonebuilder/internal/locale"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
 )
@@ -332,7 +333,7 @@ func (ts *tiles) opening() bool {
 
 // progress is the loading line and bar for the panel: "" once every
 // wanted tile is shown (or failed). r may be nil (no GPU yet).
-func (ts *tiles) progress(r *render.Renderer) (string, float32) {
+func (ts *tiles) progress(r *render.Renderer, lang locale.Language) (string, float32) {
 	total, shown := 0, 0
 	var done float32
 	for _, e := range ts.entries {
@@ -356,7 +357,7 @@ func (ts *tiles) progress(r *render.Renderer) (string, float32) {
 	if shown == total {
 		return "", 0
 	}
-	return fmt.Sprintf("Carregando: %d de %s", shown, inflect.Count(total, "tile pronto", "tiles prontos")), done / float32(total)
+	return locale.Plural(lang, "actions.map.progress", total, map[string]string{"shown": locale.Number(lang, float64(shown), 0)}), done / float32(total)
 }
 
 // openTiles are the tiles a project records: the focus first, then the
