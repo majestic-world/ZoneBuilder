@@ -20,7 +20,7 @@ const (
 	// degenerates.
 	pitchLimit = 1.52
 	// FastMultiplier is the speed gear while Shift is held.
-	FastMultiplier = 8
+	FastMultiplier = 24
 	// WheelStep is the share of the flight speed one wheel notch flies
 	// forward.
 	WheelStep = 0.35
