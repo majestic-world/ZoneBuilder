@@ -24,6 +24,7 @@ O Zone Builder porta a lógica de leitura do UE2-Studio para Go; ele não chama 
 - **Z por polígono, não por ponto:** o parser aplica o `zmin zmax` da última `coords` ao polígono inteiro. O compilador emite o mesmo par em todos os vértices.
 - **Validação do servidor é fraca:** um polígono inválido só gera log e é carregado mesmo assim; um `type` desconhecido ou um número mal formado derruba o resto do arquivo; um nome duplicado sobrescreve outra zona sem aviso. O Zone Builder valida antes de compilar.
 - **Sem reload de zonas em runtime:** testar exige reiniciar o servidor. `//zone_visualize` desenha um polígono no cliente com `ExServerPrimitive` e serve para conferência pontual.
+- **Água vem do `WaterVolume`, não do material.** O servidor só conhece a água pela zona `water`. O app lê os atores `WaterVolume` vivos (`Level.Actors`, sem `bDeleteMe`) e a geometria de cada um são **todas** as faces BSP do Model apontado por `Brush`, sem o filtro de `PFNotVisible`; `Model.Points` tem pontos órfãos e não serve. O struct `Scale` (`MainScale`, `PostScale`) vem como lista de propriedades aninhada. A transformação é a do ABrush, não a do AActor: `Location + PostScale · R(Rotation) · MainScale · (v − PrePivot)`, sem `DrawScale`; `SheerRate ≠ 0` torna o volume não suportado. No cliente Fafurion são 674 volumes vivos, todos hexaedros, nenhum rotacionado ou escalado. O Z da zona é o do volume − 30 (`water.ServerZOffset`, [ADR 0005](adr/0005-agua-30-abaixo-do-volume.md), pendente da medição em jogo), não o +32 do ADR 0003.
 
 ## Decisões de arquitetura
 
@@ -59,8 +60,10 @@ flowchart LR
   end
   D --> E["cena<br/>batches por material"]
   E --> F["renderer GLES<br/>passes"]
-  E --> G["picking<br/>ray → x y z"]
+  E --> G["picking<br/>ray → x y z<br/>ray → WaterVolume"]
   G --> H["zonas<br/>projeto .zbproj"]
+  G --> W["internal/water<br/>volumes → zona water"]
+  W --> H
   H --> J["validação"]
   J --> K["compilador XML"]
   K --> L["janela XML<br/>um arquivo por tipo, copiar"]
@@ -79,6 +82,7 @@ internal/render/        bindings EGL/GLES via ANGLE, shaders, passes, upload de 
 internal/camera/        câmera fly, ray a partir do cursor
 internal/zone/          modelo de zona, geometria (simple polygon, point-in-polygon), validação, tipos e parâmetros chave/valor
 internal/zonexml/       compilação para XML
+internal/water/         WaterVolume → planos da zona water (1 zona por topo, 1 polígono por volume, avisos)
 internal/project/       leitura e gravação do .zbproj
 internal/ui/            painéis Gio: zonas, propriedades, ferramentas, problemas, status
 ```
