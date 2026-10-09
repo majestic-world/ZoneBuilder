@@ -58,13 +58,15 @@ func (p *Profile) Histogram() Histogram {
 }
 
 // Split is h's floor with Z in [lo, hi] sorted by the Z range [zmin,
-// zmax]: inside it, above zmax and below zmin. BSP and mesh floor farther
-// than GroundReach from the range is another layer (spec D5) and left
-// out. A bin cut by lo, hi, zmin, zmax or the reach is apportioned as if
-// its floor spread evenly over its Z, so the parts of a bin are exact
-// only where its floor does, and a BSP or mesh piece across the reach
-// loses its part beyond it, which Classify counts whole.
-func (h Histogram) Split(lo, hi, zmin, zmax float64) (inside, above, below float64) {
+// zmax]: inside it, above zmax and below zmin. Floor the layer rule
+// leaves out is another layer (spec D5) and left out: BSP and mesh floor
+// farther than GroundReach from the range, and the terrain when terrain
+// is false (Report.Terrain of the range). A bin cut by lo, hi, zmin, zmax
+// or the reach is apportioned as if its floor spread evenly over its Z,
+// so the parts of a bin are exact only where its floor does, and a BSP or
+// mesh piece across the reach loses its part beyond it, which Classify
+// counts whole.
+func (h Histogram) Split(lo, hi, zmin, zmax float64, terrain bool) (inside, above, below float64) {
 	b0 := max(histogramBin(lo), h.First)
 	b1 := min(histogramBin(hi), h.First+len(h.Terrain)-1)
 	split := func(a, s, e float64) {
@@ -79,7 +81,9 @@ func (h Histogram) Split(lo, hi, zmin, zmax float64) (inside, above, below float
 	for b := b0; b <= b1; b++ {
 		s := max(lo, float64(b*HistogramStep))
 		e := min(hi, float64((b+1)*HistogramStep))
-		split(h.Terrain[b-h.First], s, e)
+		if terrain {
+			split(h.Terrain[b-h.First], s, e)
+		}
 		split(h.Built[b-h.First], max(s, zmin-GroundReach), min(e, zmax+GroundReach))
 	}
 	return inside, above, below

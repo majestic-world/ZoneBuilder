@@ -342,7 +342,7 @@ func TestHistogramSplitsCutBinsByTheRange(t *testing.T) {
 	ramp := func(x, y float32) geom.Vec3 { return v(x, y, x) }
 	a, b, c, d := ramp(-50, -50), ramp(250, -50), ramp(250, 250), ramp(-50, 250)
 	h := coverage.Measure(floor{tri(a, b, c), tri(a, c, d)}, square(0, 0, 200, 200), nil).Histogram()
-	in, above, below := h.Split(-1000, 1000, 30, 170)
+	in, above, below := h.Split(-1000, 1000, 30, 170, true)
 	for _, c := range []struct {
 		name      string
 		got, want float64
@@ -351,7 +351,7 @@ func TestHistogramSplitsCutBinsByTheRange(t *testing.T) {
 			t.Errorf("%s %v, want %v", c.name, c.got, c.want)
 		}
 	}
-	if in, above, below := h.Split(32, 48, 30, 170); !near(in, 3200) || above != 0 || below != 0 {
+	if in, above, below := h.Split(32, 48, 30, 170, true); !near(in, 3200) || above != 0 || below != 0 {
 		t.Errorf("bin 2 split %v/%v/%v, want 3200 inside", in, above, below)
 	}
 }

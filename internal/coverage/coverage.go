@@ -49,8 +49,18 @@ type Profile struct {
 	layers int
 	pieces []piece
 	// byLow is the BSP and mesh pieces, lowest floor first: what the
-	// layer rule reads its left-out layers from.
-	byLow []lowPiece
+	// layer rule reads its left-out layers from. reachHi[k] is the
+	// highest floor of the pieces of byLow[:k+1] under no ban, and
+	// bannedBuilt the BSP and mesh pieces under a ban: with them, whether
+	// any BSP or mesh floor reaches a range is a binary search.
+	byLow       []lowPiece
+	reachHi     []float64
+	bannedBuilt []int32
+	// terrainLo and terrainHi are the lowest and highest terrain under
+	// the outline (terrainLo > terrainHi with none), judged as one layer;
+	// terrainFree is whether some of it lies under no ban.
+	terrainLo, terrainHi float64
+	terrainFree          bool
 	// verts are the pieces' vertices, piece by piece.
 	verts []Spot
 	// clipped are the triangles that pieces cut by the outline come from,
@@ -134,12 +144,16 @@ type Report struct {
 	// Excluded is the floor whose piece centroid lies under a ban and
 	// within its Z range; it is in none of Inside, Above, Below.
 	Excluded float64
-	// Other is the BSP and mesh floor the layer rule leaves out: a roof
-	// or a tree canopy far over the range, a cave far under it. Others
-	// are its layers, lowest first. It is in none of Inside, Above,
-	// Below, nor Excluded.
+	// Other is the floor the layer rule leaves out: a roof or a tree
+	// canopy far over the range, a cave far under it, the terrain under a
+	// tower's top. Others are its layers, lowest first. It is in none of
+	// Inside, Above, Below, nor Excluded.
 	Other  float64
 	Others []Layer
+	// Terrain is whether the terrain under the outline is floor of the
+	// range by the layer rule (Profile.terrainCounts); false, it is in
+	// Other. Sum leaves it out: it is per shape.
+	Terrain bool
 	// NoGround is the outline's area with no floor on any layer: an
 	// invisible terrain quad no building floor covers, a tile not loaded,
 	// off the map.
@@ -215,7 +229,7 @@ func Sum(rs ...Report) Report {
 // matched to the bans whose outline holds its centroid; their Z ranges
 // are applied by Classify.
 func Measure(f Floor, o Outline, bans []Ban) *Profile {
-	p := &Profile{}
+	p := &Profile{terrainLo: math.Inf(1), terrainHi: math.Inf(-1)}
 	p.banZ = make([][2]float64, len(bans))
 	for i, b := range bans {
 		p.banZ[i] = [2]float64{b.ZMin, b.ZMax}
@@ -239,6 +253,7 @@ func Measure(f Floor, o Outline, bans []Ban) *Profile {
 	f.Floor(box, m.triangle)
 	p.stack(o)
 	p.sortByLow()
+	p.indexReach()
 	for _, spans := range p.edges {
 		slices.SortFunc(spans, func(a, b Span) int { return cmp.Compare(a.From.D, b.From.D) })
 	}
@@ -495,7 +510,7 @@ func (m *measurer) extreme(q Spot) {
 // excluded floor and the other layers apart, the floor of the range into
 // Inside, Above and Below.
 func (p *Profile) Classify(zmin, zmax float64) Report {
-	r := Report{Layers: p.layers, Edges: p.edges}
+	r := Report{Layers: p.layers, Edges: p.edges, Terrain: p.terrainCounts(zmin, zmax)}
 	var cut, slab []Spot // scratch polygons
 	for i := range p.pieces {
 		pc := &p.pieces[i]
@@ -503,7 +518,7 @@ func (p *Profile) Classify(zmin, zmax float64) Report {
 		case pc.nbans > 0 && p.excluded(pc):
 			r.Excluded += pc.area
 			continue
-		case !reaches(pc, zmin, zmax):
+		case !reaches(pc, zmin, zmax, r.Terrain):
 			r.Other += pc.area
 			continue
 		}
@@ -541,7 +556,7 @@ func (p *Profile) Classify(zmin, zmax float64) Report {
 		r.FloorClearance, r.TopClearance = r.GroundMin.Z-zmin, zmax-r.GroundMax.Z
 	}
 	if r.Other > 0 {
-		r.Others = p.others(zmin, zmax)
+		r.Others = p.others(zmin, zmax, r.Terrain)
 	}
 	r.NoGround = max(0, p.area-p.floored)
 	if r.NoGround <= 1e-9*p.area {

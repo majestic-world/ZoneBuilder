@@ -30,11 +30,12 @@ func TestFarRoofLeftOutNearMezzaninePulls(t *testing.T) {
 // Under a square whose corners lie on the ground at 0, a terrain peak at
 // 2000.5 far from every corner sets the top fitted with a margin of 256:
 // 2257, the peak rounded up plus the margin, even from a range [-2000,
-// -1500] that the whole terrain lies farther than GroundReach above.
-// Catches a fit taken from the ground under the vertices (the old
-// "Recalcular pelo chão"), terrain left out by the reach that only BSP and
-// mesh obey, or a top rounded down that leaves less than the margin above
-// the peak.
+// -1500] that the whole terrain lies farther than GroundReach above: no
+// BSP or mesh floor reaches the range either, so the terrain counts by
+// the fallback of the layer rule. Catches a fit taken from the ground
+// under the vertices (the old "Recalcular pelo chão"), terrain left out
+// with nothing else to fit to (no fallback), or a top rounded down that
+// leaves less than the margin above the peak.
 func TestPeakFarFromTheVerticesSetsTheTop(t *testing.T) {
 	apex := v(437, 611, 2000.5)
 	a, b, c, d := v(0, 0, 0), v(1000, 0, 0), v(1000, 1000, 0), v(0, 1000, 0)
@@ -72,7 +73,7 @@ func TestFarRoofIsAnotherLayerOfTheFittedRange(t *testing.T) {
 	if len(r.Others) != 1 || r.Others[0].Low != 3256 {
 		t.Errorf("other layers %v, want the roof at 3256 alone", r.Others)
 	}
-	if in, above, below := p.Histogram().Split(-1e5, 1e5, float64(zmin), float64(zmax)); !near(in, 300*300) || above != 0 || below != 0 {
+	if in, above, below := p.Histogram().Split(-1e5, 1e5, float64(zmin), float64(zmax), r.Terrain); !near(in, 300*300) || above != 0 || below != 0 {
 		t.Errorf("histogram split %v/%v/%v, want 90000 inside only", in, above, below)
 	}
 }
@@ -111,5 +112,61 @@ func TestExcludedHillDoesNotSetTheFittedTop(t *testing.T) {
 	}
 	if _, zmax, _ := coverage.Measure(hillOnFlat(), o, nil).Fit(-100, 100, 256, coverage.TopSide); zmax != 656 {
 		t.Errorf("top fitted without the ban %d, want 656", zmax)
+	}
+}
+
+// A tower's BSP floor at 15 000 over flat terrain at 0, fitted from
+// [14744, 15256], keeps 14744 … 15256: the terrain lies far below the
+// range while the tower's floor reaches it, so the terrain is another
+// layer, in Other and listed at its Z, with no floor below the range and
+// no warning. Catches the old rule, where the terrain always counts and
+// pulls a zone drawn on a tower's top down to the ground under it.
+func TestTerrainUnderATowerIsAnotherLayer(t *testing.T) {
+	f := append(grid(0), bspQuad(0, 0, 300, 300, 15000)...)
+	p := coverage.Measure(f, square(0, 0, 300, 300), nil)
+	zmin, zmax, _ := p.Fit(14744, 15256, 256, coverage.BothSides)
+	if zmin != 14744 || zmax != 15256 {
+		t.Fatalf("fitted range %d … %d, want 14744 … 15256", zmin, zmax)
+	}
+	r := p.Classify(float64(zmin), float64(zmax))
+	if r.Below != 0 || r.GroundMin.Z != 15000 || len(r.Warnings) != 0 {
+		t.Errorf("below %v, lowest floor %v, warnings %v; want 0, z 15000, none", r.Below, r.GroundMin, kinds(r.Warnings))
+	}
+	if !near(r.Other, 300*300) || len(r.Others) != 1 || r.Others[0].Low != 0 || r.Others[0].High != 0 {
+		t.Errorf("other layers %v over %v units², want the terrain at 0 over 90000", r.Others, r.Other)
+	}
+}
+
+// A cave's BSP floor at −3000 under flat terrain at 0, fitted from the
+// cave's range [−3256, −2744], keeps its top at −2744: the terrain, 2744
+// over that top, is another layer. Catches the old rule, where the
+// terrain over a cave stretches its zone's top up to the surface.
+func TestTerrainOverACaveDoesNotLiftTheTop(t *testing.T) {
+	f := append(grid(0), bspQuad(0, 0, 300, 300, -3000)...)
+	zmin, zmax, g := coverage.Measure(f, square(0, 0, 300, 300), nil).Fit(-3256, -2744, 256, coverage.BothSides)
+	if zmin != -3256 || zmax != -2744 || g.Max.Z != -3000 {
+		t.Errorf("fitted range %d … %d over floor up to %v, want -3256 … -2744 over the cave at -3000", zmin, zmax, g.Max.Z)
+	}
+}
+
+// Under a square whose corners lie on terrain at 0, a terrain pyramid
+// climbs through a ring at 1500 to a peak at 3000, with a BSP slab at 100
+// in a corner. Fitted from [−256, 256], the top is 3256, over the peak:
+// the corners bring the terrain within reach, so all of it counts, though
+// its triangles between the ring and the peak lie wholly farther than
+// GroundReach over the range. Catches terrain judged piece by piece, which
+// tops the hill at its ring (1756), instead of as one block.
+func TestHillTerrainCountsAsOneBlock(t *testing.T) {
+	a, b, c, d := v(0, 0, 0), v(1000, 0, 0), v(1000, 1000, 0), v(0, 1000, 0)
+	ra, rb, rc, rd := v(250, 250, 1500), v(750, 250, 1500), v(750, 750, 1500), v(250, 750, 1500)
+	peak := v(500, 500, 3000)
+	f := floor{
+		tri(a, b, rb), tri(a, rb, ra), tri(b, c, rc), tri(b, rc, rb),
+		tri(c, d, rd), tri(c, rd, rc), tri(d, a, ra), tri(d, ra, rd),
+		tri(ra, rb, peak), tri(rb, rc, peak), tri(rc, rd, peak), tri(rd, ra, peak),
+	}
+	f = append(f, bspQuad(0, 0, 100, 100, 100)...)
+	if _, zmax, _ := coverage.Measure(f, square(0, 0, 1000, 1000), nil).Fit(-256, 256, 256, coverage.BothSides); zmax != 3256 {
+		t.Errorf("fitted top %d, want 3256 over the peak", zmax)
 	}
 }
