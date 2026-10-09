@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strconv"
+	"strings"
 
 	"gioui.org/layout"
 	"gioui.org/widget"
@@ -18,6 +19,20 @@ type EditPanel struct {
 	// Margin is how far the suggested Z range reaches past the vertices
 	// or the ground under them (zone.DefaultZMargin unless changed).
 	Margin widget.Editor
+	// Zone titles the selected zone's height controls; empty hides them.
+	Zone string
+	// Step is how far Up and Down (and PageUp/PageDown in the viewport)
+	// raise or lower the whole zone.
+	Step     widget.Editor
+	Up, Down widget.Clickable
+	// Base is the zone's lowest zmin; SetBase (or Enter) moves the whole
+	// zone so its floor lands there.
+	Base    widget.Editor
+	SetBase widget.Clickable
+	// Height is each shape's zmax - zmin; SetHeight (or Enter) keeps the
+	// floors and moves the tops.
+	Height    widget.Editor
+	SetHeight widget.Clickable
 	// Shape titles the current shape's controls; empty hides them.
 	Shape string
 	// ZRange is "zmin zmax"; SetZRange (or Enter) applies it, GroundZ
@@ -35,10 +50,33 @@ type EditPanel struct {
 }
 
 func (p *EditPanel) init() {
-	for _, e := range []*widget.Editor{&p.Margin, &p.ZRange, &p.Offset, &p.Coords} {
+	for _, e := range []*widget.Editor{&p.Margin, &p.Step, &p.Base, &p.Height, &p.ZRange, &p.Offset, &p.Coords} {
 		e.SingleLine, e.Submit = true, true
 	}
 	p.Margin.SetText(strconv.Itoa(zone.DefaultZMargin))
+	p.Step.SetText(strconv.Itoa(DefaultZStep))
+}
+
+// DefaultZStep is the starting Step of Up and Down.
+const DefaultZStep = 64
+
+// StepZ is Step as a positive number of units, DefaultZStep when the field
+// holds anything else.
+func (p *EditPanel) StepZ() int {
+	if n, err := strconv.Atoi(strings.TrimSpace(p.Step.Text())); err == nil && n > 0 {
+		return n
+	}
+	return DefaultZStep
+}
+
+// BaseRequested reports a click on SetBase or Enter in Base.
+func (p *EditPanel) BaseRequested(gtx layout.Context) bool {
+	return requested(gtx, &p.Base, &p.SetBase)
+}
+
+// HeightRequested reports a click on SetHeight or Enter in Height.
+func (p *EditPanel) HeightRequested(gtx layout.Context) bool {
+	return requested(gtx, &p.Height, &p.SetHeight)
 }
 
 // ZRangeRequested reports a click on SetZRange or Enter in ZRange.
@@ -81,6 +119,20 @@ func (s *Shell) editPanel() []layout.FlexChild {
 		row(s.button(&p.Undo, "Desfazer"), s.button(&p.Redo, "Refazer")),
 		layout.Rigid(s.label("Folga Z da faixa sugerida")),
 		layout.Rigid(s.field(&p.Margin, strconv.Itoa(zone.DefaultZMargin))),
+	}
+	if p.Zone != "" {
+		children = append(children,
+			layout.Rigid(s.label(p.Zone)),
+			layout.Rigid(s.label("Subir ou descer a zona por (PageUp/PageDown no viewport)")),
+			layout.Rigid(s.field(&p.Step, strconv.Itoa(DefaultZStep))),
+			row(s.button(&p.Up, "Subir"), s.button(&p.Down, "Descer")),
+			layout.Rigid(s.label("Base: z do piso da zona")),
+			layout.Rigid(s.field(&p.Base, "z")),
+			layout.Rigid(s.button(&p.SetBase, "Aplicar base")),
+			layout.Rigid(s.label("Altura: topo = piso + altura")),
+			layout.Rigid(s.field(&p.Height, "altura")),
+			layout.Rigid(s.button(&p.SetHeight, "Aplicar altura")),
+		)
 	}
 	if p.Shape != "" {
 		children = append(children,

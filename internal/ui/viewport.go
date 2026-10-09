@@ -15,8 +15,9 @@ import (
 
 // viewportKeys are the keys the viewport listens to while it has focus: the
 // fly keys, Enter, which closes the polygon being drawn, Delete, which
-// removes the selected vertex, and Escape, which puts the armed tool down.
-var viewportKeys = []key.Name{"W", "A", "S", "D", "Q", "E", key.NameShift, key.NameReturn, key.NameEnter, key.NameDeleteForward, key.NameEscape}
+// removes the selected vertex, Escape, which puts the armed tool down, and
+// PageUp/PageDown, which raise and lower the selected zone.
+var viewportKeys = []key.Name{"W", "A", "S", "D", "Q", "E", key.NameShift, key.NameReturn, key.NameEnter, key.NameDeleteForward, key.NameEscape, key.NamePageUp, key.NamePageDown}
 
 // shortcutKeys reach the viewport with the shortcut modifier (Ctrl) held
 // unless the focused widget takes them (a text field's own Ctrl+Z): Z

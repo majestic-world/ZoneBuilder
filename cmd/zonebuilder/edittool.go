@@ -39,7 +39,9 @@ type editState struct {
 	sel vertexRef
 	// margin is the Z margin of suggested ranges (the panel's Folga Z).
 	margin int
-	drag   drag
+	// step is how far Subir/Descer and PageUp/PageDown move the zone.
+	step int
+	drag drag
 	// filled is the selection and version the panel fields were last
 	// filled for.
 	filled panelKey
@@ -77,7 +79,7 @@ type drag struct {
 }
 
 func newEditState() editState {
-	return editState{sel: vertexRef{index: -1}, margin: zone.DefaultZMargin}
+	return editState{sel: vertexRef{index: -1}, margin: zone.DefaultZMargin, step: ui.DefaultZStep}
 }
 
 // currentShape is the shape the panel edits, if it exists.
@@ -144,7 +146,7 @@ func (e *zoneEditor) viewportEvent(s *scene.World, cam *camera.Camera, ev event.
 	switch ev := ev.(type) {
 	case key.Event:
 		if ev.State != key.Press {
-			return "", ev.Name == "Z" || ev.Name == "Y" || ev.Name == key.NameDeleteForward
+			return "", ev.Name == "Z" || ev.Name == "Y" || ev.Name == key.NameDeleteForward || ev.Name == key.NamePageUp || ev.Name == key.NamePageDown
 		}
 		switch {
 		case ev.Name == "Z" && ev.Modifiers.Contain(key.ModShortcut|key.ModShift), ev.Name == "Y" && ev.Modifiers.Contain(key.ModShortcut):
@@ -153,6 +155,10 @@ func (e *zoneEditor) viewportEvent(s *scene.World, cam *camera.Camera, ev event.
 			return e.undo(), true
 		case ev.Name == key.NameDeleteForward:
 			return e.removeVertex(), true
+		case ev.Name == key.NamePageUp:
+			return e.shiftZone(e.step), true
+		case ev.Name == key.NamePageDown:
+			return e.shiftZone(-e.step), true
 		}
 	case pointer.Event:
 		if s == nil || e.drawing || e.armed {
@@ -294,6 +300,72 @@ func (e *zoneEditor) moveShape(dx, dy, dz int) string {
 	return fmt.Sprintf("Shape movido por %d %d %d", dx, dy, dz)
 }
 
+// zoneZ is the selected zone's floor (its lowest zmin) and top (its
+// highest zmax); ok is false while it has no shape or one is being drawn.
+func (e *zoneEditor) zoneZ() (z zone.Zone, base, top int, ok bool) {
+	z, ok = e.doc.Zone(e.zone)
+	if !ok || e.drawing || len(z.Shapes) == 0 {
+		return zone.Zone{}, 0, 0, false
+	}
+	base, top = z.Shapes[0].ZMin, z.Shapes[0].ZMax
+	for _, s := range z.Shapes[1:] {
+		base, top = min(base, s.ZMin), max(top, s.ZMax)
+	}
+	return z, base, top, true
+}
+
+// shiftZone raises (dz > 0) or lowers the selected zone, exclusions
+// included.
+func (e *zoneEditor) shiftZone(dz int) string {
+	z, base, top, ok := e.zoneZ()
+	if !ok {
+		return "Selecione uma zona pronta para subir ou descer"
+	}
+	if dz == 0 {
+		return ""
+	}
+	if e.apply(zone.ShiftZoneZ{Zone: z.ID, DZ: dz}) != nil {
+		return "Não foi possível mover a zona"
+	}
+	log.Printf("zona: %s movida %+d em z, agora %d..%d", z.Name, dz, base+dz, top+dz)
+	verb := "subiu"
+	if dz < 0 {
+		verb = "desceu"
+	}
+	return fmt.Sprintf("%s %s %d: z %d … %d", z.Name, verb, abs(dz), base+dz, top+dz)
+}
+
+// setZoneBase moves the selected zone so its floor lands at text's z.
+func (e *zoneEditor) setZoneBase(text string) string {
+	v, ok := ints(text, 1)
+	if !ok {
+		return "Digite a base como um número inteiro"
+	}
+	_, base, _, ok := e.zoneZ()
+	if !ok {
+		return "Selecione uma zona pronta para definir a base"
+	}
+	return e.shiftZone(v[0] - base)
+}
+
+// setZoneHeight makes every shape of the selected zone text's height
+// tall, keeping their floors.
+func (e *zoneEditor) setZoneHeight(text string) string {
+	v, ok := ints(text, 1)
+	if !ok || v[0] < 0 {
+		return "Digite a altura como um número inteiro positivo"
+	}
+	z, base, _, ok := e.zoneZ()
+	if !ok {
+		return "Selecione uma zona pronta para definir a altura"
+	}
+	if e.apply(zone.SetZoneHeight{Zone: z.ID, Height: v[0]}) != nil {
+		return "Não foi possível definir a altura"
+	}
+	log.Printf("zona: %s com altura %d", z.Name, v[0])
+	return fmt.Sprintf("%s: altura %d, z %d … %d", z.Name, v[0], base, base+v[0])
+}
+
 // insertAfter inserts a vertex in the middle of the current shape's edge
 // from vertex i to the next one and selects it.
 func (e *zoneEditor) insertAfter(i int) string {
@@ -395,6 +467,19 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World) 
 	if m, err := strconv.Atoi(strings.TrimSpace(p.Margin.Text())); err == nil && m >= 0 {
 		e.margin = m
 	}
+	e.step = p.StepZ()
+	if p.Up.Clicked(gtx) {
+		msg = e.shiftZone(e.step)
+	}
+	if p.Down.Clicked(gtx) {
+		msg = e.shiftZone(-e.step)
+	}
+	if p.BaseRequested(gtx) {
+		msg = e.setZoneBase(p.Base.Text())
+	}
+	if p.HeightRequested(gtx) {
+		msg = e.setZoneHeight(p.Height.Text())
+	}
 	if p.ZRangeRequested(gtx) {
 		msg = e.setZRange(p.ZRange.Text())
 	}
@@ -427,7 +512,11 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World) 
 	z, sh, ok := e.currentShape()
 	ok = ok && !e.drawing
 	v, vok := e.selected()
-	p.Shape, p.Vertex = "", ""
+	p.Zone, p.Shape, p.Vertex = "", "", ""
+	zz, base, top, zok := e.zoneZ()
+	if zok {
+		p.Zone = fmt.Sprintf("Zona %s: piso z %d, topo z %d, altura %d", zz.Name, base, top, top-base)
+	}
 	if ok {
 		kind := shapeKind(sh)
 		if sh.Kind != zone.Rectangle {
@@ -446,6 +535,10 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World) 
 		e.filled = k
 		if ok {
 			p.ZRange.SetText(fmt.Sprintf("%d %d", sh.ZMin, sh.ZMax))
+		}
+		if zok {
+			p.Base.SetText(strconv.Itoa(base))
+			p.Height.SetText(strconv.Itoa(top - base))
 		}
 		if vok {
 			pt := e.shownPoints(e.zone, e.shape, sh.Points)[v]

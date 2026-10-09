@@ -100,3 +100,52 @@ func (c MoveShape) apply(d *Document) error {
 	s.ZMax += c.DZ
 	return nil
 }
+
+// ShiftZoneZ raises (DZ > 0) or lowers a whole zone: every shape, its
+// exclusions included, moves its vertices and Z range by DZ, so the
+// exclusions keep cutting the same part of the zone. Restart points stay
+// where they were clicked: they are spots on the ground, not part of the
+// zone's volume.
+type ShiftZoneZ struct {
+	Zone ZoneID
+	DZ   int
+}
+
+func (c ShiftZoneZ) apply(d *Document) error {
+	z, err := d.zone(c.Zone)
+	if err != nil {
+		return err
+	}
+	for i := range z.Shapes {
+		s := &z.Shapes[i]
+		pts := make([]Point, len(s.Points))
+		for j, p := range s.Points {
+			pts[j] = Point{X: p.X, Y: p.Y, Z: p.Z + c.DZ}
+		}
+		s.Points = pts
+		s.ZMin += c.DZ
+		s.ZMax += c.DZ
+	}
+	return nil
+}
+
+// SetZoneHeight makes every shape of a zone Height tall: each keeps its
+// floor (ZMin) and its top becomes ZMin + Height.
+type SetZoneHeight struct {
+	Zone   ZoneID
+	Height int
+}
+
+func (c SetZoneHeight) apply(d *Document) error {
+	if c.Height < 0 {
+		return fmt.Errorf("zona: altura %d negativa", c.Height)
+	}
+	z, err := d.zone(c.Zone)
+	if err != nil {
+		return err
+	}
+	for i := range z.Shapes {
+		z.Shapes[i].ZMax = z.Shapes[i].ZMin + c.Height
+	}
+	return nil
+}
