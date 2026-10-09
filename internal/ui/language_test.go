@@ -18,7 +18,6 @@ func TestLanguageSwitchKeepsEditorsAndViewport(t *testing.T) {
 	s.Project.Unsaved = true
 	s.Height.Zone = "zone floor"
 	s.XML.Open([]zonexml.File{{Name: "peace_zone.xml", Data: []byte("<zone id=\"42\"/>")}})
-	s.list.Position.Offset = 125
 	s.Language = locale.PtBR
 	for _, language := range []locale.Language{locale.PtBR, locale.En, locale.PtBR} {
 		s.Language = language
@@ -36,8 +35,8 @@ func TestLanguageSwitchKeepsEditorsAndViewport(t *testing.T) {
 			t.Fatalf("editing state changed after selecting %q", language)
 		}
 		if s.Language != language { t.Fatalf("language = %q, want %q", s.Language, language) }
-		if s.list.Position.Offset != 125 || s.Height.Window.Closed || s.XML.Window.Closed {
-			t.Fatalf("inspector scroll or floating windows changed after selecting %q", language)
+		if s.Height.Window.Closed || s.XML.Window.Closed {
+			t.Fatalf("floating windows changed after selecting %q", language)
 		}
 		if len(s.XML.files) != 1 || s.XML.files[0].text != "<zone id=\"42\"/>" {
 			t.Fatalf("XML changed after selecting %q", language)

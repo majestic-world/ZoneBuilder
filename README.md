@@ -58,6 +58,8 @@ Apresente texto estático com `locale.Text`, texto parametrizado com `locale.For
 4. Ajuste altura, tipo e parâmetros no inspetor à direita e na janela **Altura da zona**.
 5. Clique em **Compilar XML**, copie cada arquivo da janela e cole em `data/zone/` do servidor com o nome indicado.
 
+O seletor **PT-BR / EN** fica sempre visível no alto da janela, abaixo do logotipo. Clique em **EN** para usar a interface em inglês ou em **PT-BR** para voltar ao português; a opção ativa fica destacada. A escolha é uma preferência pessoal salva na configuração do usuário (`%AppData%\ZoneBuilder\config.json`) e reaparece quando o app é aberto novamente. Sem preferência válida, o idioma inicial é pt-BR. A troca não modifica o projeto, os campos em edição nem o XML gerado.
+
 Controles do viewport:
 
 | Tecla ou gesto | Ação |

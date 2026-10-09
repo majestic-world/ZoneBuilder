@@ -13,6 +13,7 @@ import (
 	"zonebuilder/internal/camera"
 	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/geom"
+	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/locale"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"

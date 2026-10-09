@@ -4,10 +4,10 @@
 
 **Blocked by:** 02, 03, 04, 05, 06, 08
 
-**Status:** ready-for-agent
+**Status:** claimed
 
-- [ ] Diálogos usam títulos/descrições no idioma atual; escolha de idioma não altera projeto.
-- [ ] Verificações integradas observam estado, contagem/ordem/alvo de problemas, aviso e estabilidade do XML.
+- [x] Diálogos usam títulos/descrições no idioma atual; escolha de idioma não altera projeto.
+- [x] Verificações integradas observam estado, contagem/ordem/alvo de problemas, aviso e estabilidade do XML.
 - [ ] Smoke visual na janela padrão comprova legibilidade/interação e preferência após reinício.
 
 ## Comments
