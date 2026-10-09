@@ -1,4 +1,6 @@
-Status: ready-for-agent
+Status: resolved
+
+# Zona de água a partir do WaterVolume
 
 ## Resolução
 
@@ -9,8 +11,7 @@ Tickets 01–04 e 06 entregues; o 05 (verificação em jogo) fica aberto para o 
 - **03:** `internal/water`. Desvio de D5: a assinatura é `water.Compile(selected, live []scene.WaterVolume, doc *zone.Document) []Plan`, porque o aviso de sobreposição precisa dos volumes fora da seleção e o plano precisa do ID da zona existente ou de um novo. ADR 0005 com `water.ServerZOffset = -30`, **pendente da medição em jogo** (ticket 05).
 - **04:** `ui.ContextMenu` (o menu do projeto passou a usá-lo) e o item **Compilar zona de água**: 1 passo de desfazer, compila só as zonas da água, abre a janela de XML; status com os avisos e a nota dos 62 abaixo da água.
 - **06:** `GLOSSARY.md` (seção Água), `README.md` (seção Zona de água) e `docs/plan.md` (fato do `WaterVolume`, `internal/water` no fluxo e na estrutura).
-
-# Zona de água a partir do WaterVolume
+- **Code review:** planos das faces orientados pela média dos vértices (cunha), IDs de zona em ordem determinística, 1 envoltória convexa (`geom.Hull`), frases dos avisos ao lado de `water.WarningKind`, construtor de teste em `internal/scene/scenetest`, menus de app em `internal/ui/menus.go`, e clique em volume `Unsupported` mostra `Volume X_Y WaterVolumeN não suportado: <motivo>`.
 
 ## Problem Statement
 

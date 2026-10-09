@@ -4,14 +4,18 @@
 
 **Blocked by:** 01 (Volumes de água na cena)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Teste do seam, raio × poliedro convexo: entra pelo topo (entrada = distância até o topo), passa ao lado (sem acerto), nasce dentro (entrada 0), raspa uma aresta (acerto estável) e um volume atrás do chão, com entrada além de `maxDist`, não é escolhido
-- [ ] Teste do seam: 3 caixas encostadas com o mesmo topo formam 1 corpo, e uma 4ª encostada com topo 100 acima fica fora
-- [ ] Teste do seam: um volume `Unsupported` nunca é escolhido
-- [ ] No app, em 22_22, clicar no mar de Giran destaca os 8 volumes e o status diz `8 volumes`, `topo −3780` e `exata`
-- [ ] No app, clicar na margem seca ao lado não seleciona; Esc limpa
-- [ ] No app, com uma ferramenta de zona armada, o clique na água continua desenhando o shape e não seleciona água
-- [ ] Ctrl+clique num volume do corpo o tira da seleção, e Ctrl+clique de novo o devolve
+- [x] Teste do seam, raio × poliedro convexo: entra pelo topo (entrada = distância até o topo), passa ao lado (sem acerto), nasce dentro (entrada 0), raspa uma aresta (acerto estável) e um volume atrás do chão, com entrada além de `maxDist`, não é escolhido
+- [x] Teste do seam: 3 caixas encostadas com o mesmo topo formam 1 corpo, e uma 4ª encostada com topo 100 acima fica fora
+- [x] Teste do seam: um volume `Unsupported` nunca é escolhido
+- [x] No app, em 22_22, clicar no mar de Giran destaca os 8 volumes e o status diz `8 volumes`, `topo −3780` e `exata`
+- [x] No app, clicar na margem seca ao lado não seleciona; Esc limpa
+- [x] No app, com uma ferramenta de zona armada, o clique na água continua desenhando o shape e não seleciona água
+- [x] Ctrl+clique num volume do corpo o tira da seleção, e Ctrl+clique de novo o devolve
 
 ## Comments
+
+Implementado na branch `za/02-clique-seleciona-agua` e integrado em `zona-de-agua`. Testes: `TestPickWaterClipsTheRayByTheVolumePlanes` (com o caso da cunha acrescentado no code review), `TestWaterBodyJoinsTouchingVolumesWithTheSameTop` (uma caixa em outra cena, para cobrir corpos entre tiles), `TestPickWaterNeverChoosesAnUnsupportedVolume`. Smoke com capturas: 8 prismas e `Água: 8 volumes · topo -3780 (servidor -3810) · exata`; margem seca e Esc limpam; ferramenta armada desenha o vértice; Ctrl+clique vai de 8 a 7 e volta a 8. A mensagem `Esta água não tem WaterVolume no mapa` e a guarda das alças de vértice foram conferidas no smoke do ticket 04.
+
+Evidências: `C:/Workspace/zone-builder-notes/zona-de-agua/02-evidence/`.
