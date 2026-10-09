@@ -30,6 +30,8 @@ type session struct {
 	saved int
 	// picks delivers the file chosen in a project dialog.
 	picks chan projectPick
+	// languageWarning retains the most recent preference write failure.
+	languageWarning actionStatus
 }
 
 // projectPick is a file chosen in the save (save set) or open dialog.
@@ -81,8 +83,10 @@ func (s *session) chooseLanguage(shell *ui.Shell, lang locale.Language) string {
 	}
 	if err != nil {
 		log.Printf("configuração: %v", err)
-		return fmt.Sprintf("%s: %v", locale.Text(lang, "app.preference.unsaved"), err)
+		s.languageWarning = actionError("actions.preference.unsaved", err, nil)
+		return s.languageWarning.render(lang)
 	}
+	s.languageWarning = actionStatus{}
 	return ""
 }
 
@@ -99,21 +103,21 @@ func (s *session) mapOpened(client string, tiles []scene.Tile) {
 // and the file chosen is saved or opened on a later frame. Opening is
 // refused while busy (a map is loading). It returns the status line ("" for
 // no news) and, after opening a project, its tiles to load.
-func (s *session) update(gtx layout.Context, w *app.Window, shell *ui.Shell, zones *zoneEditor, tiles []scene.Tile, busy bool) (status string, load []scene.Tile) {
+func (s *session) update(gtx layout.Context, w *app.Window, shell *ui.Shell, zones *zoneEditor, tiles []scene.Tile, busy bool) (status actionStatus, load []scene.Tile) {
 	p := &shell.Project
 	open, save, saveAs := p.Requests(gtx)
 	if save {
 		if s.path != "" {
 			status = s.save(w, shell, zones, tiles, s.path)
 		} else {
-			s.pick(w, true)
+			s.pick(w, true, shell.Language)
 		}
 	}
 	if saveAs {
-		s.pick(w, true)
+		s.pick(w, true, shell.Language)
 	}
 	if open {
-		s.pick(w, false)
+		s.pick(w, false, shell.Language)
 	}
 	select {
 	case pk := <-s.picks:
@@ -121,19 +125,19 @@ func (s *session) update(gtx layout.Context, w *app.Window, shell *ui.Shell, zon
 		case pk.save:
 			status = s.save(w, shell, zones, tiles, pk.path)
 		case busy:
-			status = "Espere o mapa terminar de carregar para abrir um projeto"
+			status = action("actions.project.wait")
 		default:
 			status, load = s.open(w, shell, zones, pk.path)
 		}
 	default:
 	}
-	p.Name, p.Unsaved = s.name(), zones.version != s.saved
+	p.Name, p.Unsaved = s.name(shell.Language), zones.version != s.saved
 	return status, load
 }
 
 // pick shows the save or open dialog, starting at the current project, else
 // the last one.
-func (s *session) pick(w *app.Window, save bool) {
+func (s *session) pick(w *app.Window, save bool, lang locale.Language) {
 	start := s.path
 	if start == "" {
 		start = s.cfg.Project
@@ -142,9 +146,9 @@ func (s *session) pick(w *app.Window, save bool) {
 		var path string
 		var ok bool
 		if save {
-			path, ok = ui.PickSaveFile("Salvar projeto", start, ui.ProjectFile)
+			path, ok = ui.PickSaveFile(locale.Text(lang, "actions.project.save_dialog"), start, ui.ProjectFileFor(lang))
 		} else {
-			path, ok = ui.PickOpenFile("Abrir projeto", start, ui.ProjectFile)
+			path, ok = ui.PickOpenFile(locale.Text(lang, "actions.project.open_dialog"), start, ui.ProjectFileFor(lang))
 		}
 		if ok {
 			s.picks <- projectPick{path: path, save: save}
@@ -155,7 +159,7 @@ func (s *session) pick(w *app.Window, save bool) {
 
 // save writes the window's project to path, which becomes the project file.
 // It returns the status line.
-func (s *session) save(w *app.Window, shell *ui.Shell, zones *zoneEditor, tiles []scene.Tile, path string) string {
+func (s *session) save(w *app.Window, shell *ui.Shell, zones *zoneEditor, tiles []scene.Tile, path string) actionStatus {
 	p := project.Project{
 		Client:   strings.TrimSpace(shell.Client.Text()),
 		Tiles:    tileNames(tiles),
@@ -163,20 +167,20 @@ func (s *session) save(w *app.Window, shell *ui.Shell, zones *zoneEditor, tiles 
 	}
 	if err := project.Save(path, p); err != nil {
 		log.Print(err)
-		return err.Error()
+		return actionError("actions.error.save_project", err, map[string]string{"path": path})
 	}
 	s.path, s.saved = path, zones.version
 	s.cfg.Project = path
 	s.saveConfig()
 	w.Option(app.Title(windowTitle(path)))
 	log.Printf("projeto: salvo em %s: %s, tiles %q", path, inflect.Count(len(p.Document.Zones()), "zona", "zonas"), p.Tiles)
-	return "Projeto salvo em " + path
+	return actionArgs("actions.project.saved", map[string]string{"path": path})
 }
 
 // open reads the project file at path into the window, which then edits
 // its zones; path becomes the project file. It returns the status line and
 // the project's tiles to load.
-func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, path string) (string, []scene.Tile) {
+func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, path string) (actionStatus, []scene.Tile) {
 	p, err := project.Load(path)
 	var tiles []scene.Tile
 	if err == nil {
@@ -184,7 +188,7 @@ func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, path s
 	}
 	if err != nil {
 		log.Print(err)
-		return err.Error(), nil
+		return actionError("actions.error.open_project", err, map[string]string{"path": path}), nil
 	}
 	shell.Client.SetText(p.Client)
 	if len(tiles) > 0 {
@@ -197,13 +201,13 @@ func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, path s
 	s.saveConfig()
 	w.Option(app.Title(windowTitle(path)))
 	log.Printf("projeto: aberto %s: %s, tiles %q", path, inflect.Count(len(p.Document.Zones()), "zona", "zonas"), p.Tiles)
-	return "Projeto aberto: " + path, tiles
+	return actionArgs("actions.project.opened", map[string]string{"path": path}), tiles
 }
 
-// name is the project file's name, "Projeto sem nome" before it has one.
-func (s *session) name() string {
+// name is the project file's name, localized before the first save.
+func (s *session) name(lang locale.Language) string {
 	if s.path == "" {
-		return "Projeto sem nome"
+		return locale.Text(lang, "actions.project.unnamed")
 	}
 	return filepath.Base(s.path)
 }
@@ -241,8 +245,8 @@ func parseTiles(names []string) ([]scene.Tile, error) {
 // then its zone is, with the polygon tool armed on it, so the user carries
 // on drawing it.
 func (e *zoneEditor) replace(doc *zone.Document) {
-	margin := e.margin
-	*e = zoneEditor{doc: doc, version: e.version + 1, editState: newEditState()}
+	margin, lang := e.margin, e.Language
+	*e = zoneEditor{doc: doc, version: e.version + 1, editState: newEditState(), Language: lang}
 	e.margin = margin
 	for _, z := range doc.Zones() {
 		e.zone = z.ID
