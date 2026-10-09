@@ -60,7 +60,6 @@ func TestSavedProjectReopensWithTheSameDocument(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "giran"+project.Ext)
 	saved := project.Project{
 		Client:   `C:\L2\Fafurion`,
-		Output:   `C:\server\data\zone\custom`,
 		Tiles:    []string{"22_22", "21_22", "22_23_Classic"},
 		Document: d,
 	}
@@ -72,8 +71,8 @@ func TestSavedProjectReopensWithTheSameDocument(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got.Client != saved.Client || got.Output != saved.Output {
-		t.Errorf("client %q, output %q; want %q, %q", got.Client, got.Output, saved.Client, saved.Output)
+	if got.Client != saved.Client {
+		t.Errorf("client %q, want %q", got.Client, saved.Client)
 	}
 	if !slices.Equal(got.Tiles, saved.Tiles) {
 		t.Errorf("tiles %q, want %q", got.Tiles, saved.Tiles)

@@ -11,15 +11,13 @@ import (
 	"cmp"
 	"encoding/xml"
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
-	"strings"
 )
 
-// FilePrefix starts every file name Compile produces, so the output never
-// overwrites the datapack's own zone files (named after the type alone).
+// FilePrefix starts every file name Compile produces, so a file saved under
+// that name never overwrites the datapack's own zone files (named after the
+// type alone).
 const FilePrefix = "zonebuilder_"
 
 // Zone is one <zone> element.
@@ -142,38 +140,4 @@ func attr(s string) string {
 	var b bytes.Buffer
 	xml.EscapeText(&b, []byte(s))
 	return b.String()
-}
-
-// Write makes the FilePrefix files in dir exactly files: it writes each of
-// them, then removes every other FilePrefix*.xml there (the files of an
-// earlier compile whose type is no longer in the output, which would make
-// the server load a zone twice). Files without the prefix are never
-// touched. It returns the paths written and removed.
-func Write(dir string, files []File) (written, removed []string, err error) {
-	keep := make(map[string]bool, len(files))
-	for _, f := range files {
-		p := filepath.Join(dir, f.Name)
-		if err := os.WriteFile(p, f.Data, 0o644); err != nil {
-			return written, nil, err
-		}
-		written = append(written, p)
-		keep[strings.ToLower(f.Name)] = true
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return written, nil, err
-	}
-	for _, e := range entries {
-		name := e.Name()
-		lower := strings.ToLower(name)
-		if e.IsDir() || keep[lower] || !strings.HasPrefix(lower, FilePrefix) || !strings.HasSuffix(lower, ".xml") {
-			continue
-		}
-		p := filepath.Join(dir, name)
-		if err := os.Remove(p); err != nil {
-			return written, removed, err
-		}
-		removed = append(removed, p)
-	}
-	return written, removed, nil
 }

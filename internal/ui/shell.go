@@ -65,21 +65,23 @@ type Shell struct {
 	Arrow ZArrow
 	// Meshes is the viewport's button that hides the static meshes.
 	Meshes MeshToggle
+	// XML shows the last compilation, to copy.
+	XML XMLWindow
 	// Status is the status bar's text.
 	Status string
 	list   widget.List
 }
 
-// NewShell returns a shell with single-line fields holding client, tile and
-// the XML output folder.
-func NewShell(th *material.Theme, client, tile, output string) *Shell {
+// NewShell returns a shell with single-line fields holding client and
+// tile.
+func NewShell(th *material.Theme, client, tile string) *Shell {
 	s := &Shell{Theme: th}
 	s.Client.SingleLine = true
 	s.Client.SetText(client)
 	s.Tile.SingleLine = true
 	s.Tile.Submit = true
 	s.Tile.SetText(tile)
-	s.Zone.init(output)
+	s.Zone.init()
 	s.Zones.init()
 	s.Props.init()
 	s.Edit.init()
@@ -124,6 +126,7 @@ func (s *Shell) Layout(gtx layout.Context, lines []string) image.Rectangle {
 					s.Arrow.Layout(gtx)
 					s.heightWindow(gtx)
 					s.meshToggle(gtx)
+					s.xmlWindow(gtx)
 					return dims
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {

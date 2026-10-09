@@ -60,9 +60,6 @@ type zoneEditor struct {
 	// left out are the zones unchecked for compilation; every other zone,
 	// new ones too, is in the compile selection.
 	leftOut map[zone.ZoneID]bool
-	// written and removed are the files the last compilation wrote and
-	// the stale ones it removed from the output folder.
-	written, removed []string
 	editState
 }
 
@@ -205,73 +202,38 @@ func (e *zoneEditor) selectForCompile(ids []zone.ZoneID, in bool) string {
 	return fmt.Sprintf("%s de %d para compilar", inflect.Count(n, "zona selecionada", "zonas selecionadas"), len(e.doc.Zones()))
 }
 
-// compile writes the selected zones' XML into dir, removing the
-// Zone Builder files there that are no longer part of the output, and keeps
-// the written and removed paths for the panel. Nothing is written or
-// removed while the compilation is blocked. It returns the status line.
-func (e *zoneEditor) compile(dir string) string {
-	dir = strings.TrimSpace(dir)
+// compile compiles the selected zones for the XML window. Nothing comes out
+// while the compilation is blocked. It returns the status line and the
+// files, one per type.
+func (e *zoneEditor) compile() (string, []zonexml.File) {
 	sel := e.selection()
 	switch {
 	case e.drawing:
-		return "Feche o polígono antes de compilar"
+		return "Feche o polígono antes de compilar", nil
 	case len(e.doc.Zones()) == 0:
-		return "Não há zonas para compilar"
+		return "Não há zonas para compilar", nil
 	case len(sel) == 0:
-		return "Nenhuma zona selecionada para compilar"
-	case dir == "":
-		return "Escolha a pasta de saída do XML"
+		return "Nenhuma zona selecionada para compilar", nil
 	}
 	files, err := e.doc.Compile(sel)
 	if b, ok := errors.AsType[*zone.BlockedError](err); ok {
-		return e.blockedStatus(b)
+		return e.blockedStatus(b), nil
 	}
 	if err != nil {
 		log.Printf("zona: compilação: %v", err)
-		return err.Error()
+		return err.Error(), nil
 	}
-	written, removed, err := zonexml.Write(dir, files)
-	e.written, e.removed = written, removed
-	for _, p := range written {
-		log.Printf("zona: XML gravado em %s", p)
-	}
-	for _, p := range removed {
-		log.Printf("zona: XML antigo removido: %s", p)
-	}
-	if err != nil {
-		log.Printf("zona: compilação: %v", err)
-		return "Não foi possível gravar o XML: " + err.Error()
-	}
-	log.Printf("zona: compiladas %s em %s, %s", inflect.Count(len(sel), "zona", "zonas"),
-		inflect.Count(len(written), "arquivo", "arquivos"), inflect.Count(len(removed), "removido", "removidos"))
-	msg := fmt.Sprintf("Compiladas %s: %s", inflect.Count(len(sel), "zona", "zonas"), inflect.Count(len(written), "arquivo gravado", "arquivos gravados"))
-	if len(removed) > 0 {
-		msg += ", " + inflect.Count(len(removed), "antigo removido", "antigos removidos")
-	}
-	return msg + " (caminhos no painel, abaixo de Compilar)"
+	log.Printf("zona: compiladas %s em %s", inflect.Count(len(sel), "zona", "zonas"), inflect.Count(len(files), "arquivo", "arquivos"))
+	return fmt.Sprintf("Compiladas %s em %s: copie da janela XML", inflect.Count(len(sel), "zona", "zonas"), inflect.Count(len(files), "arquivo", "arquivos")), files
 }
 
-// info is the zone panel's lines below its controls: the armed tool's hint
-// and what the last compilation wrote and removed. The zones themselves
-// are in the zone list.
+// info is the zone panel's lines below its controls: the armed tool's
+// hint. The zones themselves are in the zone list.
 func (e *zoneEditor) info() []string {
-	var lines []string
 	if hint := e.hint(); hint != "" {
-		lines = append(lines, hint)
+		return []string{hint}
 	}
-	if len(e.written) > 0 {
-		lines = append(lines, "Última compilação gravou:")
-		for _, p := range e.written {
-			lines = append(lines, "   "+p)
-		}
-	}
-	if len(e.removed) > 0 {
-		lines = append(lines, "e removeu os antigos:")
-		for _, p := range e.removed {
-			lines = append(lines, "   "+p)
-		}
-	}
-	return lines
+	return nil
 }
 
 // overlay is every shape and restart point for the renderer's zone

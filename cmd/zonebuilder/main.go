@@ -39,12 +39,12 @@ import (
 	"zonebuilder/internal/render/egl"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
+	"zonebuilder/internal/zonexml"
 )
 
 func main() {
 	client := flag.String("client", "", "pasta do cliente (acima de Maps) que o campo traz preenchida; vazio usa a da configuração do usuário, depois ZB_CLIENT")
 	tile := flag.String("tile", "", "tile que o campo traz preenchido; vazio usa o mapa mais recente, depois 22_22")
-	out := flag.String("out", "", "pasta de saída do XML que o campo traz preenchida; vazio usa a da configuração do usuário")
 	proj := flag.String("project", "", "projeto ("+project.Ext+") aberto ao iniciar")
 	pose := flag.String("camera", "", `pose da câmera ao abrir um tile, "x,y,z,yaw,pitch": posição de mundo (coordenadas do servidor) e ângulos em radianos, no formato que o log "cena: câmera" imprime; vazio enquadra o mapa`)
 	fps := flag.Bool("fps", false, "mede a taxa de quadros: redesenha sem parar, sem vsync, e registra no log o tempo de quadro a cada 2 s")
@@ -53,7 +53,6 @@ func main() {
 	fields := startFields{
 		client: cmp.Or(*client, sess.cfg.Client, os.Getenv("ZB_CLIENT")),
 		tile:   cmp.Or(*tile, firstOr(sess.cfg.RecentMaps, ""), "22_22"),
-		out:    cmp.Or(*out, sess.cfg.Output),
 	}
 	var start *cameraPose
 	if *pose != "" {
@@ -132,8 +131,8 @@ func (g *gfx) release() {
 // uploadBudget is how long a frame may spend putting tiles on the GPU.
 const uploadBudget = 6 * time.Millisecond
 
-// startFields are what the client, tile and output fields hold on start.
-type startFields struct{ client, tile, out string }
+// startFields are what the client and tile fields hold on start.
+type startFields struct{ client, tile string }
 
 // firstOr is s[0], or def when s is empty.
 func firstOr(s []string, def string) string {
@@ -152,7 +151,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
-	shell := ui.NewShell(th, fields.client, fields.tile, fields.out)
+	shell := ui.NewShell(th, fields.client, fields.tile)
 	shell.Project.RecentMaps = sess.cfg.RecentMaps
 
 	var (
@@ -167,7 +166,6 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		frames  frameLog
 		status  string
 		folders = make(chan string, 1)
-		outputs = make(chan string, 1)
 		probe   cursorProbe
 		zones   = newZoneEditor()
 		// zonesShown is the zones.version the renderer last got.
@@ -249,21 +247,6 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				shell.Client.SetText(p)
 			default:
 			}
-			if shell.Zone.BrowseOutput.Clicked(gtx) {
-				start := shell.Zone.Output.Text()
-				go func() {
-					if p, ok := ui.PickFolder("Pasta de saída do XML de zonas", start); ok {
-						outputs <- p
-						w.Invalidate()
-					}
-				}()
-			}
-			select {
-			case p := <-outputs:
-				shell.Zone.Output.SetText(p)
-				sess.outputUsed(p)
-			default:
-			}
 			if shell.Zone.CreateRequested(gtx) {
 				status = zones.create(shell.Zone.Name.Text(), shell.Zone.Type(), shell.Zone.Tools.Shape)
 			}
@@ -274,8 +257,14 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				status = wholeTile(zones, tiles, &cam, shell.Viewport.Size(), shell.Zone.Tools.Banned.Value)
 			}
 			if shell.Zone.Compile.Clicked(gtx) {
-				status = zones.compile(shell.Zone.Output.Text())
-				sess.outputUsed(shell.Zone.Output.Text())
+				var files []zonexml.File
+				status, files = zones.compile()
+				if len(files) > 0 {
+					shell.XML.Open(files)
+				}
+			}
+			if name, ok := shell.XML.Copied(gtx); ok {
+				status = name + " copiado para a área de transferência"
 			}
 			for _, req := range shell.Zones.Update(gtx) {
 				if msg := zones.listRequest(req, tiles.world, &cam); msg != "" {

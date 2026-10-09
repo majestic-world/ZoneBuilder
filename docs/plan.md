@@ -43,8 +43,8 @@ Riscos que o M0 precisa eliminar:
 
 ### Projeto de trabalho + compilação
 
-- O documento de trabalho é um arquivo de projeto JSON (`*.zbproj`). Ele guarda caminho do cliente, pasta de saída do XML, tiles abertos e as zonas, inclusive rascunhos inválidos (polígono com 2 pontos, nome repetido, campo obrigatório vazio), além de cor e visibilidade.
-- **Compilar** transforma as zonas válidas em XML. Zona com erro bloqueia a compilação e aparece na lista de problemas, com clique levando até ela.
+- O documento de trabalho é um arquivo de projeto JSON (`*.zbproj`). Ele guarda caminho do cliente, tiles abertos e as zonas, inclusive rascunhos inválidos (polígono com 2 pontos, nome repetido, campo obrigatório vazio), além de cor e visibilidade.
+- **Compilar** transforma as zonas válidas em XML e mostra cada arquivo numa janela, com um botão para copiar; o app não grava XML em disco. Zona com erro bloqueia a compilação e aparece na lista de problemas, com clique levando até ela.
 - O projeto é a única entrada de zonas. O app não lê XML de zona; as regras de leitura do `ZoneParser` só decidem o que o compilador emite.
 
 ### Fluxo
@@ -62,7 +62,7 @@ flowchart LR
   G --> H["zonas<br/>projeto .zbproj"]
   H --> J["validação"]
   J --> K["compilador XML"]
-  K --> L["pasta de saída<br/>XML por tipo"]
+  K --> L["janela XML<br/>um arquivo por tipo, copiar"]
 ```
 
 ### Estrutura do código

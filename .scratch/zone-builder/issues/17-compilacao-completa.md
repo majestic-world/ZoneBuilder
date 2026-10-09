@@ -14,3 +14,5 @@
 ## Comments
 
 Resolvido na branch de integração `zone-builder`. Branch `zb/17-compilacao-completa`. Seleção por zona, 1 arquivo por tipo com prefixo `zonebuilder_`, arquivos sem o prefixo intocados, caminhos listados ao fim. Projeto com 1 zona de cada um dos 23 tipos: `LOADED 23`, exit 0, sem `invalid territory data`, `Empty territory` ou exceção no harness com a SkillTable real. Depois da revisão, recompilar também remove os `zonebuilder_*.xml` antigos. Manual: carregar no GameServer real.
+
+Em 2026-10-08, por pedido do usuário, a compilação deixou de gravar arquivos: o XML de cada tipo aparece numa janela flutuante com o nome sugerido (`zonebuilder_<tipo>.xml`) e um botão Copiar. Saíram a pasta de saída (painel, flag `-out`, projeto e configuração) e a remoção de arquivos antigos.

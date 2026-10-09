@@ -43,7 +43,7 @@ As coordenadas do mapa são as mesmas do servidor, então o ponto clicado vai di
 12. Como desenvolvedor do servidor, quero abrir o tile junto com os vizinhos (até 3×3), para demarcar uma zona que cruza a borda entre tiles.
 13. Como desenvolvedor do servidor, quero que tiles distantes sejam descarregados, para não esgotar a memória.
 14. Como desenvolvedor do servidor, quero que o carregamento aconteça em segundo plano com progresso visível, para a janela continuar respondendo.
-15. Como desenvolvedor do servidor, quero que o app lembre a pasta do cliente, a pasta de saída do XML e os mapas recentes, para não configurar tudo a cada abertura.
+15. Como desenvolvedor do servidor, quero que o app lembre a pasta do cliente e os mapas recentes, para não configurar tudo a cada abertura.
 
 ### Navegar
 
@@ -108,9 +108,9 @@ As coordenadas do mapa são as mesmas do servidor, então o ponto clicado vai di
 62. Como desenvolvedor do servidor, quero que o XML saia com o cabeçalho, o `DOCTYPE` e o `<list>` que o servidor espera, para cair em `data/zone/` sem ajuste.
 63. Como desenvolvedor do servidor, quero que cada polígono saia com o mesmo `zmin zmax` em todos os vértices, para o servidor aplicar a faixa que eu desenhei.
 64. Como desenvolvedor do servidor, quero que os parâmetros saiam como `<set name="..." val="..." />`, porque o servidor ignora outras formas.
-65. Como desenvolvedor do servidor, quero escolher a pasta de saída e receber um arquivo por tipo de zona, com prefixo próprio do Zone Builder, para não sobrescrever arquivos de zona que já existem lá.
+65. Como desenvolvedor do servidor, quero receber um arquivo por tipo de zona, com o nome sugerido com prefixo próprio do Zone Builder, para não sobrescrever arquivos de zona que já existem em `data/zone/`.
 66. Como desenvolvedor do servidor, quero que a mesma entrada sempre gere o mesmo XML, byte a byte, para os diffs no git mostrarem só o que mudou.
-67. Como desenvolvedor do servidor, quero ver onde cada arquivo foi gravado ao fim da compilação, para conferir antes de reiniciar o servidor.
+67. Como desenvolvedor do servidor, quero ver o XML compilado numa janela, com um botão para copiar cada arquivo, para colá-lo no datapack sem o app gravar nada em disco. (Alterada em 2026-10-08: antes o app gravava os arquivos numa pasta de saída.)
 
 ## Implementation Decisions
 
@@ -222,19 +222,18 @@ O app não lê XML de zona: a única entrada de zonas é o arquivo de projeto. A
 **Compilação:**
 - Cabeçalho `<?xml version='1.0' encoding='utf-8'?>`, `<!DOCTYPE list SYSTEM "zone.dtd">` e `<list>`.
 - Indentação com tab.
-- Um arquivo por tipo com prefixo próprio do Zone Builder.
+- Um arquivo por tipo, com nome sugerido de prefixo próprio do Zone Builder, mostrado numa janela com botão de copiar; o app não grava XML em disco.
 - Zonas em ordem de nome e parâmetros na ordem do documento.
 - Polígono com coords de 4 números e a mesma faixa Z em todos os vértices.
 - Exclusões como `banned_polygon`.
 - `circle` nunca é emitido.
 - Saída determinística.
-- A compilação falha, sem gravar nada, se alguma zona selecionada tiver problema.
+- A compilação falha, sem mostrar nada, se alguma zona selecionada tiver problema.
 
 ### Projeto
 
 O arquivo de projeto (JSON) guarda:
 - caminho do cliente;
-- pasta de saída do XML;
 - tiles abertos;
 - zonas, inclusive incompletas;
 - cor e visibilidade por zona.
@@ -269,7 +268,7 @@ Testes sem GPU nem UI.
 - **Tipo com caixa errada:** `Siege` em vez de `SIEGE` não pode ser definido.
 - **Faixa Z na saída:** num polígono compilado, todas as coords trazem o mesmo `zmin zmax` de 4 números. Pega a regressão que faria o servidor aplicar a faixa errada, já que ele usa a da última coords.
 - **Saída determinística:** compilar 2 vezes o mesmo documento gera bytes idênticos.
-- **Bloqueio da compilação:** com uma zona selecionada inválida, a compilação falha sem gravar arquivo.
+- **Bloqueio da compilação:** com uma zona selecionada inválida, a compilação falha sem gerar arquivo.
 - **Desfazer/refazer:** uma sequência de comandos seguida do mesmo número de `Undo` devolve o documento inicial; `Redo` reaplica.
 - **Projeto:** salvar e carregar devolve o documento idêntico, inclusive com zona incompleta.
 

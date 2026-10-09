@@ -11,9 +11,9 @@ import (
 
 // ZonePanel holds the side panel's zone controls: the name and type of the
 // next zone and the button that creates it and arms the chosen shape tool,
-// the tool buttons, then the XML output folder and the Compile button. It
-// only collects input; the window loop turns the requests into
-// zone.Document commands.
+// the tool buttons, then the Compile button, which opens the compiled XML
+// in the XML window. It only collects input; the window loop turns the
+// requests into zone.Document commands.
 type ZonePanel struct {
 	Name widget.Editor
 	// TypeIndex is the chosen type in zone.Types; PrevType and NextType
@@ -22,21 +22,14 @@ type ZonePanel struct {
 	PrevType, NextType widget.Clickable
 	Create             widget.Clickable
 	// Tools are the viewport tool buttons.
-	Tools ToolPanel
-	// Output is the folder the XML is compiled into; BrowseOutput opens
-	// the folder picker for it.
-	Output       widget.Editor
-	BrowseOutput widget.Clickable
-	Compile      widget.Clickable
-	// Info lines are shown under the controls: the armed tool's hint and
-	// what the last compilation wrote and removed.
+	Tools   ToolPanel
+	Compile widget.Clickable
+	// Info lines are shown under the controls: the armed tool's hint.
 	Info []string
 }
 
-func (p *ZonePanel) init(output string) {
+func (p *ZonePanel) init() {
 	p.Name.SingleLine = true
-	p.Output.SingleLine = true
-	p.Output.SetText(output)
 	p.TypeIndex = slices.Index(zone.Types, zone.PeaceZone)
 }
 
@@ -66,16 +59,7 @@ func (s *Shell) zonePanel() []layout.FlexChild {
 		layout.Rigid(s.button(&p.Create, "Criar zona e desenhar")),
 	}
 	children = append(children, s.toolPanel()...)
-	children = append(children,
-		layout.Rigid(s.label("Pasta de saída do XML")),
-		layout.Rigid(s.field(&p.Output, "pasta onde o XML é gravado")),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Spacing: layout.SpaceBetween}.Layout(gtx,
-				layout.Rigid(s.button(&p.BrowseOutput, "Procurar…")),
-				layout.Rigid(s.button(&p.Compile, "Compilar")),
-			)
-		}),
-	)
+	children = append(children, layout.Rigid(s.button(&p.Compile, "Compilar XML")))
 	for _, l := range p.Info {
 		children = append(children, layout.Rigid(s.label(l)))
 	}

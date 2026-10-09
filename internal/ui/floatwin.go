@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"image"
 	"image/color"
 
@@ -41,8 +42,9 @@ type FloatWindow struct {
 	// Closed hides the window until the caller opens it again.
 	Closed    bool
 	Collapsed bool
-	// Width and Height are the starting size, in dp.
-	Width, Height unit.Dp
+	// Width and Height are the starting size, Left and Top the starting
+	// position (windowMargin when 0), in dp.
+	Width, Height, Left, Top unit.Dp
 
 	placed    bool
 	pos, size image.Point
@@ -72,7 +74,7 @@ func (w *FloatWindow) Layout(gtx layout.Context, th *material.Theme, title strin
 	titleH := gtx.Dp(windowTitle)
 	if !w.placed {
 		w.placed = true
-		w.pos = image.Pt(gtx.Dp(windowMargin), gtx.Dp(windowMargin))
+		w.pos = image.Pt(gtx.Dp(cmp.Or(w.Left, windowMargin)), gtx.Dp(cmp.Or(w.Top, windowMargin)))
 		w.size = image.Pt(gtx.Dp(w.Width), gtx.Dp(w.Height))
 	}
 	for {

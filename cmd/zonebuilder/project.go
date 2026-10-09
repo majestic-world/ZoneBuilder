@@ -67,16 +67,6 @@ func (s *session) mapOpened(client string, tiles []scene.Tile) {
 	s.saveConfig()
 }
 
-// outputUsed records the XML output folder.
-func (s *session) outputUsed(dir string) {
-	dir = strings.TrimSpace(dir)
-	if dir == "" || dir == s.cfg.Output {
-		return
-	}
-	s.cfg.Output = dir
-	s.saveConfig()
-}
-
 // update handles the project buttons: the dialogs run off the event loop
 // and the file chosen is saved or opened on a later frame. Opening is
 // refused while busy (a map is loading). It returns the status line ("" for
@@ -139,7 +129,6 @@ func (s *session) pick(w *app.Window, save bool) {
 func (s *session) save(w *app.Window, shell *ui.Shell, zones *zoneEditor, tiles []scene.Tile, path string) string {
 	p := project.Project{
 		Client:   strings.TrimSpace(shell.Client.Text()),
-		Output:   strings.TrimSpace(shell.Zone.Output.Text()),
 		Tiles:    tileNames(tiles),
 		Document: zones.doc,
 	}
@@ -149,7 +138,6 @@ func (s *session) save(w *app.Window, shell *ui.Shell, zones *zoneEditor, tiles 
 	}
 	s.path, s.saved = path, zones.version
 	s.cfg.Project = path
-	s.outputUsed(p.Output)
 	s.saveConfig()
 	w.Option(app.Title(windowTitle(path)))
 	log.Printf("projeto: salvo em %s: %s, tiles %q", path, inflect.Count(len(p.Document.Zones()), "zona", "zonas"), p.Tiles)
@@ -170,7 +158,6 @@ func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, path s
 		return err.Error(), nil
 	}
 	shell.Client.SetText(p.Client)
-	shell.Zone.Output.SetText(p.Output)
 	if len(tiles) > 0 {
 		shell.Tile.SetText(tiles[0].Name())
 	}
@@ -178,7 +165,6 @@ func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, path s
 	shell.Zones.Reset()
 	s.path, s.saved = path, zones.version
 	s.cfg.Project = path
-	s.outputUsed(p.Output)
 	s.saveConfig()
 	w.Option(app.Title(windowTitle(path)))
 	log.Printf("projeto: aberto %s: %s, tiles %q", path, inflect.Count(len(p.Document.Zones()), "zona", "zonas"), p.Tiles)

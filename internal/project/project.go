@@ -27,8 +27,6 @@ const Version = 1
 type Project struct {
 	// Client is the client folder (the folder above Maps).
 	Client string
-	// Output is the folder the XML is compiled into.
-	Output string
 	// Tiles are the open map tiles, by scene.Tile name ("22_22",
 	// "22_22_Classic"), in opening order.
 	Tiles []string

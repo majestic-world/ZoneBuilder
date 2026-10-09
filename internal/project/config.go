@@ -19,8 +19,6 @@ const MaxRecentMaps = 8
 type Config struct {
 	// Client is the last client folder a map was opened from.
 	Client string
-	// Output is the last XML output folder.
-	Output string
 	// RecentMaps are the tiles opened last, by scene.Tile name, most
 	// recent first.
 	RecentMaps []string
