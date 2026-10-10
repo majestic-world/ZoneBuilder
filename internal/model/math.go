@@ -94,3 +94,18 @@ func (a Affine) Compose(inner Affine) Affine {
 		Axis:   [3]geom.Vec3{a.Vector(inner.Axis[0]), a.Vector(inner.Axis[1]), a.Vector(inner.Axis[2])},
 	}
 }
+
+// invert is the inverse of an orthonormal transform, a bone's (UEViewer
+// InvertCoords): the basis transposed and the origin negated through the
+// forward basis.
+func (a Affine) invert() Affine {
+	x, y, z := a.Axis[0], a.Axis[1], a.Axis[2]
+	return Affine{
+		Origin: geom.Vec3{X: -a.Origin.Dot(x), Y: -a.Origin.Dot(y), Z: -a.Origin.Dot(z)},
+		Axis: [3]geom.Vec3{
+			{X: x.X, Y: y.X, Z: z.X},
+			{X: x.Y, Y: y.Y, Z: z.Y},
+			{X: x.Z, Y: y.Z, Z: z.Z},
+		},
+	}
+}

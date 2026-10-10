@@ -216,3 +216,27 @@ func compose(palette []Affine, bones []Bone, inverseBind []Affine, base Affine, 
 		palette[i] = palette[i].Compose(inverse)
 	}
 }
+
+// InverseBind is each bone's inverse bind transform, the Part.InverseBind of
+// a skeleton: the inverse of the bone's model-space bind pose, without the
+// part's Base. Bone 0's quaternion is conjugated and no other bone's is, as in
+// the sampled pose. Port of UE2-Studio skin.rs bind_pose and Affine::invert.
+func InverseBind(bones []Bone) []Affine {
+	bind := make([]Affine, len(bones))
+	for i, b := range bones {
+		rot := b.Orientation
+		if i == 0 {
+			rot = rot.conjugate()
+		}
+		l := newAffine(b.Position, rot)
+		if p := int(b.Parent); b.Parent != NoParent && p < i {
+			bind[i] = bind[p].Compose(l)
+		} else {
+			bind[i] = l
+		}
+	}
+	for i := range bind {
+		bind[i] = bind[i].invert()
+	}
+	return bind
+}

@@ -58,6 +58,25 @@ func TestHumanIdleFrameZeroStandsOnGroundAt80(t *testing.T) {
 	}
 }
 
+// Catches an embedded monster.bin that Decode refuses, or that drifted from
+// its constants (regenerated without updating MonsterHeight, or with a
+// placement that no longer lifts the feet to Z = 0 in Wait frame 0).
+func TestMonsterWaitStandsOnGroundAtItsHeight(t *testing.T) {
+	b, err := Decode(Monster)
+	if err != nil {
+		t.Fatal(err)
+	}
+	positions := make([]geom.Vec3, len(b.Parts[0].Vertices))
+	NewAnimator(b).Skin(0, positions, nil)
+	box := geom.EmptyBox()
+	for _, p := range positions {
+		box.Include(p)
+	}
+	if math.Abs(float64(box.Min.Z)) > 0.01 || math.Abs(float64(box.Max.Z-box.Min.Z-MonsterHeight)) > 0.01 {
+		t.Fatalf("Wait frame 0: min Z %v, height %v; want 0 and MonsterHeight %v", box.Min.Z, box.Max.Z-box.Min.Z, MonsterHeight)
+	}
+}
+
 // twoBones is a bundle built from scratch: root at the origin, arm 10 units
 // along +X, a vertex at (20, 0, 0) on the arm, and a part base turning the
 // whole mesh 90° about Z and lifting it 5 units. Clips: 0 rest; 1 bends the
@@ -149,5 +168,51 @@ func TestTransitionHalfwayIsBetweenPoses(t *testing.T) {
 	a.Update(2, TransitionSeconds/2)
 	if got, want := skinOne(a), (geom.Vec3{X: 0, Y: -10, Z: 15}); !near(got, want) {
 		t.Fatalf("after transition vertex %v, want %v", got, want)
+	}
+}
+
+// Catches an inverse bind built from the wrong bind pose or inverted wrong:
+// the root's stored quaternion not conjugated (the mesh mirrors), the parent
+// composed on the wrong side, or the basis not transposed. The root stores
+// a 90° turn about Z that the conjugation makes take +X to +Y; its child sits
+// 10 units along the root's X, so at model (0, 10, 0). Worked by hand: the
+// child's inverse bind takes model (0, 20, 0) to bone-local (10, 0, 0), and
+// the root's takes model (0, 1, 0) to local (1, 0, 0).
+func TestInverseBindUndoesTheBindPose(t *testing.T) {
+	s := float32(math.Sqrt2 / 2)
+	bones := []Bone{
+		{Name: "root", Parent: NoParent, Orientation: Quat{Z: s, W: s}},
+		{Name: "child", Parent: 0, Position: geom.Vec3{X: 10}, Orientation: IdentityQuat},
+	}
+	inverse := InverseBind(bones)
+	if len(inverse) != 2 {
+		t.Fatalf("InverseBind gave %d transforms, want 2", len(inverse))
+	}
+	if got, want := inverse[0].Point(geom.Vec3{Y: 1}), (geom.Vec3{X: 1}); !near(got, want) {
+		t.Errorf("root inverse bind of (0,1,0) = %v, want %v", got, want)
+	}
+	if got, want := inverse[1].Point(geom.Vec3{Y: 20}), (geom.Vec3{X: 10}); !near(got, want) {
+		t.Errorf("child inverse bind of (0,20,0) = %v, want %v", got, want)
+	}
+}
+
+// The same bugs against UE2-Studio's own output: every part of human.bin
+// carries the inverse binds skin.rs computed from those bones.
+func TestInverseBindMatchesHumanBin(t *testing.T) {
+	b, err := Decode(Human)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for p, part := range b.Parts {
+		for i, got := range InverseBind(part.Bones) {
+			want := part.InverseBind[i]
+			worst := got.Origin.Sub(want.Origin).Length()
+			for k := range got.Axis {
+				worst = max(worst, got.Axis[k].Sub(want.Axis[k]).Length())
+			}
+			if worst > 1e-3 {
+				t.Fatalf("part %d bone %d (%s): InverseBind %v, human.bin %v", p, i, part.Bones[i].Name, got, want)
+			}
+		}
 	}
 }

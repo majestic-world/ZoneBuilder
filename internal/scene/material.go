@@ -2,7 +2,6 @@ package scene
 
 import (
 	"fmt"
-	"strings"
 
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/l2pkg"
@@ -73,10 +72,6 @@ func (s *Scene) batch(ld *loader, k batchKey) int {
 	return i
 }
 
-// maxMaterialDepth is how many material nodes the walk follows before it
-// gives up (UE2-Studio's MAX_MATERIAL_DEPTH).
-const maxMaterialDepth = 8
-
 // material is what a material reference resolves to for drawing.
 type material struct {
 	// texture is the first Texture down the graph, nil when the graph has
@@ -107,82 +102,22 @@ func (ld *loader) material(p *l2pkg.Package, ref int32) (material, error) {
 }
 
 // walkMaterial walks the material graph from reference ref of p down to
-// its first Texture, at most maxMaterialDepth nodes, gathering the blend
-// flags on the way. Port of UE2-Studio's visual_material_ref: a missing
-// package or object, a node of another class, and a walk that runs out of
-// depth all draw untextured and opaque; any node whose path contains
-// "water" makes a translucent result Water.
+// its first Texture (unreal.WalkMaterial), reading the Texture once per
+// Load.
 func (ld *loader) walkMaterial(p *l2pkg.Package, ref int32) (material, error) {
-	var masked, translucent, brighten, water, vertexOpacity bool
-	result := func(t *texture.Texture) material {
-		return material{texture: t, mode: materialMode(masked, translucent, brighten, water), masked: masked, vertexOpacity: vertexOpacity}
+	m, err := unreal.WalkMaterial(ld.c, p, ref, func(pkg *l2pkg.Package, i int) (*texture.Texture, bool, error) {
+		e, err := ld.textureAt(pkg, i)
+		return e.t, e.err == nil, err
+	})
+	if err != nil {
+		return material{}, err
 	}
-	owner := p
-	for range maxMaterialDepth {
-		if ref == 0 {
-			return result(nil), nil
-		}
-		if path, err := owner.ObjectPath(ref); err == nil && strings.Contains(strings.ToLower(path), "water") {
-			water = true
-		}
-		pkg, i, err := ld.c.Resolve(owner, ref)
-		if l2pkg.IsMissing(err) {
-			return material{}, nil
-		}
-		if err != nil {
-			return material{}, err
-		}
-		class := pkg.Exports[i].ClassName
-		switch {
-		case class == "Texture":
-			t, err := ld.textureAt(pkg, i)
-			if err != nil {
-				return material{}, err
-			}
-			if !vertexOpacity {
-				masked = masked || t.t.Masked
-			}
-			if t.err != nil {
-				return result(nil), nil
-			}
-			return result(t.t), nil
-		case unreal.IsMaterialNode(class):
-			n, err := unreal.ReadMaterialNode(pkg, i)
-			if err != nil {
-				return material{}, err
-			}
-			if n.Opacity != 0 {
-				vertexOpacity = className(pkg, n.Opacity) == "VertexColor"
-			}
-			switch n.Blend() {
-			case unreal.BlendMasked:
-				masked = true
-			case unreal.BlendTranslucent:
-				translucent = true
-			case unreal.BlendBrighten:
-				brighten = true
-			}
-			owner, ref = pkg, n.Inner
-		default:
-			return material{}, nil
-		}
-	}
-	return material{}, nil
-}
-
-// className is the class name of object reference ref as p records it,
-// "" when it is out of range (UE2-Studio reference_class_name).
-func className(p *l2pkg.Package, ref int32) string {
-	if ref < 0 {
-		if int(-ref) <= len(p.Imports) {
-			return p.Imports[-ref-1].ClassName
-		}
-		return ""
-	}
-	if int(ref) <= len(p.Exports) {
-		return p.Exports[ref-1].ClassName
-	}
-	return ""
+	return material{
+		texture:       m.Texture,
+		mode:          materialMode(m.Masked, m.Translucent, m.Brighten, m.Water),
+		masked:        m.Masked,
+		vertexOpacity: m.VertexOpacity,
+	}, nil
 }
 
 // materialMode is UE2-Studio's RenderMode::from_material_semantics.

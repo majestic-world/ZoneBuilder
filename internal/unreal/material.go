@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"zonebuilder/internal/l2pkg"
+	"zonebuilder/internal/texture"
 )
 
 // materialClasses are the material classes serialized as properties alone,
@@ -94,4 +95,112 @@ func (n *MaterialNode) Blend() MaterialBlend {
 		return BlendTranslucent
 	}
 	return BlendOpaque
+}
+
+// maxMaterialDepth is how many material nodes WalkMaterial follows before it
+// gives up (UE2-Studio's MAX_MATERIAL_DEPTH).
+const maxMaterialDepth = 8
+
+// Material is where a material graph leads: its first Texture and the blend
+// flags gathered on the way down.
+type Material struct {
+	// Texture is the first Texture down the graph, nil when the graph has
+	// none, it cannot be drawn, or the walk gave up: drawn untextured.
+	Texture *texture.Texture
+	// Masked is set when a node or the Texture asked for a binary cutout.
+	Masked      bool
+	Translucent bool
+	Brighten    bool
+	// Water is set when a node's path contains "water".
+	Water bool
+	// VertexOpacity is set when the Opacity input of the last node with one
+	// is a VertexColor: the texture's alpha is ignored and the vertex
+	// colour's alpha is the coverage.
+	VertexOpacity bool
+	// Shader is the first Shader node the walk went through, nil for none.
+	Shader *MaterialNode
+}
+
+// TextureFunc reads Texture export i of p for WalkMaterial. drawable is
+// false for a texture that reads but cannot be drawn (its Masked flag still
+// counts); err is for a Texture that does not read.
+type TextureFunc func(p *l2pkg.Package, i int) (t *texture.Texture, drawable bool, err error)
+
+// WalkMaterial walks the material graph from object reference ref of p down
+// to its first Texture, at most maxMaterialDepth nodes, gathering the blend
+// flags on the way; readTexture reads that Texture. Port of UE2-Studio's
+// visual_material_ref: a null reference keeps the flags so far, untextured;
+// a missing package or object, a node of another class, and a walk that runs
+// out of depth give the zero Material (untextured and opaque).
+func WalkMaterial(c *l2pkg.Client, p *l2pkg.Package, ref int32, readTexture TextureFunc) (Material, error) {
+	var m Material
+	owner := p
+	for range maxMaterialDepth {
+		if ref == 0 {
+			return m, nil
+		}
+		if path, err := owner.ObjectPath(ref); err == nil && strings.Contains(strings.ToLower(path), "water") {
+			m.Water = true
+		}
+		pkg, i, err := c.Resolve(owner, ref)
+		if l2pkg.IsMissing(err) {
+			return Material{}, nil
+		}
+		if err != nil {
+			return Material{}, err
+		}
+		class := pkg.Exports[i].ClassName
+		switch {
+		case class == "Texture":
+			t, drawable, err := readTexture(pkg, i)
+			if err != nil {
+				return Material{}, err
+			}
+			if !m.VertexOpacity {
+				m.Masked = m.Masked || t.Masked
+			}
+			if drawable {
+				m.Texture = t
+			}
+			return m, nil
+		case IsMaterialNode(class):
+			n, err := ReadMaterialNode(pkg, i)
+			if err != nil {
+				return Material{}, err
+			}
+			if class == "Shader" && m.Shader == nil {
+				m.Shader = n
+			}
+			if n.Opacity != 0 {
+				m.VertexOpacity = className(pkg, n.Opacity) == "VertexColor"
+			}
+			switch n.Blend() {
+			case BlendMasked:
+				m.Masked = true
+			case BlendTranslucent:
+				m.Translucent = true
+			case BlendBrighten:
+				m.Brighten = true
+			}
+			owner, ref = pkg, n.Inner
+		default:
+			return Material{}, nil
+		}
+	}
+	return Material{}, nil
+}
+
+// className is the class name of object reference ref as p records it,
+// "" when it is out of range (UE2-Studio reference_class_name).
+func className(p *l2pkg.Package, ref int32) string {
+	if ref < 0 {
+		if int(-ref) <= len(p.Imports) {
+			return p.Imports[-ref-1].ClassName
+		}
+		return ""
+	}
+	if int(ref) <= len(p.Exports) {
+		return p.Exports[ref-1].ClassName
+	}
+	return ""
 }
