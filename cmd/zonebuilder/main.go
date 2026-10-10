@@ -203,6 +203,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			g.release()
 			g = nil
 			view = e
+			if e.Valid() {
+				w.Run(func() { guardHoverFocus(e.HWND) })
+			}
 		case app.DestroyEvent:
 			return e.Err
 		case app.FrameEvent:
