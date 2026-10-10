@@ -85,6 +85,7 @@
   "ui.height.height_placeholder": "height",
   "ui.xml.title": "Compiled XML",
   "ui.xml.hint": "Paste each file into the server's data/zone/ directory using the indicated name.",
+  "ui.xml.hint_spawn": "Paste the file into the server's data/spawn/ directory using the indicated name.",
   "ui.xml.copy": "Copy",
   "ui.water.compile": "Compile water zone",
   "ui.tool.polygon": "Polygon",

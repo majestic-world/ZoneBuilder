@@ -69,6 +69,10 @@ type AreaPanel struct {
 	PointsNote                string
 	PointStats, PointWarnings []string
 	Generating, Adding        bool
+	// XMLName is the spawn XML's file name; empty means XMLDefault (the
+	// project's name), shown as its hint.
+	XMLName    widget.Editor
+	XMLDefault string
 
 	fields [areaFields]areaField
 	// loaded is the area the fields were last loaded for (0: none).
@@ -124,6 +128,7 @@ func (p *AreaPanel) init() {
 	for i := range p.fields {
 		p.fields[i].editor.SingleLine, p.fields[i].editor.Submit = true, true
 	}
+	p.XMLName.SingleLine = true
 	p.Reset()
 }
 
@@ -240,6 +245,11 @@ func (s *Shell) areaPanel() []layout.FlexChild {
 		children = append(children, layout.Rigid(s.areaRow(r, p.widgets(r.ID), r.ID == p.Selected)))
 	}
 	children = append(children, s.problemList(&p.Problems)...)
+	children = append(children,
+		layout.Rigid(s.section(false, icon.CodeXML, locale.Text(s.Language, "spawn.xml.section"), "")),
+		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "spawn.xml.file"))),
+		layout.Rigid(s.field(&p.XMLName, p.XMLDefault, nil)),
+	)
 	return append(children, s.selectedArea(sel)...)
 }
 

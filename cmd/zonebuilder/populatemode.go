@@ -10,11 +10,12 @@ import (
 	"zonebuilder/internal/locale"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
+	"zonebuilder/internal/ui"
 )
 
 // populateMode is the spawn area editor ("Popular zona"): the spawn
-// document and its editor, and what the renderer last got from them. It
-// has nothing to compile yet.
+// document and its editor, and what the renderer last got from them.
+// Compile writes every area into one spawn XML.
 type populateMode struct {
 	spawns *spawnEditor
 	// sent is set once the renderer has this mode's ground marking; grid
@@ -77,7 +78,12 @@ func (p *populateMode) undo(ws *workspace) { ws.status = action(p.spawns.undo())
 func (p *populateMode) redo(ws *workspace) { ws.status = action(p.spawns.redo()) }
 
 func (p *populateMode) compile(ws *workspace) {
-	ws.status = action(locale.Message{Key: "spawn.compile.empty"})
+	panel := &ws.shell.Spawn
+	msg, files := p.spawns.compile(panel.XMLName.Text(), panel.XMLDefault)
+	ws.status = action(msg)
+	if len(files) > 0 {
+		ws.shell.XML.Open(files, ui.SpawnXML)
+	}
 }
 
 func (p *populateMode) update(gtx layout.Context, ws *workspace) {

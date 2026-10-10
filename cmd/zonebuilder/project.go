@@ -133,6 +133,7 @@ func (s *session) update(gtx layout.Context, w *app.Window, shell *ui.Shell, zon
 	default:
 	}
 	p.Name, p.Unsaved = s.name(shell.Language), zones.version != s.saved || spawns.edits != s.savedSpawns
+	shell.Spawn.XMLDefault = s.xmlName()
 	return status, load
 }
 
@@ -214,6 +215,15 @@ func (s *session) name(lang locale.Language) string {
 		return locale.Text(lang, "actions.project.unnamed")
 	}
 	return filepath.Base(s.path)
+}
+
+// xmlName is the spawn XML's default file name: the project's name without
+// its extension, "spawn" before the first save.
+func (s *session) xmlName() string {
+	if s.path == "" {
+		return "spawn"
+	}
+	return strings.TrimSuffix(filepath.Base(s.path), project.Ext)
 }
 
 // windowTitle is the app title followed by the project file at path.

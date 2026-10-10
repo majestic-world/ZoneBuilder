@@ -28,6 +28,7 @@ type XMLWindow struct {
 	Window FloatWindow
 	files  []xmlFile
 	copied string
+	kind   XMLKind
 }
 
 type xmlFile struct {
@@ -37,8 +38,20 @@ type xmlFile struct {
 	copy   widget.Clickable
 }
 
-// Open shows files in the window, opening it if it was closed.
-func (x *XMLWindow) Open(files []zonexml.File) {
+// XMLKind is what a compilation produced, which tells the server
+// directory its files go to.
+type XMLKind int
+
+const (
+	// ZoneXML files go to data/zone/.
+	ZoneXML XMLKind = iota
+	// SpawnXML files go to data/spawn/.
+	SpawnXML
+)
+
+// Open shows files of kind in the window, opening it if it was closed.
+func (x *XMLWindow) Open(files []zonexml.File, kind XMLKind) {
+	x.kind = kind
 	x.files = make([]xmlFile, len(files))
 	for i, f := range files {
 		x.files[i].name, x.files[i].text = f.Name, string(f.Data)
@@ -73,9 +86,13 @@ func (s *Shell) xmlWindow(gtx layout.Context) layout.Dimensions {
 	if len(x.files) == 0 {
 		return layout.Dimensions{}
 	}
+	hint := locale.Text(s.Language, "ui.xml.hint")
+	if x.kind == SpawnXML {
+		hint = locale.Text(s.Language, "ui.xml.hint_spawn")
+	}
 	return x.Window.Layout(gtx, s, icon.CodeXML, locale.Text(s.Language, "ui.xml.title"), func(gtx layout.Context) layout.Dimensions {
 		children := []layout.FlexChild{
-			layout.Rigid(s.dimLabel(locale.Text(s.Language, "ui.xml.hint"))),
+			layout.Rigid(s.dimLabel(hint)),
 		}
 		for i := range x.files {
 			f := &x.files[i]
