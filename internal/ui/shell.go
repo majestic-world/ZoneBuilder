@@ -261,11 +261,7 @@ func (s *Shell) editorControls(w layout.Widget) layout.Widget {
 // after Esc. The editor's document, selection and history are not consulted.
 func (s *Shell) DiscardEditorInput(gtx layout.Context) {
 	discardClicks(gtx, &s.Undo, &s.Redo, &s.Compile, &s.Zone.PrevType, &s.Zone.NextType, &s.Zone.Create, &s.Edit.PrevFrom, &s.Edit.NextFrom, &s.Edit.GroundZ, &s.Edit.InsertAfter, &s.Edit.RemoveVertex, &s.Edit.SetZRange, &s.Edit.MoveShape, &s.Edit.SetCoords, &s.Height.Up, &s.Height.Down, &s.Height.SetBase, &s.Height.SetHeight, &s.Height.FloorToGround, &s.Height.TopToGround, &s.Height.Reopen, &s.Project.OpenProject, &s.Project.Save, &s.Project.SaveAs)
-	s.Edit.ZRangeRequested(gtx)
-	s.Edit.MoveShapeRequested(gtx)
-	s.Edit.CoordsRequested(gtx)
-	s.Height.BaseRequested(gtx)
-	s.Height.HeightRequested(gtx)
+	discardEditorEvents(gtx, &s.Zone.Name, &s.Spawn.XMLName, &s.Edit.Margin, &s.Edit.ZRange, &s.Edit.Offset, &s.Edit.Coords, &s.Height.Step, &s.Height.Base, &s.Height.Height)
 	s.Project.Requests(gtx)
 	s.WaterMenu.CompileRequested(gtx)
 }

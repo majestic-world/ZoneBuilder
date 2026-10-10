@@ -218,7 +218,7 @@ O botão **Jogar** fica no canto inferior direito do viewport, nos 2 modos. Ele 
 | arrastar | olhar em volta |
 | Esc | sair e voltar à câmera de edição de antes |
 
-No modo zonas, o contorno das zonas continua desenhado; no modo população, os monstros da prévia aparecem e não têm colisão. O modo ativo não recebe nenhuma entrada desde a preparação até o fim do jogo: o inspetor, as propriedades, as ferramentas e a janela de altura ficam desabilitados, e a seleção, os documentos e o histórico de desfazer ficam como estavam. Tentativas de edição não ficam na fila para executar depois de Esc. Idioma, visualização de meshes, grade e abertura de mapa continuam disponíveis.
+No modo zonas, o contorno das zonas continua desenhado; no modo população, os monstros da prévia aparecem e não têm colisão. O modo ativo não recebe nenhuma entrada desde a preparação até o fim do jogo: o inspetor, as propriedades, as ferramentas e a janela de altura ficam desabilitados, e a seleção, os documentos e o histórico de desfazer ficam como estavam. Digitação, colagem e submissões tardias também são descartadas antes de chegar aos editores: o texto dos campos não muda durante o jogo, nem fica pendente para executar depois de Esc. Idioma, visualização de meshes, grade e abertura de mapa continuam disponíveis.
 
 O personagem sobe rampas de terreno até uma inclinação de cerca de 49° (`n.z` 0,65) e degraus baixos; numa rampa mais íngreme, ele para ou escorrega. Isso difere do Play Map do UE2-Studio, que sobe rampas de 60°.
 

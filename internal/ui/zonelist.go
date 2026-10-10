@@ -117,7 +117,7 @@ func (l *ZoneList) Reset() {
 // replaying row/compile requests when the editor resumes.
 func (l *ZoneList) Discard(gtx layout.Context) {
 	discardClicks(gtx, &l.PrevFilter, &l.NextFilter, &l.ToggleType, &l.Rename, &l.Delete, &l.Duplicate, &l.Color, &l.CompileAll, &l.CompileNone)
-	submitted(gtx, &l.NewName)
+	discardEditorEvents(gtx, &l.NewName, &l.Search)
 	for _, r := range l.Rows {
 		w := l.widgets(r.ID)
 		discardClicks(gtx, &w.pick, &w.toggle)

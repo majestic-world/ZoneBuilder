@@ -3,6 +3,8 @@ package ui
 import (
 	"strconv"
 
+	"gioui.org/io/key"
+	"gioui.org/io/transfer"
 	"gioui.org/layout"
 	"gioui.org/widget"
 
@@ -93,6 +95,24 @@ func requested(gtx layout.Context, e *widget.Editor, b *widget.Clickable) bool {
 func discardClicks(gtx layout.Context, clicks ...*widget.Clickable) {
 	for _, c := range clicks {
 		for c.Clicked(gtx) {
+		}
+	}
+}
+
+// discardEditorEvents consumes late IME/keyboard/paste events without
+// calling Editor.Update, which would apply edits before returning them.
+// Disabled belongs to layout; it does not protect a live-source Update.
+func discardEditorEvents(gtx layout.Context, editors ...*widget.Editor) {
+	for _, e := range editors {
+		for {
+			_, ok := gtx.Event(
+				key.FocusFilter{Target: e},
+				key.Filter{Focus: e, Optional: key.ModCtrl | key.ModCommand | key.ModShift | key.ModAlt | key.ModSuper},
+				transfer.TargetFilter{Target: e, Type: "application/text"},
+			)
+			if !ok {
+				break
+			}
 		}
 	}
 }

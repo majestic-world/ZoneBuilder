@@ -100,8 +100,7 @@ func (p *populateMode) update(gtx layout.Context, ws *workspace) {
 	panel, spawns, w := &ws.shell.Spawn, p.spawns, ws.world()
 	if ws.shell.EditorLocked {
 		panel.Tools.Discard(gtx)
-		a, ok := spawns.selectedArea()
-		panel.Discard(gtx, a, ok)
+		panel.Discard(gtx)
 		for {
 			if _, ok := panel.Problems.Clicked(gtx); !ok {
 				break
