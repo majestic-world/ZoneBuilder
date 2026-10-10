@@ -1,12 +1,15 @@
 package project_test
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"testing"
 
 	"zonebuilder/internal/project"
+	"zonebuilder/internal/spawn"
 	"zonebuilder/internal/zone"
 )
 
@@ -82,5 +85,128 @@ func TestSavedProjectReopensWithTheSameDocument(t *testing.T) {
 	}
 	if next, want := got.Document.NewZoneID(), d.NewZoneID(); next != want || next <= unused {
 		t.Errorf("next zone ID after reopening is %d, want %d", next, want)
+	}
+}
+
+// generatedArea creates an area named name in d with the points of a
+// distribution with seed and returns its ID.
+func generatedArea(t *testing.T, d *spawn.Document, name string, outline []spawn.Vertex, seed uint64, points []spawn.Point, warnings ...spawn.Warning) spawn.AreaID {
+	t.Helper()
+	id := d.NewAreaID()
+	params := spawn.DefaultParams(24)
+	params.NPCID, params.Count = 20001, len(points)+len(warnings)
+	if err := d.Apply(spawn.CreateArea{ID: id, Name: name, Outline: outline, ZMin: -3600, ZMax: -3200, Params: params}); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := d.Area(id)
+	if err := d.Apply(spawn.SetPoints{Area: id, Seed: seed, Fingerprint: a.Fingerprint(seed), Points: points, Warnings: warnings}); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// Saving a project with 2 generated areas and opening it again gives back
+// the same areas and points, warnings, hidden flag and fingerprints
+// included, with the areas still up to date. Catches area state the file
+// drops (a point, a heading, the seed, a warning), a fingerprint the reload
+// no longer matches (every reopened area would be stale), and ID
+// bookkeeping lost on reopen.
+func TestSavedProjectReopensWithTheSameSpawnAreas(t *testing.T) {
+	d := spawn.NewDocument()
+	generatedArea(t, d, "giran_square",
+		[]spawn.Vertex{{X: 83000, Y: 147600}, {X: 83400, Y: 147600}, {X: 83400, Y: 148000}, {X: 83000, Y: 148000}},
+		1<<63+5, []spawn.Point{{X: 83100, Y: 147700, Z: -3404, Heading: 1200}, {X: 83300, Y: 147900, Z: -3398, Heading: 65535}})
+	north := generatedArea(t, d, "giran_north",
+		[]spawn.Vertex{{X: 83000, Y: 146000}, {X: 83600, Y: 146100}, {X: 83300, Y: 146700}},
+		42, []spawn.Point{{X: 83300, Y: 146300, Z: -3500, Heading: 1}},
+		spawn.Warning{Rule: spawn.FitsOnly, Placed: 1, Requested: 2})
+	if err := d.Apply(spawn.SetHidden{Areas: []spawn.AreaID{north}, Hidden: true}); err != nil {
+		t.Fatal(err)
+	}
+	unused := d.NewAreaID() // reserved, never created
+
+	path := filepath.Join(t.TempDir(), "giran"+project.Ext)
+	if err := project.Save(path, project.Project{Client: `C:\L2\Fafurion`, Spawns: d}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := project.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.Spawns.Areas(), d.Areas()) {
+		t.Errorf("areas after reopening:\n%#v\nwant:\n%#v", got.Spawns.Areas(), d.Areas())
+	}
+	for _, a := range got.Spawns.Areas() {
+		if a.Stale() {
+			t.Errorf("area %s is stale after reopening", a.Name)
+		}
+	}
+	if next, want := got.Spawns.NewAreaID(), d.NewAreaID(); next != want || next <= unused {
+		t.Errorf("next area ID after reopening is %d, want %d", next, want)
+	}
+}
+
+// A file the version 1 app saved (zones only, no Spawns key) opens with its
+// zones intact and no spawn area. Catches the format bump breaking the
+// projects users already have.
+func TestVersion1ProjectOpensWithoutSpawnAreas(t *testing.T) {
+	const v1 = `{
+	"Version": 1,
+	"Client": "C:\\L2\\Fafurion",
+	"Tiles": ["22_22"],
+	"Document": {
+		"LastID": 2,
+		"Zones": [
+			{
+				"ID": 2,
+				"Name": "[zb_giran_square]",
+				"Type": "peace_zone",
+				"Params": [{"Name": "enabled", "Value": "false"}],
+				"Shapes": [{"Kind": 0, "Banned": false, "Points": [{"X": 83000, "Y": 147600, "Z": -3404}, {"X": 83800, "Y": 147600, "Z": -3398}, {"X": 83800, "Y": 148300, "Z": -3405}], "ZMin": -3661, "ZMax": -3142}],
+				"RestartPoints": [{"X": 82900, "Y": 147500, "Z": -3410}],
+				"PKRestartPoints": null,
+				"Hidden": true,
+				"Color": [18, 171, 255]
+			}
+		]
+	}
+}
+`
+	path := filepath.Join(t.TempDir(), "old"+project.Ext)
+	if err := os.WriteFile(path, []byte(v1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := project.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []zone.Zone{{
+		ID: 2, Name: "[zb_giran_square]", Type: zone.PeaceZone,
+		Params: []zone.Param{{Name: "enabled", Value: "false"}},
+		Shapes: []zone.Shape{{Kind: zone.Polygon, ZMin: -3661, ZMax: -3142,
+			Points: []zone.Point{{X: 83000, Y: 147600, Z: -3404}, {X: 83800, Y: 147600, Z: -3398}, {X: 83800, Y: 148300, Z: -3405}}}},
+		RestartPoints: []zone.Point{{X: 82900, Y: 147500, Z: -3410}},
+		Hidden:        true,
+		Color:         zone.Color{18, 171, 255},
+	}}
+	if !reflect.DeepEqual(got.Document.Zones(), want) {
+		t.Errorf("zones of the version 1 file:\n%#v\nwant:\n%#v", got.Document.Zones(), want)
+	}
+	if got.Spawns == nil || len(got.Spawns.Areas()) != 0 {
+		t.Errorf("spawn document of the version 1 file is %v, want an empty one", got.Spawns)
+	}
+}
+
+// A file of a format newer than the app's is refused instead of opened
+// half-read. Catches an old binary loading a project whose spawn areas it
+// cannot see, which saving over would then erase.
+func TestNewerProjectVersionIsRefused(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "future"+project.Ext)
+	data := fmt.Sprintf(`{"Version": %d, "Client": "C:\\L2", "Spawns": {"LastID": 0, "Areas": []}}`, project.Version+1)
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := project.Load(path); err == nil {
+		t.Errorf("Load accepted a version %d file", project.Version+1)
 	}
 }
