@@ -203,7 +203,10 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 		return image.Rectangle{Max: s.Viewport.Size()}
 	}
 	zones := s.Mode == ModeZones
-	if zones {
+	// The gizmo and the labels sit where the edit camera projected them;
+	// the game mode moves the camera without updating them, so they stay
+	// hidden while the editor is locked.
+	if zones && !s.EditorLocked {
 		// The gizmo only paints; every card takes the pointer input over
 		// its bounds, so the viewport gets what lands between them.
 		s.Gizmo.Layout(gtx)

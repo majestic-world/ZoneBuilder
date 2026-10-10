@@ -452,7 +452,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			if measure {
 				frames.frame(gtx.Now, g.renderer.Stats(), ws.tiles.shown())
 			}
-			if moving || uploading || measure {
+			// The frame that leaves the game mode still runs locked, without
+			// the mode's present: draw one more for its gizmo and labels.
+			if moving || uploading || measure || (frozen && !game.active()) {
 				gtx.Execute(op.InvalidateCmd{})
 			}
 			e.Frame(gtx.Ops)
