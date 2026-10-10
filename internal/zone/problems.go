@@ -250,7 +250,7 @@ func shapeProblems(id ZoneID, i int, s Shape) []Problem {
 				add(RepeatedVertex, next, k+1, next+1)
 			}
 		}
-		for _, x := range crossings(pts) {
+		for _, x := range Crossings(pts) {
 			add(SelfIntersection, x[0], x[0]+1, (x[0]+1)%len(pts)+1, x[1]+1, (x[1]+1)%len(pts)+1)
 		}
 	}
@@ -265,13 +265,14 @@ func shapeProblems(id ZoneID, i int, s Shape) []Problem {
 	return out
 }
 
-// crossings is every pair of non-adjacent edges of polygon pts that touch
-// or cross, as the indices of the edges' first vertices. Edge k runs from
+// Crossings is every pair of non-adjacent edges of polygon pts that touch
+// or cross, as the indices of the edges' first vertices; the
+// SelfIntersection rule, which the spawn areas share. Edge k runs from
 // vertex k to k+1, the last back to the first. Zero-length edges (repeated
 // vertices, reported on their own) are left out, and edges are adjacent
 // when only zero-length edges separate them, so a repeated vertex is not
-// also reported as a crossing.
-func crossings(pts []Point) [][2]int {
+// also reported as a crossing. Z plays no part.
+func Crossings(pts []Point) [][2]int {
 	n := len(pts)
 	var edges []int
 	for k := range n {

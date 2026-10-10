@@ -58,15 +58,20 @@ func (c DuplicateZone) apply(d *Document) error {
 	}
 	z := src.clone()
 	z.ID = c.ID
-	z.Name = d.copyName(src.Name)
+	taken := make(map[string]bool, len(d.zones))
+	for _, other := range d.zones {
+		taken[other.Name] = true
+	}
+	z.Name = CopyName(src.Name, taken)
 	d.zones = append(d.zones, z)
 	return nil
 }
 
-// copyName is name with the first "_N" suffix (N ≥ 2, counting on from a
-// suffix name already has) that no zone of d uses. A name in brackets
-// keeps them outermost, the datapack's "[name]" style.
-func (d *Document) copyName(name string) string {
+// CopyName is name with the first "_N" suffix (N ≥ 2, counting on from a
+// suffix name already has) that is not in taken. A name in brackets keeps
+// them outermost, the datapack's "[name]" style. The spawn areas name
+// their copies the same way.
+func CopyName(name string, taken map[string]bool) string {
 	open, close := "", ""
 	base := name
 	if strings.HasPrefix(base, "[") && strings.HasSuffix(base, "]") && len(base) >= 2 {
@@ -77,10 +82,6 @@ func (d *Document) copyName(name string) string {
 		if k, err := strconv.Atoi(base[i+1:]); err == nil && k >= 1 && base[i+1] != '+' && base[i+1] != '-' {
 			base, n = base[:i], k+1
 		}
-	}
-	taken := make(map[string]bool, len(d.zones))
-	for _, z := range d.zones {
-		taken[z.Name] = true
 	}
 	for ; ; n++ {
 		if candidate := fmt.Sprintf("%s%s_%d%s", open, base, n, close); !taken[candidate] {
