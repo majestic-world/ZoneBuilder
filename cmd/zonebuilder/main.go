@@ -25,6 +25,7 @@ import (
 	"gioui.org/gpu"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
+	"gioui.org/io/system"
 	"gioui.org/op"
 	"gioui.org/unit"
 
@@ -77,6 +78,7 @@ func main() {
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title(appTitle()), app.Size(unit.Dp(1280), unit.Dp(800)), app.CustomRenderer(true))
+		w.Perform(system.ActionCenter)
 		if err := run(w, sess, fields, *proj, start, startMode, *fps); err != nil {
 			log.Fatal(err)
 		}
