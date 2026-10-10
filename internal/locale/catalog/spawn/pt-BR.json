@@ -19,6 +19,8 @@
   "spawn.compile.done": {"one": "{file} compilado: {count} ponto de {areas}", "other": "{file} compilado: {count} pontos de {areas}"},
   "spawn.xml.section": "XML de spawn",
   "spawn.xml.file": "Nome do arquivo",
+  "spawn.preview.button": "Prévia",
+  "spawn.preview.error": "Não foi possível mostrar a prévia: {detail}",
   "spawn.tool.finish_first": "Feche a área que está desenhando antes de trocar de ferramenta",
   "spawn.hint.polygon_first": "Polígono: clique no chão para o 1º vértice da nova área; Esc cancela",
   "spawn.area.created": {"one": "Área {name} criada com {count} vértice, z {min} … {max} {source}", "other": "Área {name} criada com {count} vértices, z {min} … {max} {source}"},

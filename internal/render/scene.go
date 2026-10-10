@@ -430,9 +430,11 @@ func (sr *sceneRenderer) cull(viewProj mat4) {
 // clip) seen from eye (rebased, Unreal basis), one pass per render mode in
 // UE2-Studio's order, each pass in scene and batch order (a terrain's
 // layers blend in TerrainInfo order), each batch only over its visible
-// sectors. The depth test is on and GREATER when called; blending and
+// sectors. models runs right before the Translucent pass, whether or not
+// any batch is translucent, and leaves texture unit 0 active and empty and
+// no VAO bound. The depth test is on and GREATER when called; blending and
 // depth writes are left as found (off and on).
-func (sr *sceneRenderer) draw(viewProj mat4, eye geom.Vec3) {
+func (sr *sceneRenderer) draw(viewProj mat4, eye geom.Vec3, models func()) {
 	sr.stats = DrawStats{}
 	sr.cull(viewProj)
 	gles.UseProgram(sr.prog)
@@ -444,6 +446,11 @@ func (sr *sceneRenderer) draw(viewProj mat4, eye geom.Vec3) {
 	var texture, mask uint32
 	opaque := int32(-1)
 	for _, mode := range passes {
+		if mode == scene.Translucent {
+			models()
+			gles.UseProgram(sr.prog)
+			texture = 0
+		}
 		started := false
 		for _, gs := range sr.scenes {
 			if gs.prep != nil {

@@ -6,10 +6,12 @@ import (
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
+	"gioui.org/op"
 
 	"zonebuilder/internal/locale"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
+	"zonebuilder/internal/spawn"
 	"zonebuilder/internal/ui"
 )
 
@@ -23,9 +25,16 @@ type populateMode struct {
 	// the renderer's overlay was last built for.
 	sent, grid bool
 	shown      int
+	// pinless is set when that overlay left the pins out, the preview
+	// being on.
+	pinless bool
 	// pressTaken is set when the editor used the last press (a handle
 	// grabbed), so its click adds no point.
 	pressTaken bool
+	// preview draws the monster on the points while the Prévia switch
+	// is on; points is its reused buffer of them.
+	preview monsterPreview
+	points  []spawn.Point
 }
 
 func newPopulateMode(w *app.Window) *populateMode {
@@ -87,6 +96,7 @@ func (p *populateMode) compile(ws *workspace) {
 }
 
 func (p *populateMode) update(gtx layout.Context, ws *workspace) {
+	ws.shell.Preview.Toggled(gtx)
 	panel, spawns, w := &ws.shell.Spawn, p.spawns, ws.world()
 	if t, ok := panel.Tools.Requested(gtx); ok {
 		status(ws, spawns.arm(t))
@@ -127,16 +137,43 @@ func (p *populateMode) present(gtx layout.Context, ws *workspace) {
 	if a, ok := spawns.doc.Area(spawns.generating); ok && shell.Loading == "" {
 		shell.Loading, shell.Progress = locale.Format(lang, "spawn.generate.loading", map[string]string{"name": a.Name}), 0
 	}
+	if shell.Preview.On {
+		if err := p.preview.advance(gtx.Now); err != nil {
+			p.previewFailed(ws, err)
+		} else {
+			// Wait keeps playing.
+			gtx.Execute(op.InvalidateCmd{})
+		}
+	}
 }
 
+// previewFailed turns the preview off and reports err.
+func (p *populateMode) previewFailed(ws *workspace, err error) {
+	ws.shell.Preview.On = false
+	ws.status = actionError(locale.Message{Key: "spawn.preview.error"}, err, nil)
+}
+
+// sync sends the overlay: the areas, and the points' pins unless the
+// preview shows the monster on them instead.
 func (p *populateMode) sync(r *render.Renderer, ws *workspace) {
 	if on := ws.shell.Ground.On; !p.sent || p.grid != on {
 		r.SetGround(render.Ground{Grid: on})
 		p.sent, p.grid = true, on
 	}
-	if p.shown != p.spawns.version {
-		r.SetZones(append(p.spawns.overlay(), p.spawns.pins()...))
-		p.shown = p.spawns.version
+	preview := ws.shell.Preview.On
+	if p.shown != p.spawns.version || p.pinless != preview {
+		shapes := p.spawns.overlay()
+		if !preview {
+			shapes = append(shapes, p.spawns.pins()...)
+		}
+		r.SetZones(shapes)
+		p.shown, p.pinless = p.spawns.version, preview
+	}
+	if preview {
+		p.points = p.spawns.previewPoints(p.points[:0])
+		if err := p.preview.draw(r, p.points); err != nil {
+			p.previewFailed(ws, err)
+		}
 	}
 }
 

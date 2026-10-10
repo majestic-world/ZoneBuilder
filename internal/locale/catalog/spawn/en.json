@@ -19,6 +19,8 @@
   "spawn.compile.done": {"one": "{file} compiled: {count} point of {areas}", "other": "{file} compiled: {count} points of {areas}"},
   "spawn.xml.section": "Spawn XML",
   "spawn.xml.file": "File name",
+  "spawn.preview.button": "Preview",
+  "spawn.preview.error": "Could not show the preview: {detail}",
   "spawn.tool.finish_first": "Close the area being drawn before switching tools",
   "spawn.hint.polygon_first": "Polygon: click the ground for the new area's first vertex; Esc cancels",
   "spawn.area.created": {"one": "Area {name} created with {count} vertex, z {min} … {max} {source}", "other": "Area {name} created with {count} vertices, z {min} … {max} {source}"},
