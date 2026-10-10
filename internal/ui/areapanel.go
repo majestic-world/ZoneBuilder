@@ -101,8 +101,8 @@ type (
 	// DuplicateArea, DeleteArea: the actions on the selected area.
 	DuplicateArea struct{ Area spawn.AreaID }
 	DeleteArea    struct{ Area spawn.AreaID }
-	// SetAreaField: a property field was committed (Enter or focus lost)
-	// with a text other than the area's value.
+	// SetAreaField: a property field was committed (Enter, focus lost,
+	// or generation requested) with text other than the area's value.
 	SetAreaField struct {
 		Area  spawn.AreaID
 		Field AreaField
@@ -152,7 +152,7 @@ func (p *AreaPanel) Discard(gtx layout.Context) {
 
 // Update loads a, the selected area (ok false: none), into the property
 // fields and returns the requests since the last call: row clicks and
-// toggles, actions, then property edits. Call it before Layout.
+// toggles, actions and property edits, then generation. Call it before Layout.
 func (p *AreaPanel) Update(gtx layout.Context, a spawn.Area, ok bool) []any {
 	var reqs []any
 	for _, r := range p.Rows {
@@ -174,12 +174,8 @@ func (p *AreaPanel) Update(gtx layout.Context, a spawn.Area, ok bool) []any {
 	if p.Delete.Clicked(gtx) {
 		reqs = append(reqs, DeleteArea{Area: a.ID})
 	}
-	if p.Generate.Clicked(gtx) {
-		reqs = append(reqs, GenerateArea{Area: a.ID})
-	}
-	if p.Regenerate.Clicked(gtx) {
-		reqs = append(reqs, GenerateArea{Area: a.ID, Regenerate: true})
-	}
+	generate := p.Generate.Clicked(gtx)
+	regenerate := p.Regenerate.Clicked(gtx)
 	if p.AddPoints.Clicked(gtx) {
 		reqs = append(reqs, AddPoints{Area: a.ID, On: !p.Adding})
 	}
@@ -199,9 +195,16 @@ func (p *AreaPanel) Update(gtx layout.Context, a spawn.Area, ok bool) []any {
 			f.value = values[i]
 			f.editor.SetText(values[i])
 		}
-		if committed(gtx, &f.editor, &f.focused) && f.editor.Text() != f.value {
+		commit := committed(gtx, &f.editor, &f.focused)
+		if (commit || generate || regenerate) && f.editor.Text() != f.value {
 			reqs = append(reqs, SetAreaField{Area: a.ID, Field: AreaField(i), Text: f.editor.Text()})
 		}
+	}
+	if generate {
+		reqs = append(reqs, GenerateArea{Area: a.ID})
+	}
+	if regenerate {
+		reqs = append(reqs, GenerateArea{Area: a.ID, Regenerate: true})
 	}
 	return reqs
 }

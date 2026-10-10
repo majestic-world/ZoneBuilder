@@ -70,6 +70,10 @@ func (w *FloatWindow) Layout(gtx layout.Context, s *Shell, ic *icon.Icon, title 
 		w.pos = image.Pt(gtx.Dp(cmp.Or(w.Left, floatMargin)), gtx.Dp(cmp.Or(w.Top, floatMargin)))
 		w.size = image.Pt(gtx.Dp(w.Width), gtx.Dp(w.Height))
 	}
+	// Queued events use the previous frame's title-bar and grip origins.
+	// Keep those baselines fixed while draining the batch; updating the
+	// geometry does not change coordinates already routed by Gio.
+	framePos, frameSize := w.pos, w.size
 	for {
 		ev, ok := w.move.Update(gtx.Metric, gtx.Source, gesture.Both)
 		if !ok {
@@ -79,9 +83,7 @@ func (w *FloatWindow) Layout(gtx layout.Context, s *Shell, ic *icon.Icon, title 
 		case pointer.Press:
 			w.moveFrom = ev.Position
 		case pointer.Drag:
-			// The title bar moves with the window, so the pointer stays at
-			// the press position relative to it once the move is applied.
-			w.pos = w.pos.Add(ev.Position.Sub(w.moveFrom).Round())
+			w.pos = framePos.Add(ev.Position.Sub(w.moveFrom).Round())
 		}
 	}
 	for {
@@ -93,7 +95,7 @@ func (w *FloatWindow) Layout(gtx layout.Context, s *Shell, ic *icon.Icon, title 
 		case pointer.Press:
 			w.sizeFrom = ev.Position
 		case pointer.Drag:
-			w.size = w.size.Add(ev.Position.Sub(w.sizeFrom).Round())
+			w.size = frameSize.Add(ev.Position.Sub(w.sizeFrom).Round())
 		}
 	}
 	w.size.X = max(w.size.X, gtx.Dp(windowMinW))

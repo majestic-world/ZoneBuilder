@@ -200,6 +200,10 @@ Na tela inicial, clique em **Popular zona** (ou abra com `-mode populate`). A se
 5. **Modo jogo.** **Jogar**, ao lado da prévia, põe um personagem no chão para andar entre os monstros. Veja [Modo jogo](#modo-jogo).
 6. **Compilar.** **Compilar XML** pergunta os **IDs dos NPCs**, separados por espaço (por exemplo, `1 2 3 4`). Os IDs precisam ser inteiros positivos; repetições são ignoradas. Cada área reparte seus pontos em sequência entre os IDs informados: quando a divisão não é exata, a diferença é de no máximo 1 NPC por ID. Os IDs não alteram nem ficam gravados nas áreas. **Cancelar** fecha a pergunta sem compilar. Confirmar abre a janela de XML com 1 arquivo para o projeto inteiro: o nome digitado em **XML de spawn** ou, em branco, o nome do projeto. Copie e grave em `data/spawn/` do servidor, e reinicie o servidor (`//reload_spawn` não relê o XML).
 
+**Quantidade**, **Raio** e **Afastamento** são aplicados com Enter, ao sair do campo ou ao clicar em **Gerar/Regerar**, mesmo que o campo ainda esteja focado. Texto que não é um inteiro impede a geração, preserva os pontos anteriores e mostra o erro; corrija o campo e clique novamente.
+
+As janelas de altura, IDs dos NPCs e XML podem ser movidas pelo título e redimensionadas pela alça no canto inferior direito. O arraste acompanha o cursor, inclusive quando várias mudanças de posição chegam no mesmo frame.
+
 O XML tem 1 `<spawn name="[<área>_0]">` por área, contendo 1 `<npc id="…" count="1" respawn="60" pos="x y z h" />` por ponto, em coordenadas do servidor, com indentação de 3 espaços por nível. O monstro nasce e renasce sempre naquele ponto; `respawn_rand` nunca é emitido. Problemas que bloqueiam: polígono com menos de 3 vértices ou que se cruza, faixa Z invertida, quantidade menor que 1, nome vazio ou repetido, área sem pontos, pontos desatualizados e ponto fora do mundo.
 
 Atalhos, desfazer e refazer valem só para as áreas neste modo; o histórico das zonas não muda.
@@ -221,6 +225,8 @@ O botão **Jogar** fica no canto inferior direito do viewport, nos 2 modos. Ele 
 No modo zonas, o contorno das zonas continua desenhado; no modo população, os monstros da prévia aparecem e não têm colisão. O modo ativo não recebe nenhuma entrada desde a preparação até o fim do jogo: o inspetor, as propriedades, as ferramentas e a janela de altura ficam desabilitados, e a seleção, os documentos e o histórico de desfazer ficam como estavam. Digitação, colagem e submissões tardias também são descartadas antes de chegar aos editores: o texto dos campos não muda durante o jogo, nem fica pendente para executar depois de Esc. Idioma, visualização de meshes, grade e abertura de mapa continuam disponíveis.
 
 O personagem sobe rampas de terreno até uma inclinação de cerca de 49° (`n.z` 0,65) e degraus baixos; numa rampa mais íngreme, ele para ou escorrega. Isso difere do Play Map do UE2-Studio, que sobe rampas de 60°.
+
+O comando de caminhada é reaplicado em cada subpasso de colisão. A projeção de um contato não reduz novamente os subpassos seguintes do mesmo frame: uma queda de FPS não esgota a velocidade ao subir uma rampa caminhável. Paredes e rampas acima do limite continuam bloqueando; isso não ativa voo nem ignora meshes escondidas.
 
 ## Licenças de terceiros
 

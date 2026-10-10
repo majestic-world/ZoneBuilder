@@ -139,12 +139,15 @@ func (p *player) advance(w *World, seconds float32, wish geom.Vec3, fast bool) {
 		p.feet = p.feet.Add(wish.Scale(speed * seconds))
 		return
 	}
-	p.velocity.X = wish.X * speed
-	p.velocity.Y = wish.Y * speed
 	p.velocity.Z = max(p.velocity.Z-gravity*seconds, -terminalSpeed)
-	steps := max(1, int(math.Ceil(float64(p.velocity.Length()*seconds/maxStep))))
+	moveVelocity := geom.Vec3{X: wish.X * speed, Y: wish.Y * speed, Z: p.velocity.Z}
+	steps := max(1, int(math.Ceil(float64(moveVelocity.Length()*seconds/maxStep))))
 	p.grounded = false
 	for range steps {
+		// Contacts constrain this sub-step, not the next walking command.
+		// Reapply horizontal input: retaining its previous projection while
+		// ascent is clamped would repeatedly erase uphill movement.
+		p.velocity.X, p.velocity.Y = moveVelocity.X, moveVelocity.Y
 		p.feet = p.feet.Add(p.velocity.Scale(seconds / float32(steps)))
 		upwardLimit := max(p.velocity.Z, 0)
 		if w.resolve(&p.feet, &p.velocity) {

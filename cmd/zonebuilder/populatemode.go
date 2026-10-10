@@ -125,9 +125,7 @@ func (p *populateMode) update(gtx layout.Context, ws *workspace) {
 		status(ws, spawns.arm(t))
 	}
 	a, ok := spawns.selectedArea()
-	for _, req := range panel.Update(gtx, a, ok) {
-		status(ws, spawns.listRequest(req, w, &ws.cam))
-	}
+	status(ws, spawns.listRequests(panel.Update(gtx, a, ok), w, &ws.cam))
 	if i, ok := panel.Problems.Clicked(gtx); ok {
 		status(ws, spawns.goToProblem(i, w, &ws.cam))
 	}

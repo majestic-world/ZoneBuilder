@@ -79,7 +79,7 @@
   "spawn.field.respawn_fixed": "Fixed respawn: 60 s",
   "spawn.field.radius": "Radius",
   "spawn.field.clearance": "Clearance",
-  "spawn.field.hint": "Enter or leaving the field applies. The default radius is the preview monster's.",
+  "spawn.field.hint": "Enter, leaving the field, or Generate/Regenerate applies the values. The default radius is the preview monster's.",
   "spawn.field.integer": "{field}: enter an integer",
   "spawn.field.failed": "Could not change the area",
   "spawn.field.set": "{name}: {field} = {value}",

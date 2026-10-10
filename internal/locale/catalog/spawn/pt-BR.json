@@ -79,7 +79,7 @@
   "spawn.field.respawn_fixed": "Respawn fixo: 60 s",
   "spawn.field.radius": "Raio",
   "spawn.field.clearance": "Afastamento",
-  "spawn.field.hint": "Enter ou sair do campo aplica. O raio padrão é o do monstro de prévia.",
+  "spawn.field.hint": "Enter, sair do campo ou Gerar/Regerar aplica os valores. O raio padrão é o do monstro de prévia.",
   "spawn.field.integer": "{field}: digite um número inteiro",
   "spawn.field.failed": "Não foi possível mudar a área",
   "spawn.field.set": "{name}: {field} = {value}",

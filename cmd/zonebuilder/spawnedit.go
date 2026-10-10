@@ -492,6 +492,28 @@ func (e *spawnEditor) rows(lang locale.Language) []ui.AreaRow {
 	return rows
 }
 
+// listRequests applies the panel's ordered batch. A rejected field prevents
+// generation from silently using the old value, including on a repeated click.
+func (e *spawnEditor) listRequests(reqs []any, w *scene.World, cam *camera.Camera) locale.Message {
+	var result, rejected locale.Message
+	for _, req := range reqs {
+		if _, generate := req.(ui.GenerateArea); generate && rejected.Key != "" {
+			continue
+		}
+		msg := e.listRequest(req, w, cam)
+		if _, field := req.(ui.SetAreaField); field && msg.Key == "spawn.field.integer" {
+			rejected = msg
+		}
+		if msg.Key != "" {
+			result = msg
+		}
+	}
+	if rejected.Key != "" {
+		return rejected
+	}
+	return result
+}
+
 // listRequest carries out one area panel request; w and cam are the open
 // map (nil when none) and its camera. It returns the status message.
 func (e *spawnEditor) listRequest(req any, w *scene.World, cam *camera.Camera) locale.Message {
