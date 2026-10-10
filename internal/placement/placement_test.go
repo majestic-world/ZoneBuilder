@@ -369,3 +369,56 @@ func TestSpacingOfHandPlacedPointsIsNearestNeighbourOnThePlane(t *testing.T) {
 
 // CellSize is placement.CellSize as a float.
 const CellSize = float64(placement.CellSize)
+
+func TestFinalPointsRemainSupportedOnNarrowBridgeAndInRampRange(t *testing.T) {
+	for _, ramp := range []bool{false, true} {
+		a, b, c, d := v(7, 0, 40), v(9, 0, 40), v(9, 256, 40), v(7, 256, 40)
+		if ramp {
+			a, b, c, d = v(0, 0, 0), v(256, 0, 256), v(256, 256, 256), v(0, 256, 0)
+		}
+		w := &world{tris: []scene.Triangle{tri(scene.SurfaceBSP, a, b, c), tri(scene.SurfaceBSP, a, c, d)}}
+		r := request(square(0, 0, 256, 256), 8)
+		r.Radius, r.Clearance = 1, 0
+		if ramp {
+			r.ZMin, r.ZMax = 7, 9
+		}
+		for seed := uint64(1); seed <= 64; seed++ {
+			r.Seed = seed
+			res := placement.Distribute(w, r)
+			if res.Fit() == 0 {
+				t.Fatalf("no supported points for ramp=%v seed=%d", ramp, seed)
+			}
+			for _, p := range res.Points {
+				if p.X < 7 || p.X > 9 || (!ramp && p.Z != 40) || (ramp && p.Z != p.X) {
+					t.Fatalf("unsupported or out-of-range point %v, ramp=%v seed=%d", p, ramp, seed)
+				}
+			}
+		}
+	}
+}
+
+func TestFinalJitterUsesHighestSupportedFloor(t *testing.T) {
+	w := &world{tris: append(ground(0, 0, 16, 16, 10), ground(9, 0, 16, 16, 80)...)}
+	r := request(square(0, 0, 16, 16), 1)
+	r.Radius, r.Clearance = 1, 0
+	reachedUpper := false
+	for seed := uint64(1); seed <= 64; seed++ {
+		r.Seed = seed
+		res := placement.Distribute(w, r)
+		if res.Fit() != 1 {
+			t.Fatalf("seed %d: no point on supported cell", seed)
+		}
+		p := res.Points[0]
+		if p.X >= 9 {
+			reachedUpper = true
+			if p.Z != 80 {
+				t.Fatalf("point %v ignored the upper floor", p)
+			}
+		} else if p.Z != 10 {
+			t.Fatalf("point %v is not on the lower floor", p)
+		}
+	}
+	if !reachedUpper {
+		t.Fatal("scenario never reached the upper floor")
+	}
+}

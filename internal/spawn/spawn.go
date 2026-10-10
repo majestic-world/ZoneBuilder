@@ -62,6 +62,13 @@ func DefaultParams(radius int) Params {
 // the empty Fingerprint is "never generated".
 type Fingerprint string
 
+// Measurement is the free ground measured for Generated, not a point count.
+// Known distinguishes an empty distribution from older project files.
+type Measurement struct {
+	Known    bool
+	FreeArea float64
+}
+
 // Area is a spawn area: an outline (always a polygon, the closing edge
 // from the last vertex back to the first implied), the Z range it spans,
 // its Params, and the points of its last distribution.
@@ -80,7 +87,8 @@ type Area struct {
 	// (SetPoints); empty when the area was never generated.
 	Generated Fingerprint
 	// Warnings are what the last distribution reported. They never block.
-	Warnings []Warning
+	Warnings    []Warning
+	Measurement Measurement
 	// Hidden keeps the area out of the viewport; it still compiles.
 	Hidden bool
 }

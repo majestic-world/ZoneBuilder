@@ -98,6 +98,17 @@ func (p *populateMode) compile(ws *workspace) {
 func (p *populateMode) update(gtx layout.Context, ws *workspace) {
 	ws.shell.Preview.Toggled(gtx)
 	panel, spawns, w := &ws.shell.Spawn, p.spawns, ws.world()
+	if ws.shell.EditorLocked {
+		panel.Tools.Discard(gtx)
+		a, ok := spawns.selectedArea()
+		panel.Discard(gtx, a, ok)
+		for {
+			if _, ok := panel.Problems.Clicked(gtx); !ok {
+				break
+			}
+		}
+		return
+	}
 	if t, ok := panel.Tools.Requested(gtx); ok {
 		status(ws, spawns.arm(t))
 	}

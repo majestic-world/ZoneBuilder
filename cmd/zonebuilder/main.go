@@ -217,15 +217,19 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			// Viewport events and keys go to the active mode only; what
 			// it leaves moves the camera.
 			m := modes.current()
+			frozen := game.active()
+			game.refresh(ws)
 			for {
 				ev, ok := shell.Viewport.Update(gtx)
 				if !ok {
 					break
 				}
-				if game.active() {
+				if frozen || game.active() {
 					// The game mode owns the viewport: the mode gets
 					// nothing, so its selection and history stay put.
-					game.event(ws, ev)
+					if game.active() {
+						game.event(ws, ev)
+					}
 					continue
 				}
 				if !m.viewportEvent(ws, ev) {
@@ -274,7 +278,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				shell.Client.SetText(p)
 			default:
 			}
-			if !game.active() {
+			if !frozen && !game.active() {
 				if shell.Undo.Clicked(gtx) {
 					m.undo(ws)
 				}
@@ -290,17 +294,25 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				fly = ui.FlyControls{}
 				focusViewport(gtx, ws)
 			}
+			shell.EditorLocked = frozen || game.active()
+			if shell.EditorLocked {
+				shell.DiscardEditorInput(gtx)
+			}
 			if text, ok := shell.GoToRequested(gtx); ok {
-				ws.status = action(goTo(text, ws.world(), &ws.cam))
+				if !shell.EditorLocked {
+					ws.status = action(goTo(text, ws.world(), &ws.cam))
+				}
 			}
 			m.update(gtx, ws)
 			if name, ok := shell.XML.Copied(gtx); ok {
 				ws.status = actionArgs(locale.Message{Key: "actions.xml.copied"}, map[string]string{"name": name})
 			}
-			if msg, load := sess.update(gtx, w, shell, zones, spawns, ws.tiles.openTiles(), ws.tiles.opening()); msg.render(shell.Language) != "" || len(load) > 0 {
-				ws.status = msg
-				if len(load) > 0 {
-					ws.status = openTiles(ws.tiles, shell, load)
+			if !shell.EditorLocked {
+				if msg, load := sess.update(gtx, w, shell, zones, spawns, ws.tiles.openTiles(), ws.tiles.opening()); msg.render(shell.Language) != "" || len(load) > 0 {
+					ws.status = msg
+					if len(load) > 0 {
+						ws.status = openTiles(ws.tiles, shell, load)
+					}
 				}
 			}
 			openTile := shell.OpenRequested(gtx)
@@ -313,6 +325,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				if err != nil {
 					ws.status = actionError(locale.Message{Key: "actions.error.invalid_tile"}, err, nil)
 				} else {
+					game.stop(ws)
 					ws.status = openTiles(ws.tiles, shell, []scene.Tile{t})
 				}
 			}
@@ -341,6 +354,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				ws.probe.click = scene.Hit{}
 				ws.probe.clickHit = false
 			}
+			game.refresh(ws)
 			game.receive(ws)
 
 			if shell.Meshes.Toggled(gtx) {
@@ -386,7 +400,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			// Before present: a mode may show its own background work
 			// there while no tile loads.
 			shell.Loading, shell.Progress = ws.tiles.progress(renderer, shell.Language)
-			m.present(gtx, ws)
+			if !shell.EditorLocked {
+				m.present(gtx, ws)
+			}
 			shell.Cursor, shell.Click = ws.probe.status(ws.world(), &ws.cam, ws.viewport(), shell.Language)
 			shell.Tiles, shell.Warnings = loadedTiles(ws.tiles, shell.Language)
 
@@ -406,6 +422,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			}
 			g.renderer.SetMeshesHidden(shell.Meshes.On)
 			uploading := ws.tiles.sync(g.renderer, uploadBudget)
+			game.refresh(ws)
 			m.sync(g.renderer, ws)
 			if err := game.draw(g.renderer); err != nil {
 				log.Printf("jogo: humano: %v", err)

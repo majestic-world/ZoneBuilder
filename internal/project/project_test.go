@@ -99,7 +99,7 @@ func generatedArea(t *testing.T, d *spawn.Document, name string, outline []spawn
 		t.Fatal(err)
 	}
 	a, _ := d.Area(id)
-	if err := d.Apply(spawn.SetPoints{Area: id, Seed: seed, Fingerprint: a.Fingerprint(seed), Points: points, Warnings: warnings}); err != nil {
+	if err := d.Apply(spawn.SetPoints{Area: id, Seed: seed, Fingerprint: a.Fingerprint(seed), Points: points, Warnings: warnings, Measurement: spawn.Measurement{Known: true, FreeArea: 8192}}); err != nil {
 		t.Fatal(err)
 	}
 	return id
@@ -139,6 +139,9 @@ func TestSavedProjectReopensWithTheSameSpawnAreas(t *testing.T) {
 	for _, a := range got.Spawns.Areas() {
 		if a.Stale() {
 			t.Errorf("area %s is stale after reopening", a.Name)
+		}
+		if !a.Measurement.Known || a.Measurement.FreeArea != 8192 {
+			t.Errorf("free ground lost on reopen: %+v", a.Measurement)
 		}
 	}
 	if next, want := got.Spawns.NewAreaID(), d.NewAreaID(); next != want || next <= unused {

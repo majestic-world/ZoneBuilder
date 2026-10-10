@@ -173,7 +173,21 @@ func (s *Scene) placeMesh(ld *loader, ma *MeshActor, m, owner *l2pkg.Package, me
 				box.Include(world[v])
 			}
 		}
-		if len(tris) == 0 || outsideRegion(box, footprint) {
+		if len(tris) == 0 {
+			continue
+		}
+		offRegion := outsideRegion(box, footprint)
+		if (ma.Hidden || offRegion) && !ma.Actor.DeleteMe && ma.Collision.Blocks() {
+			for k := 0; k+2 < len(tris); k += 3 {
+				a, b, c := world[tris[k]], world[tris[k+1]], world[tris[k+2]]
+				n := b.Sub(a).Cross(c.Sub(a)).Normalize()
+				if xf.Scale.X*xf.Scale.Y*xf.Scale.Z < 0 {
+					n = n.Scale(-1)
+				}
+				s.hiddenCollision = append(s.hiddenCollision, Triangle{A: ToServer(a), B: ToServer(b), C: ToServer(c), Normal: n, Surface: SurfaceMesh, Blocks: true})
+			}
+		}
+		if offRegion {
 			continue
 		}
 		pkg, ref := owner, int32(0)

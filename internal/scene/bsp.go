@@ -60,7 +60,19 @@ func (s *Scene) addBSP(ld *loader, m *l2pkg.Package, t Tile, footprint *geom.Box
 	}
 	groups := make(map[int]*group)
 	var order []int
-	err = model.VisiblePolygons(func(p unreal.Polygon) {
+	err = model.Polygons(func(p unreal.Polygon) {
+		surf := model.Surfs[p.Surf]
+		if surf.PolyFlags&unreal.PFNotSolid == 0 {
+			for i := 2; i < len(p.Points); i++ {
+				s.hiddenCollision = append(s.hiddenCollision, Triangle{
+					A: ToServer(vec(p.Points[0])), B: ToServer(vec(p.Points[i-1])), C: ToServer(vec(p.Points[i])),
+					Normal: vec(model.Vectors[surf.Normal]).Normalize(), Surface: SurfaceBSP, Blocks: true,
+				})
+			}
+		}
+		if surf.PolyFlags&unreal.PFNotVisible != 0 {
+			return
+		}
 		g := groups[p.Surf]
 		if g == nil {
 			g = &group{}

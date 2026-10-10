@@ -58,6 +58,33 @@ func (w *World) Geometry(box geom.Box, tri func(Triangle), water func(WaterVolum
 	}
 }
 
+// Collision visits solid terrain, BSP and blocking actors regardless of
+// rendering visibility. Geometry, Floor and Pick keep their visual semantics.
+func (w *World) Collision(box geom.Box, tri func(Triangle)) {
+	if tri == nil {
+		return
+	}
+	for _, s := range w.scenes {
+		for i := range s.Terrains {
+			s.Terrains[i].geometry(box, tri)
+		}
+		s.geometry(box, func(t Triangle) {
+			if t.Blocks && t.Surface != SurfaceBSP {
+				tri(t)
+			}
+		}, false)
+		for _, t := range s.hiddenCollision {
+			b := geom.EmptyBox()
+			b.Include(t.A)
+			b.Include(t.B)
+			b.Include(t.C)
+			if overlapsXY(b, box) {
+				tri(t)
+			}
+		}
+	}
+}
+
 // geometry is World.Geometry over the scene's pickable sets whose box
 // meets box, the meshes' left out when noMeshes is set.
 func (s *Scene) geometry(box geom.Box, fn func(Triangle), noMeshes bool) {

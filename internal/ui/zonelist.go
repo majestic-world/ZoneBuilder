@@ -113,6 +113,19 @@ func (l *ZoneList) Reset() {
 	l.NewName.SetText("")
 }
 
+// Discard drains actions and submissions without changing list filters or
+// replaying row/compile requests when the editor resumes.
+func (l *ZoneList) Discard(gtx layout.Context) {
+	discardClicks(gtx, &l.PrevFilter, &l.NextFilter, &l.ToggleType, &l.Rename, &l.Delete, &l.Duplicate, &l.Color, &l.CompileAll, &l.CompileNone)
+	submitted(gtx, &l.NewName)
+	for _, r := range l.Rows {
+		w := l.widgets(r.ID)
+		discardClicks(gtx, &w.pick, &w.toggle)
+		w.compile.Update(gtx)
+		w.compile.Value = r.Compile
+	}
+}
+
 // Update returns the requests since the last call, in the order: row
 // clicks, toggles, actions. Call it before Layout.
 func (l *ZoneList) Update(gtx layout.Context) []any {

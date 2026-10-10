@@ -117,6 +117,22 @@ func (z *zoneMode) compile(ws *workspace) {
 
 func (z *zoneMode) update(gtx layout.Context, ws *workspace) {
 	shell, zones, w := ws.shell, z.zones, ws.world()
+	if shell.EditorLocked {
+		shell.Zone.Tools.Discard(gtx)
+		shell.Zones.Discard(gtx)
+		shell.Props.Discard(gtx)
+		for {
+			if _, ok := shell.Problems.Clicked(gtx); !ok {
+				break
+			}
+		}
+		for {
+			if _, ok := shell.PinClicked(gtx); !ok {
+				break
+			}
+		}
+		return
+	}
 	if shell.Zone.CreateRequested(gtx) {
 		ws.status = editorResult(zones.create(shell.Zone.Name.Text(), shell.Zone.Type(), shell.Zone.Tools.Shape), zones)
 	}
