@@ -11,13 +11,11 @@ import (
 	"zonebuilder/internal/zone"
 )
 
-// EditPanel holds the editing controls: the command bar's Undo and Redo,
-// and in the inspector the Z margin and the fields that edit the current
-// shape and the selected vertex by keyboard. Like ZonePanel it only
-// collects input; the window loop turns the requests into zone.Document
-// commands and fills the fields.
+// EditPanel holds the inspector's editing controls: the Z margin and the
+// fields that edit the current shape and the selected vertex by keyboard.
+// Like ZonePanel it only collects input; the window loop turns the
+// requests into zone.Document commands and fills the fields.
 type EditPanel struct {
-	Undo, Redo widget.Clickable
 	// Margin is how far the suggested Z range reaches past the vertices
 	// or the ground under them (zone.DefaultZMargin unless changed).
 	Margin widget.Editor
