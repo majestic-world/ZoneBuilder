@@ -10,3 +10,21 @@ import _ "embed"
 //
 //go:embed assets/human.bin
 var Human []byte
+
+// Monster is the preview monster drawn at every spawn point whatever its NPC
+// id: LineageMonsters15.death_knight_wizard_m00 at native scale, extracted
+// by cmd/zbmodel (see assets/README.md). Clip 0 is Wait; clips 1 and 2
+// repeat it and JumpClips are 0, since Decode needs 3 clips.
+//
+//go:embed assets/monster.bin
+var Monster []byte
+
+// The preview monster's measures, printed by the zbmodel command that
+// generated Monster.
+const (
+	// MonsterRadius is the collision radius: npcgrp.rs's lower median of the
+	// bind-pose vertices' horizontal distance from the actor axis.
+	MonsterRadius float32 = 8.74579
+	// MonsterHeight is the Z extent of Wait frame 0, feet to top.
+	MonsterHeight float32 = 66.2339
+)
