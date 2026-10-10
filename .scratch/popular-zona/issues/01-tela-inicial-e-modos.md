@@ -4,12 +4,18 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] O app abre na tela inicial, com os 2 cartões e a frase de cada um, em pt-BR e en
-- [ ] "Construir zonas" leva ao editor de zonas, que funciona como antes (criar, editar vértices, desfazer, compilar)
-- [ ] "Popular zona" mostra o viewport, a seção do mapa e o painel de áreas vazio
-- [ ] Ir e voltar pelo botão "Início" mantém os tiles abertos, a câmera e o projeto
-- [ ] Atalhos e desfazer/refazer só agem no modo ativo
-- [ ] `-mode zones` e `-mode populate` abrem direto no modo; sem a flag, a tela inicial aparece mesmo com `-project`
-- [ ] O catálogo `spawn` existe nos 2 idiomas e passa nos testes de catálogo de `locale`
+- [x] O app abre na tela inicial, com os 2 cartões e a frase de cada um, em pt-BR e en
+- [x] "Construir zonas" leva ao editor de zonas, que funciona como antes (criar, editar vértices, desfazer, compilar)
+- [x] "Popular zona" mostra o viewport, a seção do mapa e o painel de áreas vazio
+- [x] Ir e voltar pelo botão "Início" mantém os tiles abertos, a câmera e o projeto
+- [x] Atalhos e desfazer/refazer só agem no modo ativo
+- [x] `-mode zones` e `-mode populate` abrem direto no modo; sem a flag, a tela inicial aparece mesmo com `-project`
+- [x] O catálogo `spawn` existe nos 2 idiomas e passa nos testes de catálogo de `locale`
+
+## Comments
+
+Integrado em `popular-zona`, a partir de `pz/01-tela-inicial-e-modos` (`48f4b7d`). Smoke em pt-BR e en: criação e edição de zona, desfazer/refazer, compilação, alternância de modos sem recarregar o tile e flags de abertura. Build, vet e testes passaram com `ZB_CLIENT`. O botão Início usa o ícone de casa para caber na barra.
+
+Evidências e interfaces: `C:/Workspace/zone-builder-notes/popular-zona/01-tela-inicial-e-modos.md` e `01-evidence/`.

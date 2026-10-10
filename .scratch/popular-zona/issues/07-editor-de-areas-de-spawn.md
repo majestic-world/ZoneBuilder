@@ -4,12 +4,18 @@
 
 **Blocked by:** 01, 02, 05
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Smoke no app: 2 áreas criadas só com mouse e teclado (uma por polígono, outra por retângulo ou círculo), com vértices editados e desfazer/refazer funcionando
-- [ ] Smoke no app: a faixa Z sugerida pelo chão aparece na criação e muda pela janela de altura
-- [ ] Smoke no app: lista com selecionar (a câmera vai até a área), ocultar, duplicar e apagar com desfazer
-- [ ] Smoke no app: uma área com id 0 aparece no painel de problemas, e o clique leva até ela
-- [ ] Smoke no app: salvar, fechar e reabrir devolve as 2 áreas idênticas, e o indicador de não salvo reage a mudanças nas áreas
-- [ ] O modo de zonas continua igual, e o desfazer de um modo não mexe no outro
-- [ ] Interface nova traduzida em pt-BR e en
+- [x] Smoke no app: 2 áreas criadas só com mouse e teclado (uma por polígono, outra por retângulo ou círculo), com vértices editados e desfazer/refazer funcionando
+- [x] Smoke no app: a faixa Z sugerida pelo chão aparece na criação e muda pela janela de altura
+- [x] Smoke no app: lista com selecionar (a câmera vai até a área), ocultar, duplicar e apagar com desfazer
+- [x] Smoke no app: uma área com id 0 aparece no painel de problemas, e o clique leva até ela
+- [x] Smoke no app: salvar, fechar e reabrir devolve as 2 áreas idênticas, e o indicador de não salvo reage a mudanças nas áreas
+- [x] O modo de zonas continua igual, e o desfazer de um modo não mexe no outro
+- [x] Interface nova traduzida em pt-BR e en
+
+## Comments
+
+Integrado em `popular-zona`, a partir de `pz/07-editor-de-areas-de-spawn` (`47ad835`). Smoke com polígono e retângulo, edição de vértices/área, janela de altura, lista/problemas, desfazer/refazer, salvar/reabrir e históricos independentes. Raio padrão 9, arredondado da mesh. Interface conferida em pt-BR e en; build, vet e testes passaram com `ZB_CLIENT`.
+
+API e evidências: `C:/Workspace/zone-builder-notes/popular-zona/07-editor-de-areas-de-spawn.md` e `07-evidence/`.

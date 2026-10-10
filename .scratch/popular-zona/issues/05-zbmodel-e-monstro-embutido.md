@@ -4,9 +4,15 @@
 
 **Blocked by:** 03, 04
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Teste com cliente real (pulado sem `ZB_CLIENT`): o `zbmodel` lê o `death_knight_wizard_m00`, e a pose `Wait` tem as 2 seções com textura (nenhuma rosa ou vazia) e o menor Z em 0
-- [ ] O `monster.bin` embutido decodifica com `model.Decode`, e regerá-lo com o comando do README dá os mesmos bytes
-- [ ] O raio e a altura impressos viram as constantes do monstro de prévia
-- [ ] Render da pose `Wait` (PNG de conferência nas notas) comparado com a captura do UE2-Studio: mesh, cajado e as 2 skins; divergência registrada
+- [x] Teste com cliente real (pulado sem `ZB_CLIENT`): o `zbmodel` lê o `death_knight_wizard_m00`, e a pose `Wait` tem as 2 seções com textura (nenhuma rosa ou vazia) e o menor Z em 0
+- [x] O `monster.bin` embutido decodifica com `model.Decode`, e regerá-lo com o comando do README dá os mesmos bytes
+- [x] O raio e a altura impressos viram as constantes do monstro de prévia
+- [x] Render da pose `Wait` (PNG de conferência nas notas) comparado com a captura do UE2-Studio: mesh, cajado e as 2 skins; divergência registrada
+
+## Comments
+
+Integrado em `popular-zona`, a partir de `pz/05-zbmodel-e-monstro-embutido` (`c785be4`). A CLI regenerou 902.552 bytes idênticos ao embed; raio 8,74579 e altura 66,2339. Testes das 2 skins e pés no chão passaram com `ZB_CLIENT`. Render offline comparado com captura do UE2-Studio: mesh, cajado na mão e skins coerentes; diferenças de câmera/luz/apresentação registradas. Build e vet passaram.
+
+Comando e evidências: `C:/Workspace/zone-builder-notes/popular-zona/05-zbmodel-e-monstro-embutido.md` e `05-evidence/`; procedência em `internal/model/assets/README.md`.

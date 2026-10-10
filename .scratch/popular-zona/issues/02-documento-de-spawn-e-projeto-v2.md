@@ -4,9 +4,15 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Teste do seam: mudar contorno, faixa, quantidade, raio ou afastamento depois de `SetPoints` marca a área como desatualizada e gera o problema que bloqueia; mover, apagar ou adicionar ponto não marca
-- [ ] Teste do seam: `respawn_rand > respawn`, id 0, quantidade 0, nome vazio, nome repetido, área sem pontos, contorno com menos de 3 vértices ou auto-interseção, `zmin > zmax` e ponto fora dos limites do mundo bloqueiam; os avisos "cabem K de N" e "nenhuma célula livre" não bloqueiam
-- [ ] Teste do seam: 1 `Undo` desfaz uma geração inteira (`SetPoints`)
-- [ ] Teste de `project`: um projeto com 2 áreas com pontos, salvo e reaberto, devolve áreas e pontos idênticos; um arquivo da versão 1 abre sem áreas e com as zonas intactas; o teste de recusa de versão maior que a atual continua passando
+- [x] Teste do seam: mudar contorno, faixa, quantidade, raio ou afastamento depois de `SetPoints` marca a área como desatualizada e gera o problema que bloqueia; mover, apagar ou adicionar ponto não marca
+- [x] Teste do seam: `respawn_rand > respawn`, id 0, quantidade 0, nome vazio, nome repetido, área sem pontos, contorno com menos de 3 vértices ou auto-interseção, `zmin > zmax` e ponto fora dos limites do mundo bloqueiam; os avisos "cabem K de N" e "nenhuma célula livre" não bloqueiam
+- [x] Teste do seam: 1 `Undo` desfaz uma geração inteira (`SetPoints`)
+- [x] Teste de `project`: um projeto com 2 áreas com pontos, salvo e reaberto, devolve áreas e pontos idênticos; um arquivo da versão 1 abre sem áreas e com as zonas intactas; o teste de recusa de versão maior que a atual continua passando
+
+## Comments
+
+Integrado em `popular-zona`, a partir de `pz/02-documento-de-spawn-e-projeto-v2` (`3a31cf9`). Testes de impressão das entradas, ajustes manuais, problemas e avisos, geração atômica com Undo/Redo, round-trip do projeto com 2 áreas e migração v1/v2 passaram. Build e vet também passaram com `ZB_CLIENT`.
+
+API e evidências: `C:/Workspace/zone-builder-notes/popular-zona/02-documento-de-spawn-e-projeto-v2.md`.

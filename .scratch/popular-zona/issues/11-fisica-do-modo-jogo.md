@@ -4,10 +4,16 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Teste do seam: a cápsula solta acima de um plano para em pé sobre ele; andando contra uma parede, para nela
-- [ ] Teste do seam: uma rampa de 30° é subida e uma de 60° não
-- [ ] Teste do seam: o pulo sobe e volta ao chão, sem lançamento extra em contato com degrau
-- [ ] Teste do seam: o voo atravessa a parede
-- [ ] Teste do seam: o braço da câmera encurta atrás de uma parede
+- [x] Teste do seam: a cápsula solta acima de um plano para em pé sobre ele; andando contra uma parede, para nela
+- [x] Teste do seam: uma rampa de 30° é subida e uma de 60° não
+- [x] Teste do seam: o pulo sobe e volta ao chão, sem lançamento extra em contato com degrau
+- [x] Teste do seam: o voo atravessa a parede
+- [x] Teste do seam: o braço da câmera encurta atrás de uma parede
+
+## Comments
+
+Integrado em `popular-zona`, a partir de `pz/11-fisica-do-modo-jogo` (`6c6498c`). Testes de aterrissagem/parede, rampas de 30°/60°, pulo e degrau sem lançamento extra, voo sem colisão e braço da câmera passaram. Build e vet passaram com `ZB_CLIENT`. Em faces íngremes, a resolução usa a componente horizontal para impedir subida da rampa de 60°; diferença do port literal registrada nas notas e no plano.
+
+API e evidências: `C:/Workspace/zone-builder-notes/popular-zona/11-fisica-do-modo-jogo.md`.

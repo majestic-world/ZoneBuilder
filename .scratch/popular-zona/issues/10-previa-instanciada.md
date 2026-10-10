@@ -4,9 +4,15 @@
 
 **Blocked by:** 05, 08
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Smoke no app: com a prévia ligada, cada ponto mostra o monstro em `Wait`, texturizado, com os pés no chão e o cajado na mão (screenshot)
-- [ ] Smoke no app: girar o heading de um ponto (ou gerar outro) gira o monstro coerente com o heading
-- [ ] Smoke no app: 500 instâncias mantêm 60 fps (medido com `-fps`)
-- [ ] Desligar a prévia volta aos pinos; o modo de zonas não muda
+- [x] Smoke no app: com a prévia ligada, cada ponto mostra o monstro em `Wait`, texturizado, com os pés no chão e o cajado na mão (screenshot)
+- [x] Smoke no app: girar o heading de um ponto (ou gerar outro) gira o monstro coerente com o heading
+- [x] Smoke no app: 500 instâncias mantêm 60 fps (medido com `-fps`)
+- [x] Desligar a prévia volta aos pinos; o modo de zonas não muda
+
+## Comments
+
+Integrado em `popular-zona`, a partir de `pz/10-previa-instanciada` (`c7aab1c`). Smoke: Wait animado e texturizado, cajado na mão, direção comparada com linhas de heading, retorno aos pinos e alternância de modos. Medição com 500 instâncias: aproximadamente 142–146 fps, pior quadro de cerca de 10 ms. Build, vet e testes passaram com `ZB_CLIENT`. Retomada: prévia e humano vistos juntos no smoke da branch integrada.
+
+Render API e evidências: `C:/Workspace/zone-builder-notes/popular-zona/10-previa-instanciada.md` e `10-evidence/`. A correspondência do heading no cliente do jogo continua pendente no ticket 13; não é confirmada pelo smoke da prévia.

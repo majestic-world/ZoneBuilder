@@ -4,9 +4,15 @@
 
 **Blocked by:** 12, 13
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] O README descreve a tela inicial, o modo população e o modo jogo nos 2 modos
-- [ ] O `GLOSSARY.md` tem a seção "População" com os termos da spec
+- [x] O README descreve a tela inicial, o modo população e o modo jogo nos 2 modos
+- [x] O `GLOSSARY.md` tem a seção "População" com os termos da spec
 - [ ] O ADR registra a decisão de ponto fixo e o resultado da verificação do ticket 13
-- [ ] O plano de população reflete o que foi entregue
+- [x] O plano de população reflete o que foi entregue
+
+## Comments
+
+Documentação integrada em `popular-zona`, a partir de `pz/14-docs-e-glossario` (`f002ee3`) e do complemento `24f14f1`: README, glossário, estrutura real do código, resultados P0–P5 e ADR 0007 de ponto fixo. A procedência dos modelos já inclui os comandos de regeneração.
+
+O ADR registra o harness sem exceção e deixa explícita a pendência em jogo. A conclusão da verificação do ticket 13 ainda não existe; depois dela, preencher o resultado no ADR 0007 e no plano P3, marcar o critério restante e resolver este ticket. Notas: `C:/Workspace/zone-builder-notes/popular-zona/14-docs-e-glossario.md`.
