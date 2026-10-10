@@ -85,6 +85,8 @@ type Shell struct {
 	// Undo, Redo and Compile are the command bar's buttons, for the
 	// active mode's history and output.
 	Undo, Redo, Compile widget.Clickable
+	// Play starts the game mode, from either editing mode.
+	Play widget.Clickable
 	// Height raises, lowers and sizes the selected zone, or spawn area,
 	// from a window floating over the viewport.
 	Height HeightPanel

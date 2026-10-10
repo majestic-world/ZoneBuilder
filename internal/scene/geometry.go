@@ -16,6 +16,10 @@ type Triangle struct {
 	// Water marks a triangle drawn in the Water pass: a water sheet, BSP
 	// or mesh.
 	Water bool
+	// Blocks marks a triangle a walking player collides with: all terrain,
+	// BSP without PolyFlags NotSolid (0x8), and the meshes whose actor's
+	// collision blocks (unreal.Collision.Blocks over the class defaults).
+	Blocks bool
 }
 
 // Geometry calls tri once with every triangle of the world whose terrain
@@ -78,7 +82,7 @@ func (s *Scene) geometry(box geom.Box, fn func(Triangle), noMeshes bool) {
 					n = n.Scale(-1)
 				}
 			}
-			fn(Triangle{A: ToServer(p), B: ToServer(q), C: ToServer(r), Normal: n, Surface: set.Surface, Water: water})
+			fn(Triangle{A: ToServer(p), B: ToServer(q), C: ToServer(r), Normal: n, Surface: set.Surface, Water: water, Blocks: set.Blocks})
 		}
 	}
 }
@@ -104,7 +108,7 @@ func (t *Terrain) geometry(box geom.Box, fn func(Triangle)) {
 				if n.Z < 0 {
 					n = n.Scale(-1)
 				}
-				fn(Triangle{A: ToServer(a), B: ToServer(b), C: ToServer(c), Normal: n, Surface: SurfaceTerrain})
+				fn(Triangle{A: ToServer(a), B: ToServer(b), C: ToServer(c), Normal: n, Surface: SurfaceTerrain, Blocks: true})
 			}
 		}
 	}

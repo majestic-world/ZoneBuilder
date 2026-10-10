@@ -177,6 +177,8 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		folders = make(chan string, 1)
 		ws      = &workspace{shell: shell, tiles: newTiles(w), cam: camera.ForBounds(geom.EmptyBox())}
 		modes   = newModes(w, startMode)
+		// game is the game mode, in front of the active mode while on.
+		game = newPlayMode(w)
 		// zones and spawns are the zone and spawn area editors, which the
 		// project file saves and opens whatever the active mode.
 		zones  = modes.zones.zones
@@ -220,6 +222,12 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				if !ok {
 					break
 				}
+				if game.active() {
+					// The game mode owns the viewport: the mode gets
+					// nothing, so its selection and history stay put.
+					game.event(ws, ev)
+					continue
+				}
 				if !m.viewportEvent(ws, ev) {
 					fly.Handle(ev, &ws.cam)
 				}
@@ -242,6 +250,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				}
 			}
 			if next, ok := shell.ModeRequested(gtx); ok && next != modes.active {
+				game.stop(ws)
 				modes.set(next)
 				m = modes.current()
 				// Keys held when the mode changed send no release to it.
@@ -265,14 +274,21 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				shell.Client.SetText(p)
 			default:
 			}
-			if shell.Undo.Clicked(gtx) {
-				m.undo(ws)
+			if !game.active() {
+				if shell.Undo.Clicked(gtx) {
+					m.undo(ws)
+				}
+				if shell.Redo.Clicked(gtx) {
+					m.redo(ws)
+				}
+				if shell.Compile.Clicked(gtx) {
+					m.compile(ws)
+				}
 			}
-			if shell.Redo.Clicked(gtx) {
-				m.redo(ws)
-			}
-			if shell.Compile.Clicked(gtx) {
-				m.compile(ws)
+			if shell.Play.Clicked(gtx) && !game.active() && modes.active != ui.ModeHome {
+				ws.status = action(game.start(ws))
+				fly = ui.FlyControls{}
+				focusViewport(gtx, ws)
 			}
 			if text, ok := shell.GoToRequested(gtx); ok {
 				ws.status = action(goTo(text, ws.world(), &ws.cam))
@@ -325,6 +341,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				ws.probe.click = scene.Hit{}
 				ws.probe.clickHit = false
 			}
+			game.receive(ws)
 
 			if shell.Meshes.Toggled(gtx) {
 				ws.status = action(locale.Message{Key: "actions.map.meshes_visible"})
@@ -338,7 +355,12 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 					ws.status = actionArgs(locale.Message{Key: "actions.map.grid_visible"}, map[string]string{"step": fmt.Sprint(render.GridMajor)})
 				}
 			}
-			moving := fly.Step(&ws.cam, gtx.Now)
+			var moving bool
+			if game.active() {
+				moving = game.step(gtx.Now, ws)
+			} else {
+				moving = fly.Step(&ws.cam, gtx.Now)
+			}
 			if world := ws.world(); world != nil {
 				// Hidden meshes are not picked either: a vertex never lands
 				// on geometry the user cannot see.
@@ -370,6 +392,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 
 			shell.Mode = modes.active
 			shell.Message = ws.status.render(shell.Language)
+			if game.active() {
+				shell.Message = game.message(shell.Language)
+			}
 			rect := shell.Layout(gtx)
 			if e.Size != size || rect != vpRect {
 				log.Printf("frame: window %dx%d, viewport %v", e.Size.X, e.Size.Y, rect)
@@ -382,6 +407,11 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			g.renderer.SetMeshesHidden(shell.Meshes.On)
 			uploading := ws.tiles.sync(g.renderer, uploadBudget)
 			m.sync(g.renderer, ws)
+			if err := game.draw(g.renderer); err != nil {
+				log.Printf("jogo: humano: %v", err)
+				game.stop(ws)
+				ws.status = actionError(locale.Message{Key: "spawn.play.no_human"}, err, nil)
+			}
 
 			g.ctx.WaitClient() // lets ANGLE pick up a window resize
 			if err := g.renderer.DrawViewport(rect, e.Size, &ws.cam); err != nil {

@@ -22,6 +22,9 @@ type triangleSet struct {
 	// Normal is the plane normal a BSP surface's triangles share, zero for
 	// a mesh: a triangle's facing then comes from its winding.
 	Normal geom.Vec3
+	// Blocks marks geometry a walking player collides with: a solid BSP
+	// surface (no PFNotSolid), a mesh whose actor blocks (Collision).
+	Blocks bool
 }
 
 // addPickable registers set, a run of indices of one batch, as pickable;

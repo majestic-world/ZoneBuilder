@@ -80,6 +80,12 @@ func (ps Properties) Bool(name string) bool {
 	return ok && v.Int != 0
 }
 
+// BoolOK is a bool property and whether the list carries it at all.
+func (ps Properties) BoolOK(name string) (value, ok bool) {
+	v, ok := ps.last(name, KindBool)
+	return ok && v.Int != 0, ok
+}
+
 // Float is a float property.
 func (ps Properties) Float(name string) (float32, bool) {
 	v, ok := ps.last(name, KindFloat)

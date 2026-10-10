@@ -102,6 +102,7 @@ const (
 	PFInvisible    = 0x0000_0001
 	PFMasked       = 0x0000_0002
 	PFTranslucent  = 0x0000_0004
+	PFNotSolid     = 0x0000_0008
 	PFModulated    = 0x0000_0040
 	PFFakeBackdrop = 0x0000_0080
 	PFPortal       = 0x0400_0000
