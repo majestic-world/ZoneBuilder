@@ -35,6 +35,34 @@ func counts(pc *piece, zmin, zmax float64, terrain bool) bool {
 	return reaches(pc, zmin, zmax)
 }
 
+// floorLine is the floor along the outline's edges that counts for the
+// range by the layer rule (Report.Edges), terrain being terrainCounts for
+// it. It is the profile's own line, not a copy, when every span counts.
+func (p *Profile) floorLine(zmin, zmax float64, terrain bool) [][]Span {
+	for _, spans := range p.edges {
+		for _, s := range spans {
+			if !counts(&p.pieces[s.piece], zmin, zmax, terrain) {
+				return p.countedSpans(zmin, zmax, terrain)
+			}
+		}
+	}
+	return p.edges
+}
+
+// countedSpans is floorLine's copy of the line without the spans of
+// other layers.
+func (p *Profile) countedSpans(zmin, zmax float64, terrain bool) [][]Span {
+	out := make([][]Span, len(p.edges))
+	for i, spans := range p.edges {
+		for _, s := range spans {
+			if counts(&p.pieces[s.piece], zmin, zmax, terrain) {
+				out[i] = append(out[i], s)
+			}
+		}
+	}
+	return out
+}
+
 // TerrainSpan is the lowest and highest terrain under the outline, ok
 // false when there is none.
 func (p *Profile) TerrainSpan() (lo, hi float64, ok bool) {

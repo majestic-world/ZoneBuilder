@@ -121,3 +121,30 @@ func TestEdgeFloorLineFollowsRampAtCellCrossings(t *testing.T) {
 		}
 	}
 }
+
+// The floor line along the walls of a zone on a tower's floor at 15 000,
+// over terrain at 0, runs only on the tower's floor; dragged down to the
+// terrain, only on the terrain. Catches a line drawn on every floor under
+// the outline, which stacks the tower's other storeys and the ground
+// under it as rings down the tower.
+func TestEdgeFloorLineLeavesOtherLayersOut(t *testing.T) {
+	f := append(grid(0), bspQuad(0, 0, 300, 300, 15000)...)
+	p := coverage.Measure(f, square(50, 50, 250, 250), nil)
+	for _, c := range []struct {
+		zmin, zmax, want float64
+	}{{14744, 15256, 15000}, {-256, 256, 0}} {
+		r := p.Classify(c.zmin, c.zmax)
+		n := 0
+		for i, spans := range r.Edges {
+			for _, s := range spans {
+				n++
+				if s.From.Z != c.want || s.To.Z != c.want {
+					t.Errorf("range %v … %v, edge %d: span at z %v … %v, want only z %v", c.zmin, c.zmax, i, s.From.Z, s.To.Z, c.want)
+				}
+			}
+		}
+		if n == 0 {
+			t.Errorf("range %v … %v: no floor line, want it at z %v", c.zmin, c.zmax, c.want)
+		}
+	}
+}

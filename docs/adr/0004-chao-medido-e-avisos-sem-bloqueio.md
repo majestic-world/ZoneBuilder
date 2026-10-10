@@ -16,7 +16,7 @@ A medição é **exata sobre os triângulos**, sem raios. Dentro de cada triâng
 
 - o chão mais alto e o mais baixo caem num vértice de uma peça recortada, sem depender de resolução;
 - a área acima de `zmax` ou abaixo de `zmin` é a peça cortada por um semiplano, também exata;
-- a linha do chão ao longo de cada aresta do contorno é a polilinha dos cruzamentos com as arestas dos triângulos.
+- a linha do chão ao longo de cada aresta do contorno é a polilinha dos cruzamentos com as arestas dos triângulos, só no chão que a regra das camadas conta para a faixa.
 
 O perfil (caro, depende do contorno e da cena) é calculado fora do loop; a classificação pela faixa (barata) roda no loop, no mesmo frame do arrasto. Medido no 22_22 inteiro com meshes: perfil em cerca de 98 ms fora do loop e classificação em 1,2 ms em média, p99 abaixo de 2 ms.
 

@@ -94,7 +94,12 @@ type Station struct {
 // one floor triangle, from where it enters it to where it leaves. Its ends
 // are the edge's crossings with the triangle's edges, so the line is
 // exact.
-type Span struct{ From, To Station }
+type Span struct {
+	From, To Station
+	// piece is the piece cut from the same triangle, whose layer decides
+	// whether the span is in the range's floor line.
+	piece int32
+}
 
 // piece is a flat polygon of floor inside the outline: verts[first :
 // first+n], its X/Y area, its Z extent and the surface it lies on. A
@@ -163,8 +168,9 @@ type Report struct {
 	Layers int
 	// Edges is the floor along each edge of the outline, edge i running
 	// from outline point i to the next: its spans by distance from point
-	// i. Where the edge has no floor there is a gap; where floors overlap,
-	// spans overlap.
+	// i. Only floor the layer rule counts is in it (another layer, such as
+	// a tower's lower storeys, is not). Where the edge has no such floor
+	// there is a gap; where floors overlap, spans overlap.
 	Edges [][]Span
 	// Warnings are the ways the range fits its floor badly (spec D6).
 	// Sum leaves them and Others out: they are per shape.
@@ -306,7 +312,6 @@ func (m *measurer) triangle(t scene.FloorTriangle) {
 		return // seen edge on: no area to stand on
 	}
 	tri := [3]Spot{a, b, c}
-	m.edgeSpans(tri)
 	if m.whollyInside(tri) {
 		m.add(tri[:], area2/2)
 		return
@@ -344,6 +349,8 @@ func (m *measurer) triangle(t scene.FloorTriangle) {
 		pc.zlo, pc.zhi = c.lo.Z, c.hi.Z
 	}
 	m.cut = nil
+	// Only a triangle the outline cuts has an outline edge across it.
+	m.edgeSpans(tri, int32(len(m.p.pieces)-1))
 }
 
 // whollyInside reports a triangle strictly inside the outline: its
@@ -370,9 +377,9 @@ func (m *measurer) whollyInside(tri [3]Spot) bool {
 }
 
 // edgeSpans adds to the profile the part of each outline edge over
-// counter-clockwise tri: the edge clipped by the triangle's 3 sides, its
-// Z on the triangle's plane.
-func (m *measurer) edgeSpans(tri [3]Spot) {
+// counter-clockwise tri, whose piece inside the outline is piece: the
+// edge clipped by the triangle's 3 sides, its Z on the triangle's plane.
+func (m *measurer) edgeSpans(tri [3]Spot, piece int32) {
 	var plane func(Point) float64
 	for i, p := range m.edges {
 		q := m.edges[(i+1)%len(m.edges)]
@@ -409,7 +416,7 @@ func (m *measurer) edgeSpans(tri [3]Spot) {
 			x := Point{p.X + t*(q.X-p.X), p.Y + t*(q.Y-p.Y)}
 			return Station{t * length, Spot{x.X, x.Y, plane(x)}}
 		}
-		m.p.edges[i] = append(m.p.edges[i], Span{at(t0), at(t1)})
+		m.p.edges[i] = append(m.p.edges[i], Span{From: at(t0), To: at(t1), piece: piece})
 	}
 }
 
@@ -510,7 +517,8 @@ func (m *measurer) extreme(q Spot) {
 // excluded floor and the other layers apart, the floor of the range into
 // Inside, Above and Below.
 func (p *Profile) Classify(zmin, zmax float64) Report {
-	r := Report{Layers: p.layers, Edges: p.edges, Terrain: p.terrainCounts(zmin, zmax)}
+	terrain := p.terrainCounts(zmin, zmax)
+	r := Report{Layers: p.layers, Edges: p.floorLine(zmin, zmax, terrain), Terrain: terrain}
 	var cut, slab []Spot // scratch polygons
 	for i := range p.pieces {
 		pc := &p.pieces[i]

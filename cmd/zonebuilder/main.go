@@ -29,7 +29,6 @@ import (
 	"gioui.org/unit"
 
 	"zonebuilder/internal/camera"
-	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/geom"
 	"zonebuilder/internal/inflect"
 	"zonebuilder/internal/locale"
@@ -185,9 +184,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		// waterShown is the waterSel.version the renderer last got.
 		waterSel   waterSelection
 		waterShown = -1
-		// lineShown is the profile the ground line along the current
-		// shape's walls came from when the zones were last sent.
-		lineShown   *coverage.Profile
+		// lineShown is the key of the ground line along the current
+		// shape's walls when the zones were last sent.
+		lineShown   lineKey
 		groundShown = groundKey{version: -1}
 		groundBuilt = groundKey{version: -1}
 		groundMark  render.Ground

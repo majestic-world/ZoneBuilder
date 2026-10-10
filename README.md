@@ -89,7 +89,7 @@ O servidor só considera um personagem dentro da zona quando o `x y` dele está 
 | Buraco, sem tinta | chão dentro de uma exclusão |
 | Linha laranja no chão | onde o chão cruza o topo (`z = zmax`): fronteira exata da parte acima |
 | Linha azul no chão | onde o chão cruza o piso (`z = zmin`): fronteira exata da parte abaixo |
-| Linha na cor da aresta, em cada parede do prisma | o chão ao longo daquela aresta, do shape selecionado; some enquanto o shape é medido de novo |
+| Linha na cor da aresta, em cada parede do prisma | o chão ao longo daquela aresta, do shape selecionado, só nas camadas que contam para a faixa (as outras camadas, como os andares de baixo de uma torre, ficam sem linha); segue a faixa ao arrastar a seta Z e some enquanto o shape é medido de novo |
 | Aresta ou linha sólida | parte visível |
 | Anéis horizontais nas paredes do prisma | o volume do shape: o prisma é oco, sem tampas nem preenchimento. Os anéis ficam a cada 64 de Z a partir do `zmin` e o passo dobra de longe, para nunca ficarem a menos de 6 px um do outro |
 | Aresta ou linha tracejada, anéis fracos | parte do prisma enterrada ou atrás da cena, vista através do terreno |

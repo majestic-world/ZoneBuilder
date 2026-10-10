@@ -114,14 +114,23 @@ type shapeCoverage struct {
 	// hist is profile's floor area by Z, for the height window's ruler.
 	hist coverage.Histogram
 	// report is profile classified by [zmin, zmax] with the bans' Z
-	// ranges of bans.
+	// ranges of bans; reports counts the classifications so far.
 	report     coverage.Report
+	reports    int
 	zmin, zmax int
 	bans       []coverage.Ban
 	classified *coverage.Profile
-	// ground is the floor line along the walls of lined's outline.
+	// ground is the floor line along the walls of report number lined:
+	// the range decides which layers it runs on.
 	ground []geom.Vec3
-	lined  *coverage.Profile
+	lined  int
+}
+
+// lineKey identifies the floor line groundLine gave: the shape's coverage
+// and its report the line came from. The zero key is no line.
+type lineKey struct {
+	shape  *shapeCoverage
+	report int
 }
 
 func newFloorCoverage(win *app.Window) *floorCoverage {
@@ -193,6 +202,7 @@ func (c *floorCoverage) shape(e *zoneEditor, w *scene.World, id zone.ZoneID, i i
 	if s.classified != s.profile || zmin != s.zmin || zmax != s.zmax || !sameBanRanges(bans, s.bans) {
 		s.report = s.profile.WithBanRanges(bans).Classify(float64(zmin), float64(zmax))
 		s.classified, s.zmin, s.zmax, s.bans = s.profile, zmin, zmax, bans
+		s.reports++
 	}
 	return s.report, key != s.done, true
 }
@@ -297,18 +307,20 @@ func (c *floorCoverage) receive(e *zoneEditor) {
 }
 
 // groundLine is the floor line along the walls of e's current shape over
-// w (spec D4d), as segments in server coordinates, and the profile it
-// comes from. Both are nil while the shape's outline or scene is being
+// w (spec D4d), as segments in server coordinates, and the key of the
+// report it comes from. The line runs only on floor the layer rule counts
+// for the shape's range, so it follows the range as it is dragged. It is
+// nil, with the zero key, while the shape's outline or scene is being
 // measured, so the line leaves while the outline is dragged and comes
 // back with the new measure.
-func (c *floorCoverage) groundLine(e *zoneEditor, w *scene.World) ([]geom.Vec3, *coverage.Profile) {
+func (c *floorCoverage) groundLine(e *zoneEditor, w *scene.World) ([]geom.Vec3, lineKey) {
 	r, measuring, ok := c.current(e, w)
 	if !ok || measuring {
-		return nil, nil
+		return nil, lineKey{}
 	}
 	s := c.shapes[shapeRef{e.zone, e.shape}]
-	if s.lined != s.profile {
-		s.ground = nil
+	if s.lined != s.reports {
+		s.ground = s.ground[:0]
 		for _, sp := range r.Edges {
 			for _, g := range sp {
 				s.ground = append(s.ground,
@@ -316,9 +328,9 @@ func (c *floorCoverage) groundLine(e *zoneEditor, w *scene.World) ([]geom.Vec3, 
 					geom.Vec3{X: float32(g.To.X), Y: float32(g.To.Y), Z: float32(g.To.Z)})
 			}
 		}
-		s.lined = s.profile
+		s.lined = s.reports
 	}
-	return s.ground, s.profile
+	return s.ground, lineKey{s, s.reports}
 }
 
 // inspector presents the current shape's measured ground without changing its profile.
