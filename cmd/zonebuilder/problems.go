@@ -11,22 +11,18 @@ import (
 	"zonebuilder/internal/zone"
 )
 
-// problemRows rebuilds the presentation when the document, warnings or
-// language changes. The retained target slices keep row indices stable.
-func (e *zoneEditor) problemRows(ws []floorWarning, wsChanged bool, lang locale.Language) (rows []ui.ProblemRow, ok bool) {
-	if e.problemsAt == e.version+1 && !wsChanged && e.problemsLang == string(lang) {
+// problemRows rebuilds the presentation when the document or language
+// changes. The retained target slice keeps row indices stable.
+func (e *zoneEditor) problemRows(lang locale.Language) (rows []ui.ProblemRow, ok bool) {
+	if e.problemsAt == e.version+1 && e.problemsLang == string(lang) {
 		return nil, false
 	}
 	e.problemsAt = e.version + 1
 	e.problemsLang = string(lang)
 	e.problems = e.doc.Problems()
-	e.warnings = ws
-	rows = make([]ui.ProblemRow, 0, len(e.problems)+len(ws))
+	rows = make([]ui.ProblemRow, 0, len(e.problems))
 	for _, p := range e.problems {
 		rows = append(rows, ui.ProblemRow{Zone: e.zoneName(p.Zone, lang), Message: p.Text(lang)})
-	}
-	for _, w := range ws {
-		rows = append(rows, ui.ProblemRow{Zone: e.zoneName(w.zone, lang), Message: warningText(w, lang), Warning: true})
 	}
 	return rows, true
 }
@@ -53,12 +49,8 @@ func (e *zoneEditor) problemCounts() map[zone.ZoneID]int {
 // problem's shape as the current shape and its vertex selected, and frames
 // where the problem is: the vertex or restart point, else the shape, else
 // the zone. While a polygon is being drawn the selection stays on it, but
-// the camera still goes. A floor warning's row goes to it (goToWarning).
-// It returns the status line.
+// the camera still goes. It returns the status line.
 func (e *zoneEditor) goToProblem(i int, s *scene.World, cam *camera.Camera, lang locale.Language) string {
-	if n := len(e.problems); i >= n && i-n < len(e.warnings) {
-		return e.goToWarning(i, e.warnings[i-n], s, cam, lang)
-	}
 	if i < 0 || i >= len(e.problems) {
 		return ""
 	}
@@ -69,7 +61,7 @@ func (e *zoneEditor) goToProblem(i int, s *scene.World, cam *camera.Camera, lang
 	}
 	e.lastProblemClick, e.hasProblemClick = i, true
 	e.problemClickNoFrame, e.problemClickDrawing = false, e.drawing
-	msg := e.problemClickText(lang, z.Name, p.Text(lang), false)
+	msg := e.problemClickText(lang, z.Name, p.Text(lang))
 	if !e.drawing {
 		shape := max(p.Shape, 0)
 		e.zone, e.shape = z.ID, shape
@@ -114,7 +106,7 @@ func (e *zoneEditor) goToProblem(i int, s *scene.World, cam *camera.Camera, lang
 	}
 	if b.Empty() {
 		e.problemClickNoFrame = true
-		return e.problemClickText(lang, z.Name, p.Text(lang), false)
+		return e.problemClickText(lang, z.Name, p.Text(lang))
 	}
 	cam.Frame(b)
 	log.Printf("zona: câmera no problema: %s", formatPose(cam, s))
@@ -142,14 +134,10 @@ func (e *zoneEditor) badVertices(id zone.ZoneID) map[int][]int {
 }
 
 // problemClickText renders the retained click result without selecting or framing again.
-func (e *zoneEditor) problemClickText(lang locale.Language, name, problem string, warning bool) string {
+func (e *zoneEditor) problemClickText(lang locale.Language, name, problem string) string {
 	var msg string
 	if e.problemClickDrawing {
-		if warning {
-			msg = locale.Text(lang, "zone.warning.select_drawing")
-		} else {
-			msg = locale.Text(lang, "zone.problem.select_drawing")
-		}
+		msg = locale.Text(lang, "zone.problem.select_drawing")
 	} else {
 		msg = locale.Format(lang, "zone.problem.selected", map[string]string{"name": name, "problem": problem})
 	}
@@ -166,18 +154,6 @@ func (e *zoneEditor) reformatProblemClick(lang locale.Language) string {
 		return ""
 	}
 	i := e.lastProblemClick
-	if i >= len(e.problems) {
-		j := i - len(e.problems)
-		if j < 0 || j >= len(e.warnings) {
-			return ""
-		}
-		w := e.warnings[j]
-		z, ok := e.doc.Zone(w.zone)
-		if !ok {
-			return ""
-		}
-		return e.problemClickText(lang, z.Name, warningText(w, lang), true)
-	}
 	if i < 0 || i >= len(e.problems) {
 		return ""
 	}
@@ -186,7 +162,7 @@ func (e *zoneEditor) reformatProblemClick(lang locale.Language) string {
 	if !ok {
 		return ""
 	}
-	return e.problemClickText(lang, z.Name, p.Text(lang), false)
+	return e.problemClickText(lang, z.Name, p.Text(lang))
 }
 
 // blockedStatus presents a blocked compilation; each problem goes to the log.

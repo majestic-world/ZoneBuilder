@@ -15,13 +15,7 @@
   "zone.problem.vertex_outside": "vértice {index} ({x} {y}) fora do mundo",
   "zone.problem.shape": "shape {index}: {problem}",
   "zone.problem.unnamed": "(sem nome)",
-  "zone.warning.above_top": "shape {index}: chão acima do topo (folga {clearance}, {share} do chão)",
-  "zone.warning.below_floor": "shape {index}: chão abaixo do piso (folga {clearance}, {share} do chão)",
-  "zone.warning.tight_top": "shape {index}: folga apertada no topo: {clearance}, abaixo de {minimum}",
-  "zone.warning.tight_floor": "shape {index}: folga apertada no piso: {clearance}, abaixo de {minimum}",
-  "zone.warning.no_ground": "shape {index}: área sem chão medido: {area} u²",
   "zone.problem.select_drawing": "Feche o polígono atual para selecionar o problema",
-  "zone.warning.select_drawing": "Feche o polígono atual para selecionar o aviso",
   "zone.problem.nothing_to_frame": "{message} (nada para enquadrar)",
   "zone.problem.selected": "{name}: {problem}",
   "zone.problem.blocked_status": {"one": "Compilação bloqueada, nada foi gravado: {count} problema nas zonas selecionadas (veja Problemas)", "other": "Compilação bloqueada, nada foi gravado: {count} problemas nas zonas selecionadas (veja Problemas)"}

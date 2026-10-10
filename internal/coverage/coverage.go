@@ -129,7 +129,7 @@ type clipped struct {
 // areas in server units². The floor of the range is the floor neither
 // excluded by a ban (spec D1) nor another layer by the layer rule (spec
 // D5, reaches): only it is sorted into Inside, Above and Below and gives
-// the extremes, the clearances and the warnings.
+// the extremes and the clearances.
 type Report struct {
 	// Measured is false when the range has no floor under the outline:
 	// none at all, or all of it excluded or in other layers. GroundMin,
@@ -153,7 +153,8 @@ type Report struct {
 	// canopy far over the range, a cave far under it, the terrain under a
 	// tower's top. Others are its layers, lowest first. It is in none of
 	// Inside, Above, Below, nor Excluded.
-	Other  float64
+	Other float64
+	// Others is per shape: Sum leaves it out.
 	Others []Layer
 	// Terrain is whether the terrain under the outline is floor of the
 	// range by the layer rule (Profile.terrainCounts); false, it is in
@@ -172,9 +173,6 @@ type Report struct {
 	// a tower's lower storeys, is not). Where the edge has no such floor
 	// there is a gap; where floors overlap, spans overlap.
 	Edges [][]Span
-	// Warnings are the ways the range fits its floor badly (spec D6).
-	// Sum leaves them and Others out: they are per shape.
-	Warnings []Warning
 }
 
 // Total is the outline's area as the report splits it: the floor in each
@@ -570,7 +568,6 @@ func (p *Profile) Classify(zmin, zmax float64) Report {
 	if r.NoGround <= 1e-9*p.area {
 		r.NoGround = 0
 	}
-	r.Warnings = warnings(r)
 	return r
 }
 

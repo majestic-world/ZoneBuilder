@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"zonebuilder/internal/coverage"
 	"zonebuilder/internal/locale"
 	"zonebuilder/internal/project"
 	"zonebuilder/internal/ui"
@@ -36,7 +35,7 @@ func TestNativeDialogPresentationAtOpeningLanguage(t *testing.T) {
 	}
 }
 
-func TestLanguageChoiceWhileEditingWithProblemsAndWarning(t *testing.T) {
+func TestLanguageChoiceWhileEditingWithProblems(t *testing.T) {
 	config := filepath.Join(t.TempDir(), "config.json")
 	sess := &session{cfgPath: config, cfg: project.Config{Language: locale.PtBR}}
 	shell := ui.NewShell(ui.NewTheme(), "", "22_22")
@@ -50,7 +49,6 @@ func TestLanguageChoiceWhileEditingWithProblemsAndWarning(t *testing.T) {
 		Points: []zone.Point{{X: 83000, Y: 147000}}}); err != nil {
 		t.Fatal(err)
 	}
-	warnings := []floorWarning{{zone: id, shape: 0, Warning: coverage.Warning{Kind: coverage.AboveTop, Clearance: -1200, Share: .125}}}
 	document := zonesJSON(t, e.doc)
 	var first []ui.ProblemRow
 	for _, language := range []locale.Language{locale.PtBR, locale.En, locale.PtBR} {
@@ -58,9 +56,9 @@ func TestLanguageChoiceWhileEditingWithProblemsAndWarning(t *testing.T) {
 			t.Fatal(warning)
 		}
 		e.Language = shell.Language
-		rows, changed := e.problemRows(warnings, false, shell.Language)
-		if !changed || len(rows) < 2 || !rows[len(rows)-1].Warning {
-			t.Fatalf("%s problem and warning rows: %+v (changed %v)", language, rows, changed)
+		rows, changed := e.problemRows(shell.Language)
+		if !changed || len(rows) == 0 {
+			t.Fatalf("%s problem rows: %+v (changed %v)", language, rows, changed)
 		}
 		if first == nil {
 			first = rows

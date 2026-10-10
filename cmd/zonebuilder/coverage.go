@@ -131,12 +131,6 @@ type floorCoverage struct {
 	// gen counts the profiles stored, so a background profile started
 	// before its slot was filled on the spot is dropped (receive).
 	gen uint64
-	// received counts the profiles received, so the floor warnings are
-	// judged again when one comes in; warned are those warnings, judged
-	// for warnedAt.
-	received int
-	warned   []floorWarning
-	warnedAt warningsKey
 }
 
 // shapeCoverage is the latest profile of one shape and its report.
@@ -333,7 +327,6 @@ func (c *floorCoverage) receive(src coverageSource) {
 	select {
 	case r := <-c.results:
 		c.running = false
-		c.received++
 		if s := c.shapes[r.key.shape]; s == nil || s.gen <= r.since {
 			c.store(r.key, r.profile, r.hist)
 		}

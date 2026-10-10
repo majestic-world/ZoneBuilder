@@ -166,7 +166,7 @@ Regras (cada uma vira item no painel de problemas):
 - `RESIDENCE` com nome `residence_<id>`; `FISHING` com `distribution_id` e `fishing_place_type`; `SIEGE`/`HEADQUARTER` com `residence`.
 - Coordenadas dentro de X ∈ [−163840, 229375] e Y ∈ [−262144, 294911].
 
-Avisos de chão (cobertura vertical, [ADR 0004](adr/0004-chao-medido-e-avisos-sem-bloqueio.md)): chão acima do topo, chão abaixo do piso, folga apertada e área sem chão medido. Aparecem no painel de problemas com ícone próprio, levam ao pior ponto com um clique e **não bloqueiam** a compilação. A faixa Z sugerida na criação e os botões "Recalcular pelo chão", "Piso ao chão" e "Topo ao chão" usam o chão da área inteira, com a regra das camadas.
+Chão fora da faixa não gera aviso nem bloqueia a compilação ([ADR 0008](adr/0008-sem-avisos-de-chao.md)): a cobertura vertical já mostra onde ele está. A faixa Z sugerida na criação e os botões "Recalcular pelo chão", "Piso ao chão" e "Topo ao chão" usam o chão da área inteira, com a regra das camadas.
 
 Compilador:
 - Cabeçalho `<?xml version='1.0' encoding='utf-8'?>` + `<!DOCTYPE list SYSTEM "zone.dtd">` + `<list>`.

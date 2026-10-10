@@ -199,10 +199,7 @@ func (z *zoneMode) present(gtx layout.Context, ws *workspace) {
 		shell.EdgeLabels = zones.edgeLabels(w, &ws.cam, vp, shell.Language)
 	}
 	z.pins = z.cover.pins(zones, w)
-	// After the selected zone's coverage asked for its profiles, so they
-	// are measured first.
-	warnings, changed := z.cover.warnings(zones, w)
-	if rows, ok := zones.problemRows(warnings, changed, shell.Language); ok {
+	if rows, ok := zones.problemRows(shell.Language); ok {
 		shell.Problems.Rows = rows
 	}
 	shell.Pins = nil

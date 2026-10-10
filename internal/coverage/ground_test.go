@@ -52,8 +52,8 @@ func TestPeakFarFromTheVerticesSetsTheTop(t *testing.T) {
 // Over flat terrain at 0 with a BSP roof at 3256 over a third of it, the
 // range fitted from [-256, 256] is [-256, 256], and classified by it the
 // roof is another layer: its 30 000 units² in Other, listed at its Z, and
-// none of it above the top, in the highest floor, in the warnings or in
-// the ruler's histogram. Catches a report that counts the layers the fit
+// none of it above the top, in the highest floor or in the ruler's
+// histogram. Catches a report that counts the layers the fit
 // left out (spec D5, risks): "chão acima do topo" and a red pin on a roof
 // or a floating island right after "Recalcular pelo chão".
 func TestFarRoofIsAnotherLayerOfTheFittedRange(t *testing.T) {
@@ -67,8 +67,8 @@ func TestFarRoofIsAnotherLayerOfTheFittedRange(t *testing.T) {
 	if r.Above != 0 || !near(r.Other, 100*300) || !near(r.Inside, 300*300) {
 		t.Errorf("above %v, other layers %v, inside %v; want 0, 30000, 90000", r.Above, r.Other, r.Inside)
 	}
-	if r.GroundMax.Z != 0 || r.TopClearance != 256 || len(r.Warnings) != 0 {
-		t.Errorf("highest floor %v, top clearance %v, warnings %v; want z 0, 256, none", r.GroundMax, r.TopClearance, kinds(r.Warnings))
+	if r.GroundMax.Z != 0 || r.TopClearance != 256 {
+		t.Errorf("highest floor %v, top clearance %v; want z 0, 256", r.GroundMax, r.TopClearance)
 	}
 	if len(r.Others) != 1 || r.Others[0].Low != 3256 {
 		t.Errorf("other layers %v, want the roof at 3256 alone", r.Others)
@@ -118,8 +118,7 @@ func TestExcludedHillDoesNotSetTheFittedTop(t *testing.T) {
 // A tower's BSP floor at 15 000 over flat terrain at 0, fitted from
 // [14744, 15256], keeps 14744 … 15256: the terrain lies far below the
 // range while the tower's floor reaches it, so the terrain is another
-// layer, in Other and listed at its Z, with no floor below the range and
-// no warning. Catches the old rule, where the terrain always counts and
+// layer, in Other and listed at its Z, with no floor below the range. Catches the old rule, where the terrain always counts and
 // pulls a zone drawn on a tower's top down to the ground under it.
 func TestTerrainUnderATowerIsAnotherLayer(t *testing.T) {
 	f := append(grid(0), bspQuad(0, 0, 300, 300, 15000)...)
@@ -129,8 +128,8 @@ func TestTerrainUnderATowerIsAnotherLayer(t *testing.T) {
 		t.Fatalf("fitted range %d … %d, want 14744 … 15256", zmin, zmax)
 	}
 	r := p.Classify(float64(zmin), float64(zmax))
-	if r.Below != 0 || r.GroundMin.Z != 15000 || len(r.Warnings) != 0 {
-		t.Errorf("below %v, lowest floor %v, warnings %v; want 0, z 15000, none", r.Below, r.GroundMin, kinds(r.Warnings))
+	if r.Below != 0 || r.GroundMin.Z != 15000 {
+		t.Errorf("below %v, lowest floor %v; want 0, z 15000", r.Below, r.GroundMin)
 	}
 	if !near(r.Other, 300*300) || len(r.Others) != 1 || r.Others[0].Low != 0 || r.Others[0].High != 0 {
 		t.Errorf("other layers %v over %v units², want the terrain at 0 over 90000", r.Others, r.Other)
@@ -168,5 +167,38 @@ func TestHillTerrainCountsAsOneBlock(t *testing.T) {
 	f = append(f, bspQuad(0, 0, 100, 100, 100)...)
 	if _, zmax, _ := coverage.Measure(f, square(0, 0, 1000, 1000), nil).Fit(-256, 256, 256, coverage.BothSides); zmax != 3256 {
 		t.Errorf("fitted top %d, want 3256 over the peak", zmax)
+	}
+}
+
+// hillOnFlat is flat floor at 0 over [-100, 1100]² around a pyramid on
+// [400, 600]² with its apex at 400; hillBan is an exclusion over the hill
+// whose range holds it.
+func hillOnFlat() floor {
+	o00, o10, o11, o01 := v(-100, -100, 0), v(1100, -100, 0), v(1100, 1100, 0), v(-100, 1100, 0)
+	h00, h10, h11, h01 := v(400, 400, 0), v(600, 400, 0), v(600, 600, 0), v(400, 600, 0)
+	apex := v(500, 500, 400)
+	return floor{
+		tri(o00, o10, h10), tri(o00, h10, h00),
+		tri(o10, o11, h11), tri(o10, h11, h10),
+		tri(o11, o01, h01), tri(o11, h01, h11),
+		tri(o01, o00, h00), tri(o01, h00, h01),
+		tri(h00, h10, apex), tri(h10, h11, apex), tri(h11, h01, apex), tri(h01, h00, apex),
+	}
+}
+
+var hillBan = coverage.Ban{Outline: square(300, 300, 700, 700), ZMin: -1000, ZMax: 1000}
+
+// Under hillBan, the report's highest floor is the flat floor around the
+// hill, at 0, with a top clearance of 100. Catches extremes and
+// clearances taken from all floor, excluded included, which put a red
+// "topo −300" pin and a "(fura)" on the inspector and the ruler over a
+// hill that is not a failure (spec D1).
+func TestExcludedHillIsNotTheHighestFloor(t *testing.T) {
+	r := coverage.Measure(hillOnFlat(), square(0, 0, 1000, 1000), []coverage.Ban{hillBan}).Classify(-100, 100)
+	if !r.Measured || r.GroundMax.Z != 0 || r.TopClearance != 100 {
+		t.Errorf("highest floor %v, top clearance %v; want z 0, 100", r.GroundMax, r.TopClearance)
+	}
+	if r.GroundMin.Z != 0 || r.FloorClearance != 100 {
+		t.Errorf("lowest floor %v, floor clearance %v; want z 0, 100", r.GroundMin, r.FloorClearance)
 	}
 }

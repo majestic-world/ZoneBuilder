@@ -9,9 +9,9 @@
 - Cada clique cai no ponto visível sob o cursor, em coordenadas do servidor.
 - Edita vértices, shapes, faixa Z, altura da zona, tipo e parâmetros `<set>`, com desfazer e refazer.
 - Com o botão **Chão** ligado, desenha a grade das células do terreno, com uma linha forte a cada 8 células. O comprimento de cada aresta aparece no viewport, e o tamanho, a área e o perímetro do shape aparecem no inspetor.
-- Mostra, sem precisar ligar nada, se a faixa Z da zona selecionada cobre o chão dentro do contorno: cores no chão, a linha do chão nas paredes, pinos no pior ponto, números no inspetor, uma régua na janela de altura e avisos no painel de problemas. Veja [Cobertura vertical](#cobertura-vertical).
+- Mostra, sem precisar ligar nada, se a faixa Z da zona selecionada cobre o chão dentro do contorno: cores no chão, a linha do chão nas paredes, pinos no pior ponto, números no inspetor, e uma régua na janela de altura. Veja [Cobertura vertical](#cobertura-vertical).
 - Gera a zona `water` direto do `WaterVolume` do cliente: clique na água, botão direito, **Compilar zona de água**. Veja [Zona de água](#zona-de-água).
-- Mostra os problemas de cada zona enquanto você edita, como polígono que se cruza, nome repetido ou faixa Z invertida, e bloqueia a compilação até corrigir. Os avisos de chão aparecem na mesma lista, mas não bloqueiam.
+- Mostra os problemas de cada zona enquanto você edita, como polígono que se cruza, nome repetido ou faixa Z invertida, e bloqueia a compilação até corrigir.
 - Compila as zonas selecionadas em um arquivo por tipo (`zonebuilder_<tipo>.xml`) e mostra o XML numa janela com botão de copiar.
 - Guarda o trabalho em projetos `.zbproj`, inclusive zonas ainda incompletas.
 - Popula áreas com monstros: distribui os pontos de spawn longe das static meshes, mostra o monstro de prévia em cada ponto e compila 1 `<spawn>` por área, com 1 `<npc pos>` por ponto. Veja [Popular zona](#popular-zona).
@@ -104,18 +104,9 @@ Folga do piso: 248 · Folga do topo: −96 (fura)
 Cobertura 97,3% · acima 2,7% · abaixo 0% · sem chão 0%
 ```
 
-### Avisos
+### Sem avisos de chão
 
-O painel de problemas lista os avisos de chão depois dos erros, com outro ícone. **Eles não bloqueiam a compilação**: há casos legítimos de chão fora da faixa, como uma zona só no andar de cima ou uma área em tiles que não foram abertos. Clicar num aviso seleciona a zona e o shape e leva a câmera ao pior ponto.
-
-| Aviso | Quando |
-|---|---|
-| Chão acima do topo | pelo menos 1% do chão acima do topo, ou folga do topo menor que −16 |
-| Chão abaixo do piso | pelo menos 1% do chão abaixo do piso, ou folga do piso menor que −16 |
-| Folga apertada | folga do piso ou do topo entre 0 e 32 |
-| Área sem chão medido | parte do contorno sem chão, por exemplo num tile que não está aberto |
-
-O chão excluído e o das outras camadas não geram aviso. Sem um tile aberto não há avisos.
+O chão fora da faixa não gera linha no painel de problemas e nunca bloqueia a compilação: há casos legítimos, como uma zona só no andar de cima ou uma área em tiles que não foram abertos. As hachuras, os pinos e a régua já mostram onde e quanto o chão sai da faixa ([ADR 0008](adr/0008-sem-avisos-de-chao.md)).
 
 ### Ajustar ao chão
 
@@ -127,9 +118,9 @@ O chão excluído e o das outras camadas não geram aviso. Sem um tile aberto n�
 
 **Regra das camadas** ([ADR 0006](adr/0006-terreno-como-camada.md)). Um piso de BSP ou de static mesh só puxa a faixa quando cruza a faixa atual ou fica a até 1024 unidades dela; os outros aparecem como "outras camadas". O terreno segue a mesma regra, mas julgado em bloco: se alguma parte do terreno sob o contorno alcança a faixa, todo ele conta, e um morro no meio do retângulo continua puxando o topo. O terreno só vira outra camada quando nenhuma parte dele alcança a faixa e algum piso de BSP ou mesh alcança; se nenhum alcança, o terreno conta (fallback), e uma faixa longe de tudo ainda é ajustada por ele. Assim o telhado de uma torre ou uma caverna muito abaixo não esticam a faixa de uma zona de rua, e o terreno sob uma torre não puxa uma zona no topo dela. O chão excluído também não puxa. Com o botão **Static meshes** desligado, meshes não entram na medição.
 
-No modo chão da área, os pisos internos de uma estrutura alta a até 1024 da faixa continuam puxando o piso, e depois da criação ainda podem gerar um aviso "chão abaixo do piso": a faixa é ajustada a partir dos pontos clicados, e os avisos são julgados de novo a partir da faixa ajustada, que alcança mais um andar (a consequência descrita abaixo). No topo da torre do 23_18, um polígono nasce com `z 8464..10340` e 1 aviso de folga do piso −990, de um piso interno a z 7474. Para uma zona só no andar onde ela foi desenhada, use **Faixa nova: Pontos clicados**.
+No modo chão da área, os pisos internos de uma estrutura alta a até 1024 da faixa continuam puxando o piso, e depois da criação ainda pode aparecer chão abaixo do piso: a faixa é ajustada a partir dos pontos clicados, e o chão é classificado de novo pela faixa ajustada, que alcança mais um andar (a consequência descrita abaixo). No topo da torre do 23_18, um polígono nasce com `z 8464..10340` e folga do piso −990, de um piso interno a z 7474. Para uma zona só no andar onde ela foi desenhada, use **Faixa nova: Pontos clicados**.
 
-A regra é aplicada uma vez, a partir da faixa de antes do clique. **Consequência aceita:** logo depois de um ajuste, uma camada que estava longe da faixa antiga mas fica perto da nova aparece como acima ou abaixo da faixa, com aviso; apertar o botão de novo a puxa para dentro. Repita só se essa camada deve mesmo fazer parte da zona.
+A regra é aplicada uma vez, a partir da faixa de antes do clique. **Consequência aceita:** logo depois de um ajuste, uma camada que estava longe da faixa antiga mas fica perto da nova aparece como acima ou abaixo da faixa; apertar o botão de novo a puxa para dentro. Repita só se essa camada deve mesmo fazer parte da zona.
 
 ## Zona de água
 

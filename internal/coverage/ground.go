@@ -151,8 +151,7 @@ const (
 // floors within GroundReach pull the range but not the roof above them,
 // nor the terrain under a zone drawn on its top. Classify judges from the
 // fitted range, so a layer beyond reach of [zmin, zmax] but within reach
-// of the fitted range is reported above or below it, with its warning,
-// right after the fit;
+// of the fitted range is reported above or below it right after the fit;
 // fitting again takes it in. That is spec D5's rule: the user decides.
 // Floor a ban excludes is not counted, as Classify does not. It gives the
 // fitted range and the floor it spans; the range is [zmin, zmax]

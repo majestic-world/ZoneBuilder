@@ -13,7 +13,7 @@ Cada superfície de chão empilhada numa mesma coluna `x y`: terreno, piso de pr
 _Evite_: andar, nível.
 
 **Outras camadas**:
-Camadas que não cruzam a faixa Z do shape nem ficam a até 1024 unidades dela. Ficam fora dos extremos, das folgas, da cobertura e dos avisos, e não puxam a faixa nos ajustes. Inclui o terreno, julgado como um bloco só (todo o terreno sob o contorno): ele é outra camada quando nenhuma parte dele alcança a faixa e alguma peça de BSP ou mesh alcança; se nenhuma alcança, o terreno conta (ADR 0006).
+Camadas que não cruzam a faixa Z do shape nem ficam a até 1024 unidades dela. Ficam fora dos extremos, das folgas, e da cobertura, e não puxam a faixa nos ajustes. Inclui o terreno, julgado como um bloco só (todo o terreno sob o contorno): ele é outra camada quando nenhuma parte dele alcança a faixa e alguma peça de BSP ou mesh alcança; se nenhuma alcança, o terreno conta (ADR 0006).
 
 **Origem da faixa nova**:
 De onde um polígono, retângulo ou círculo novo tira `zmin zmax`: **chão da área** (padrão, pelo perfil do chão sob o contorno) ou **pontos clicados** (`menorZ − folga … maiorZ + folga` dos vértices, sem medir o chão). O tile inteiro sempre usa o chão da área. Escolhida no seletor "Faixa nova" do inspetor e guardada só na sessão.
@@ -45,7 +45,7 @@ Fração da área de chão sob o contorno que fica dentro da faixa Z.
 Área do contorno onde não há chão (quad invisível, tile não carregado, fora do mapa). Não é medida e aparece como tal, nunca como coberta.
 
 **Pior ponto**:
-O `x y z` do chão com a menor folga, separado para o piso (chão mais baixo) e para o topo (chão mais alto). É onde ficam os pinos e para onde os avisos levam a câmera.
+O `x y z` do chão com a menor folga, separado para o piso (chão mais baixo) e para o topo (chão mais alto). É onde ficam os pinos e as marcas `piso` e `topo` da régua.
 
 ## Água
 

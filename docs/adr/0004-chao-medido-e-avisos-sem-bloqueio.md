@@ -32,6 +32,8 @@ Continua valendo: nos ajustes ("Recalcular pelo chão", "Piso ao chão", "Topo a
 
 ## Decisão 2: avisar, não bloquear
 
+**Avisos:** substituído pelo [ADR 0008](0008-sem-avisos-de-chao.md), que remove os avisos de chão. O texto original fica abaixo como histórico; continua valendo que chão fora da faixa não bloqueia a compilação.
+
 Chão fora da faixa vira **aviso** no painel de problemas, com ícone próprio. Ele não entra em `Document.Problems()` e não bloqueia a compilação. Há casos legítimos: uma zona só no andar de cima de um prédio, uma zona que deixa o topo de um morro de fora de propósito, uma área em tiles que não foram abertos. Clicar no aviso leva a câmera ao pior ponto.
 
 | Aviso | Quando |

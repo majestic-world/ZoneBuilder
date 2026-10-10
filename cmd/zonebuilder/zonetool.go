@@ -59,11 +59,9 @@ type zoneEditor struct {
 	ghostZ zSuggestion
 	// version counts changes to what the overlay shows.
 	version int
-	// problems and warnings are the problems and floor warnings the
-	// problem panel shows (problemRows), built for version problemsAt-1
-	// (0: never built).
+	// problems are the problems the problem panel shows (problemRows),
+	// built for version problemsAt-1 (0: never built).
 	problems   []zone.Problem
-	warnings   []floorWarning
 	problemsAt int
 	problemsLang string
 	lastProblemClick int
