@@ -58,9 +58,9 @@ func (z zSuggestion) noteFor(lang locale.Language) string {
 	return z.sourceMessage().Render(lang)
 }
 
-// suggest is the Z range for shape i of e's selected zone, being added
-// with outline pts over w (spec D5): margin below the lowest and above the
-// highest floor under its whole area that the layer rule counts
+// suggest is the Z range for src's shape ref, being added with outline
+// pts over w (spec D5): margin below the lowest and above the highest
+// floor under its whole area that the layer rule counts
 // (coverage.Profile.Fit). The rule judges every floor, the terrain
 // included (ADR 0006), from the range the shape would get without floor:
 // vmin…vmax, from its vertices, or, with fromTerrain, the terrain under
@@ -70,11 +70,11 @@ func (z zSuggestion) noteFor(lang locale.Language) string {
 // fromTerrain: the whole tile always takes the floor), when part of the
 // outline lies off w's tiles, when no floor counts, and, unless now,
 // while the outline's profile is measured in the background; now
-// measures it on the spot. The profile is kept as shape i's, the index
-// the shape has once added.
-func (c *floorCoverage) suggest(e *zoneEditor, w *scene.World, i int, pts []zone.Point, vmin, vmax int, fromTerrain, now bool) zSuggestion {
+// measures it on the spot. The profile is kept as ref's, the shape's once
+// added.
+func (c *floorCoverage) suggest(src coverageSource, w *scene.World, ref shapeRef, pts []zone.Point, vmin, vmax int, fromTerrain, now bool) zSuggestion {
 	z := zSuggestion{zmin: vmin, zmax: vmax, vmin: vmin, vmax: vmax}
-	if e.fromVertices && !fromTerrain {
+	if src.zFromVertices() && !fromTerrain {
 		z.from = zByVertices
 		return z
 	}
@@ -82,7 +82,7 @@ func (c *floorCoverage) suggest(e *zoneEditor, w *scene.World, i int, pts []zone
 		z.from = zOffTiles
 		return z
 	}
-	p := c.profile(e, w, shapeRef{e.zone, i}, pts, now)
+	p := c.profile(src, w, ref, pts, now)
 	if p == nil {
 		z.from = zMeasuring
 		return z
@@ -94,9 +94,10 @@ func (c *floorCoverage) suggest(e *zoneEditor, w *scene.World, i int, pts []zone
 			z.from = zNoFloor
 			return z
 		}
-		lo, hi = int(math.Floor(tlo))-e.margin, int(math.Ceil(thi))+e.margin
+		margin := src.zMargin()
+		lo, hi = int(math.Floor(tlo))-margin, int(math.Ceil(thi))+margin
 	}
-	zmin, zmax, g := p.Fit(lo, hi, e.margin, coverage.BothSides)
+	zmin, zmax, g := p.Fit(lo, hi, src.zMargin(), coverage.BothSides)
 	if !g.Measured {
 		z.from = zNoFloor
 		return z

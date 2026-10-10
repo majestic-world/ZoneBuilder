@@ -216,6 +216,9 @@ func (z *zoneMode) sync(r *render.Renderer, ws *workspace) {
 	}
 }
 
+// forget makes the next sync send everything, and refills the height
+// window's fields, which the population mode shares.
 func (z *zoneMode) forget() {
 	z.zonesShown, z.waterShown, z.groundShown = -1, -1, groundKey{version: -1}
+	z.zones.heightFilled = heightKey{version: -1}
 }

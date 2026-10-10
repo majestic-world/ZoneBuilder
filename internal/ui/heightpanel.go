@@ -94,13 +94,18 @@ func (p *HeightPanel) ReopenRequested(gtx layout.Context) bool {
 }
 
 // heightWindow lays the floating window out over the viewport, while a
-// zone is selected and the window is open.
+// zone (a spawn area in the population mode) is selected and the window
+// is open.
 func (s *Shell) heightWindow(gtx layout.Context) layout.Dimensions {
 	p := &s.Height
 	if p.Zone == "" {
 		return layout.Dimensions{}
 	}
-	return p.Window.Layout(gtx, s, icon.ArrowUp, locale.Text(s.Language, "ui.height.title"), func(gtx layout.Context) layout.Dimensions {
+	title, hint := locale.Text(s.Language, "ui.height.title"), locale.Text(s.Language, "ui.height.hint")
+	if s.Mode == ModePopulate {
+		title, hint = locale.Text(s.Language, "spawn.height.title"), locale.Text(s.Language, "spawn.height.hint")
+	}
+	return p.Window.Layout(gtx, s, icon.ArrowUp, title, func(gtx layout.Context) layout.Dimensions {
 		apply := func(c *widget.Clickable) layout.Widget { return s.button(c, secondaryButton, nil, locale.Text(s.Language, "ui.edit.apply")) }
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(s.dimLabel(p.Zone)),
@@ -117,7 +122,7 @@ func (s *Shell) heightWindow(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(s.fieldButton(&p.Base, "z", nil, apply(&p.SetBase))),
 			layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.height.height"))),
 			layout.Rigid(s.fieldButton(&p.Height, locale.Text(s.Language, "ui.height.height_placeholder"), nil, apply(&p.SetHeight))),
-			layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.height.hint"))),
+			layout.Rigid(s.fieldLabel(hint)),
 			layout.Rigid(buttonRow(
 				s.button(&p.FloorToGround, secondaryButton, nil, locale.Text(s.Language, "ui.height.floor")),
 				s.button(&p.TopToGround, secondaryButton, nil, locale.Text(s.Language, "ui.height.top")),
