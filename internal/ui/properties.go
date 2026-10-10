@@ -131,8 +131,10 @@ func (p *PropertiesPanel) Discard(gtx layout.Context) {
 	}
 	for _, f := range p.params {
 		discardClicks(gtx, &f.remove)
+		discardEditorEvents(gtx, &f.editor)
+		f.focused = false
 	}
-	p.input(gtx)
+	discardEditorEvents(gtx, &p.newName, &p.newValue)
 }
 
 // load brings the fields up to date with z. A field whose zone value did

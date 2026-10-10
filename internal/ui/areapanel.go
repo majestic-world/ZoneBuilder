@@ -144,15 +144,17 @@ func (p *AreaPanel) Reset() {
 
 // Discard consumes pending events without accepting any editor action or
 // changing an existing regeneration confirmation.
-func (p *AreaPanel) Discard(gtx layout.Context, a spawn.Area, ok bool) {
+func (p *AreaPanel) Discard(gtx layout.Context) {
 	discardClicks(gtx, &p.Duplicate, &p.Delete, &p.Generate, &p.Regenerate, &p.AddPoints, &p.ConfirmRegenerate, &p.CancelRegenerate)
 	for _, r := range p.Rows {
 		w := p.widgets(r.ID)
 		discardClicks(gtx, &w.pick, &w.toggle)
 	}
-	confirm := p.confirmRegenerate
-	p.Update(gtx, a, ok)
-	p.confirmRegenerate = confirm
+	for i := range p.fields {
+		f := &p.fields[i]
+		discardEditorEvents(gtx, &f.editor)
+		f.focused = false
+	}
 }
 
 // Update loads a, the selected area (ok false: none), into the property
