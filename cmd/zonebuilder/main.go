@@ -163,6 +163,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 	// EGL binds the context to an OS thread: keep this goroutine on one.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	matchWindowDPIAwareness()
 
 	shell := ui.NewShell(ui.NewTheme(), fields.client, fields.tile)
 	shell.Language = sess.cfg.Language
