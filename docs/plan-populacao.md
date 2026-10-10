@@ -73,11 +73,11 @@ flowchart LR
 
 ## Distribuição
 
-A entrada é o polígono da área em coordenadas do servidor, a faixa Z (sugerida pelo chão da área, como nas zonas), a quantidade N, o raio de colisão r (padrão: o medido na mesh do monstro de prévia), a folga de mesh m (padrão 32) e a semente.
+A entrada é o polígono da área em coordenadas do servidor, a faixa Z (sugerida pelo chão da área, como nas zonas), a quantidade N, o raio de colisão r (padrão: o medido na mesh do monstro de prévia), o afastamento das meshes a (padrão 32) e a semente. "Folga" e "margem" já têm outro sentido no glossário.
 
 1. **Grade de candidatos.** Células de 16 unidades (1 célula de geodata) sobre a bbox do polígono. Uma célula é candidata quando o centro dela está dentro do polígono a pelo menos r da borda.
 2. **Chão da célula.** Um raio vertical desce do `zmax` até o `zmin`. A célula vale o primeiro chão de terreno ou BSP com `n.z ≥ 0,65`, o mesmo limite do Play Map. Chão de static mesh não vale: monstro não nasce em cima de mesh. Também ficam de fora a célula sem chão e a célula cujo chão fica sob o topo de um volume de água.
-3. **Obstáculos.** Contam os triângulos das static meshes visíveis (todas, com ou sem flag de colisão) e as faces de BSP que não são chão. Para cada célula livre, a fatia de interesse é `[chão − 16, chão + altura]`, com a altura do monstro de prévia na pose `Wait`. Um triângulo bloqueia a célula quando, recortado nessa fatia, fica a menos de `r + m` do centro dela no plano XY. A AABB de cada ator, expandida por `r + m`, descarta antes os que estão longe. Copa de árvore acima da fatia não bloqueia; tronco, cerca e pedra bloqueiam.
+3. **Obstáculos.** Contam os triângulos das static meshes visíveis (todas, com ou sem flag de colisão) e as faces de BSP que não são chão. Para cada célula livre, a fatia de interesse é `[chão − 16, chão + altura]`, com a altura do monstro de prévia na pose `Wait`. Um triângulo bloqueia a célula quando, recortado nessa fatia, fica a menos de `r + a` do centro dela no plano XY. A AABB de cada ator, expandida por `r + a`, descarta antes os que estão longe. Copa de árvore acima da fatia não bloqueia; tronco, cerca e pedra bloqueiam.
 4. **Sorteio.** É o best-candidate de Mitchell sobre as células livres, com um RNG de semente fixa (`math/rand/v2` PCG). Para cada ponto novo, o algoritmo tira k = 20 candidatas e fica com a mais distante dos pontos já escolhidos. O resultado é uma distribuição espalhada sem cara de grade, e a mesma semente gera os mesmos pontos. Dois pontos nunca ficam a menos de 2r um do outro. Se não couberem N pontos, o app gera os que couberem e avisa "cabem K de N".
 5. **Ponto final.** `x y` é o centro da célula sorteado dentro dela com a mesma semente, e o Z é o do chão convertido com `scene.ToServer`. O heading é sorteado em 1..65535 com a mesma semente.
 
@@ -115,7 +115,7 @@ O app abre numa tela com 2 cartões: "Construir zonas" e "Popular zona". Cada ca
 
 ### P1. Área de spawn e documento
 
-- Modelo de área: nome, polígono (`zone.Shape` com `zmin zmax`), id do NPC, quantidade, `respawn` (padrão 60), `respawn_rand` (padrão 0), raio de colisão, folga de mesh, semente e pontos `{x y z heading}` em coordenadas do servidor.
+- Modelo de área: nome, polígono (`zone.Shape` com `zmin zmax`), id do NPC, quantidade, `respawn` (padrão 60), `respawn_rand` (padrão 0), raio de colisão, afastamento das meshes, semente e pontos `{x y z heading}` em coordenadas do servidor.
 - Ferramentas: polígono, retângulo e círculo (convertido em polígono), reusando `zoneEditor` e a edição de vértices; desfazer e refazer.
 - Lista de áreas e painel de propriedades.
 - `.zbproj` versão 2.
@@ -127,7 +127,7 @@ O app abre numa tela com 2 cartões: "Construir zonas" e "Popular zona". Cada ca
 
 O algoritmo da seção Distribuição. Em edição, cada ponto aparece como pino com o círculo do raio de colisão no chão; o ponto selecionado tem alça de arraste. Os avisos "cabem K de N" e "área sem chão livre" não bloqueiam a compilação.
 
-**Pronto quando:** na área da captura de referência (campo entre árvores, pedra e cercas), 50 pontos ficam todos dentro do polígono, nenhum a menos de `r + m` de tronco, cerca ou pedra, nenhum sobre mesh ou água, e nenhum par a menos de 2r; e gerar 2 vezes com a mesma semente dá os mesmos pontos. Testes: ponto na borda do polígono, mesh logo fora da borda bloqueando por dentro, copa acima da fatia que não bloqueia, faixa Z com 2 camadas (ponte) que escolhe a camada certa, e área pequena demais para N.
+**Pronto quando:** na área da captura de referência (campo entre árvores, pedra e cercas), 50 pontos ficam todos dentro do polígono, nenhum a menos de `r + a` de tronco, cerca ou pedra, nenhum sobre mesh ou água, e nenhum par a menos de 2r; e gerar 2 vezes com a mesma semente dá os mesmos pontos. Testes: ponto na borda do polígono, mesh logo fora da borda bloqueando por dentro, copa acima da fatia que não bloqueia, faixa Z com 2 camadas (ponte) que escolhe a camada certa, e área pequena demais para N.
 
 ### P3. Compilação do XML de spawn
 
