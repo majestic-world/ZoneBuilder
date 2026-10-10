@@ -1,4 +1,4 @@
-Status: needs-triage
+Status: resolved
 
 # Zona oca e faixa pelo clique
 
