@@ -15,7 +15,7 @@
 make build   # gera "bin/Zone Builder.exe" com as DLLs do ANGLE ao lado
 make run     # compila e abre o app
 make run ARGS="-project giran.zbproj"
-make dist    # compila e gera "dist/Zone Builder By Mk v<versão>.zip" com o conteúdo de bin/
+make dist    # compila e gera "dist/Zone Builder By Mk v<versão>.zip" com o conteúdo de bin/, apagando os zips antigos de dist/
 ```
 
 A versão exibida no título da janela vem de `APP_VERSION`, no arquivo `.env`.
