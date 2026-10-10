@@ -99,8 +99,6 @@ func (e *zoneEditor) listRequest(req any, s *scene.World, cam *camera.Camera) st
 		return e.duplicate(r.Zone)
 	case ui.CycleZoneColor:
 		return e.cycleColor(r.Zone)
-	case ui.GoTo:
-		return e.goTo(r.Text, s, cam)
 	case ui.SelectForCompile:
 		return e.selectForCompile(r.Zones, r.Compile)
 	}
@@ -220,23 +218,24 @@ func (e *zoneEditor) cycleColor(id zone.ZoneID) string {
 }
 
 // goTo frames the server point typed as "x y z" (spaces, commas or
-// semicolons between the numbers). It returns the status line.
-func (e *zoneEditor) goTo(text string, s *scene.World, cam *camera.Camera) string {
+// semicolons between the numbers) in the map section's go-to field, in
+// any mode. It returns the status message.
+func goTo(text string, s *scene.World, cam *camera.Camera) locale.Message {
 	p, err := parsePoint(text)
 	if err != nil {
 		if errors.Is(err, errPointFormat) {
-			return e.present(locale.Message{Key: "editor.goto.format"})
+			return locale.Message{Key: "editor.goto.format"}
 		}
-		return e.present(locale.Message{Key: "editor.goto.invalid", Args: map[string]string{"value": err.Error()}})
+		return locale.Message{Key: "editor.goto.invalid", Args: map[string]string{"value": err.Error()}}
 	}
 	if s == nil {
-		return e.present(locale.Message{Key: "editor.goto.open_first"})
+		return locale.Message{Key: "editor.goto.open_first"}
 	}
 	c := scene.ToRender(scene.FromServer(p).Sub(s.Origin))
 	h := geom.Vec3{X: goToHalfSize, Y: goToHalfSize, Z: goToHalfSize}
 	cam.Frame(geom.Box{Min: c.Sub(h), Max: c.Add(h)})
 	log.Printf("zona: câmera indo para %g %g %g: %s", p.X, p.Y, p.Z, formatPose(cam, s))
-	return e.present(locale.Message{Key: "editor.goto.done", Args: map[string]string{"x": fmt.Sprint(p.X), "y": fmt.Sprint(p.Y), "z": fmt.Sprint(p.Z)}})
+	return locale.Message{Key: "editor.goto.done", Args: map[string]string{"x": fmt.Sprint(p.X), "y": fmt.Sprint(p.Y), "z": fmt.Sprint(p.Z)}}
 }
 
 var errPointFormat = errors.New("point requires three coordinates")

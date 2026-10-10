@@ -37,7 +37,6 @@ import (
 	"zonebuilder/internal/render/egl"
 	"zonebuilder/internal/scene"
 	"zonebuilder/internal/ui"
-	"zonebuilder/internal/zonexml"
 )
 
 // version is the app version, set at build time from APP_VERSION in .env
@@ -56,7 +55,12 @@ func main() {
 	proj := flag.String("project", "", "projeto ("+project.Ext+") aberto ao iniciar")
 	pose := flag.String("camera", "", `pose da câmera ao abrir um tile, "x,y,z,yaw,pitch": posição de mundo (coordenadas do servidor) e ângulos em radianos, no formato que o log "cena: câmera" imprime; vazio enquadra o mapa`)
 	fps := flag.Bool("fps", false, "mede a taxa de quadros: redesenha sem parar, sem vsync, e registra no log o tempo de quadro a cada 2 s")
+	modeArg := flag.String("mode", "", "abre direto num modo, sem passar pela tela inicial: "+modeFlagZones+" (Construir zonas) ou "+modeFlagPopulate+" (Popular zona); vazio abre a tela inicial, mesmo com -project")
 	flag.Parse()
+	startMode, err := parseMode(*modeArg)
+	if err != nil {
+		log.Fatalf("-mode: %v", err)
+	}
 	sess := loadSession()
 	fields := startFields{
 		client: cmp.Or(*client, sess.cfg.Client, os.Getenv("ZB_CLIENT")),
@@ -73,7 +77,7 @@ func main() {
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title(appTitle()), app.Size(unit.Dp(1280), unit.Dp(800)), app.CustomRenderer(true))
-		if err := run(w, sess, fields, *proj, start, *fps); err != nil {
+		if err := run(w, sess, fields, *proj, start, startMode, *fps); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
@@ -150,9 +154,10 @@ func firstOr(s []string, def string) string {
 	return s[0]
 }
 
-// run is the window's event loop. measure redraws without pause or vsync
-// and logs the frame times (the -fps flag).
-func run(w *app.Window, sess *session, fields startFields, proj string, start *cameraPose, measure bool) error {
+// run is the window's event loop, opening on startMode (ui.ModeHome: the
+// home screen). measure redraws without pause or vsync and logs the frame
+// times (the -fps flag).
+func run(w *app.Window, sess *session, fields startFields, proj string, start *cameraPose, startMode ui.Mode, measure bool) error {
 	// EGL binds the context to an OS thread: keep this goroutine on one.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -168,39 +173,22 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		size    image.Point
 		vpRect  image.Rectangle
 		fly     ui.FlyControls
-		cam     = camera.ForBounds(geom.EmptyBox())
-		tiles   = newTiles(w)
 		frames  frameLog
-		status  actionStatus
 		folders = make(chan string, 1)
-		probe   cursorProbe
-		zones   = newZoneEditor()
-		cover   = newFloorCoverage(w)
-		// zonesShown is the zones.version the renderer last got;
-		// groundShown is what its ground marking was last built for;
-		// groundMark was last built for groundBuilt.
-		zonesShown = -1
-		// waterSel is the water the user selected by clicking;
-		// waterShown is the waterSel.version the renderer last got.
-		waterSel   waterSelection
-		waterShown = -1
-		// lineShown is the key of the ground line along the current
-		// shape's walls when the zones were last sent.
-		lineShown   lineKey
-		groundShown = groundKey{version: -1}
-		groundBuilt = groundKey{version: -1}
-		groundMark  render.Ground
-		// pins are the current shape's worst points (spec D4e), as last
-		// laid out; pinsShown are the ones the renderer's overlay has.
-		pins, pinsShown []worstPin
+		ws      = &workspace{shell: shell, tiles: newTiles(w), cam: camera.ForBounds(geom.EmptyBox())}
+		modes   = newModes(w, startMode)
+		// zones is the zone editor, which the project file saves and
+		// opens whatever the active mode.
+		zones = modes.zones.zones
 	)
 	zones.Language = shell.Language
+	log.Printf("modo: %s", modeName(modes.active))
 	defer func() { g.release() }()
 	if proj != "" {
 		var load []scene.Tile
-		status, load = sess.open(w, shell, zones, proj)
+		ws.status, load = sess.open(w, shell, zones, proj)
 		if len(load) > 0 {
-			status = openTiles(tiles, shell, load)
+			ws.status = openTiles(ws.tiles, shell, load)
 		}
 	}
 
@@ -219,73 +207,46 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				if g, err = newGfx(w, view, !measure); err != nil {
 					return err
 				}
-				tiles.lostGPU()
-				zonesShown, waterShown, groundShown = -1, -1, groundKey{version: -1}
+				ws.tiles.lostGPU()
+				modes.forget()
 			}
 
+			// Viewport events and keys go to the active mode only; what
+			// it leaves moves the camera.
+			m := modes.current()
 			for {
 				ev, ok := shell.Viewport.Update(gtx)
 				if !ok {
 					break
 				}
-				msg, used := zones.viewportEvent(tiles.world, &cam, ev, shell.Viewport.Size())
-				if used {
-					if msg != "" {
-						status = editorResult(msg, zones)
-					}
-				} else {
-					fly.Handle(ev, &cam)
+				if !m.viewportEvent(ws, ev) {
+					fly.Handle(ev, &ws.cam)
 				}
 				switch e := ev.(type) {
 				case pointer.Event:
-					if e.Kind == pointer.Press {
-						waterSel.pressTaken = used
+					button := ws.probe.handle(e)
+					if button == 0 || ws.world() == nil {
+						break
 					}
-					switch probe.handle(e) {
-					case pointer.ButtonPrimary:
-						if tiles.world == nil {
-							break
-						}
-						probe.click, probe.clickHit = pickAt(tiles.world, &cam, e.Position, shell.Viewport.Size())
-						logClick(probe.click, probe.clickHit)
-						if msg := zones.click(tiles.world, cover, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit); msg != "" {
-							status = editorResult(msg, zones)
-						} else if !zones.armed && !waterSel.pressTaken {
-							if msg := waterSel.click(tiles.world, &cam, e.Position, shell.Viewport.Size(), probe.click, probe.clickHit, e.Modifiers.Contain(key.ModCtrl)); msg.render(shell.Language) != "" {
-								status = msg
-							}
-						}
-					case pointer.ButtonSecondary:
-						if tiles.world == nil {
-							break
-						}
-						msg, open := waterSel.rightClick(tiles.world, &cam, e.Position, shell.Viewport.Size())
-						if open {
-							shell.WaterMenu.Menu.Open(image.Pt(round(e.Position.X), round(e.Position.Y)))
-							if zones.drawing {
-								msg = action(locale.Message{Key: "actions.water.busy"})
-							}
-						}
-						if msg.render(shell.Language) != "" {
-							status = msg
-						}
+					if button == pointer.ButtonPrimary {
+						ws.probe.click, ws.probe.clickHit = pickAt(ws.world(), &ws.cam, e.Position, ws.viewport())
+						logClick(ws.probe.click, ws.probe.clickHit)
 					}
+					m.click(ws, e, button)
 				case key.Event:
-					if (e.Name == key.NameReturn || e.Name == key.NameEnter) && e.State == key.Press {
-						if msg := zones.close(tiles.world, cover); msg != "" {
-							status = editorResult(msg, zones)
-						}
+					if e.Name == key.NameEscape && e.State == key.Press && shell.CloseMenus() {
+						break
 					}
-					if e.Name == key.NameEscape && e.State == key.Press {
-						if shell.CloseMenus() {
-							break
-						}
-						if msg := zones.escape(); msg != "" {
-							status = editorResult(msg, zones)
-						} else if waterSel.clear() {
-							status = action(locale.Message{Key: "actions.water.cleared"})
-						}
-					}
+					m.key(ws, e)
+				}
+			}
+			if next, ok := shell.ModeRequested(gtx); ok && next != modes.active {
+				modes.set(next)
+				m = modes.current()
+				// Keys held when the mode changed send no release to it.
+				fly = ui.FlyControls{}
+				if world := ws.world(); world != nil {
+					log.Printf("modo: câmera %s", formatPose(&ws.cam, world))
 				}
 			}
 			if shell.Browse.Clicked(gtx) {
@@ -303,183 +264,109 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				shell.Client.SetText(p)
 			default:
 			}
-			if shell.Zone.CreateRequested(gtx) {
-				status = editorResult(zones.create(shell.Zone.Name.Text(), shell.Zone.Type(), shell.Zone.Tools.Shape), zones)
+			if shell.Undo.Clicked(gtx) {
+				m.undo(ws)
 			}
-			if t, ok := shell.Zone.Tools.Requested(gtx); ok {
-				status = editorResult(zones.arm(t, shell.Zone.Tools.Banned.Value), zones)
+			if shell.Redo.Clicked(gtx) {
+				m.redo(ws)
 			}
-			if shell.Zone.Tools.WholeTile.Clicked(gtx) {
-				status = editorResult(wholeTile(zones, cover, tiles, &cam, shell.Viewport.Size(), shell.Zone.Tools.Banned.Value), zones)
+			if shell.Compile.Clicked(gtx) {
+				m.compile(ws)
 			}
-			if shell.Zone.Compile.Clicked(gtx) {
-				var files []zonexml.File
-				msg, compiled := zones.compile()
-				status, files = editorResult(msg, zones), compiled
-				if len(files) > 0 {
-					shell.XML.Open(files)
-				}
+			if text, ok := shell.GoToRequested(gtx); ok {
+				ws.status = action(goTo(text, ws.world(), &ws.cam))
 			}
-			if shell.WaterMenu.CompileRequested(gtx) {
-				var files []zonexml.File
-				sel, live := waterSel.selected(tiles.world)
-				status, files = zones.compileWater(sel, live)
-				if len(files) > 0 {
-					shell.XML.Open(files)
-				}
-			}
+			m.update(gtx, ws)
 			if name, ok := shell.XML.Copied(gtx); ok {
-				status = actionArgs(locale.Message{Key: "actions.xml.copied"}, map[string]string{"name": name})
+				ws.status = actionArgs(locale.Message{Key: "actions.xml.copied"}, map[string]string{"name": name})
 			}
-			for _, req := range shell.Zones.Update(gtx) {
-				if msg := zones.listRequest(req, tiles.world, &cam); msg != "" {
-					status = editorResult(msg, zones)
-				}
-			}
-			if i, ok := shell.Problems.Clicked(gtx); ok {
-				if msg := zones.goToProblem(i, tiles.world, &cam, shell.Language); msg != "" {
-					status = actionStatus{raw: msg, problemClick: true}
-				}
-			}
-			if i, ok := shell.PinClicked(gtx); ok && i < len(pins) {
-				goToPin(pins[i], tiles.world, &cam, shell.Language)
-				pin := pins[i]
-				status = actionStatus{message: pinMessage(pin), pin: &pin}
-			}
-			sel, selOK := zones.selectedZone()
-			for _, req := range shell.Props.Update(gtx, sel, selOK) {
-				if msg := shell.Props.Applied(req, zones.apply(req.Command)); msg.Key != "" {
-					status = actionStatus{message: msg}
-				}
-			}
-			if msg, load := sess.update(gtx, w, shell, zones, tiles.openTiles(), tiles.opening()); msg.render(shell.Language) != "" || len(load) > 0 {
-				status = msg
+			if msg, load := sess.update(gtx, w, shell, zones, ws.tiles.openTiles(), ws.tiles.opening()); msg.render(shell.Language) != "" || len(load) > 0 {
+				ws.status = msg
 				if len(load) > 0 {
-					status = openTiles(tiles, shell, load)
+					ws.status = openTiles(ws.tiles, shell, load)
 				}
 			}
 			openTile := shell.OpenRequested(gtx)
-			if m, ok := shell.Project.RecentMapClicked(gtx); ok {
-				shell.Tile.SetText(m)
+			if recent, ok := shell.Project.RecentMapClicked(gtx); ok {
+				shell.Tile.SetText(recent)
 				openTile = true
 			}
-			if openTile && !tiles.opening() {
+			if openTile && !ws.tiles.opening() {
 				t, err := scene.ParseTile(shell.Tile.Text())
 				if err != nil {
-					status = actionError(locale.Message{Key: "actions.error.invalid_tile"}, err, nil)
+					ws.status = actionError(locale.Message{Key: "actions.error.invalid_tile"}, err, nil)
 				} else {
-					status = openTiles(tiles, shell, []scene.Tile{t})
+					ws.status = openTiles(ws.tiles, shell, []scene.Tile{t})
 				}
 			}
-			for _, r := range tiles.receive() {
+			for _, r := range ws.tiles.receive() {
 				t := r.entry.tile
 				if r.err != nil {
-					status = actionError(locale.Message{Key: "actions.error.load_tile"}, r.err, map[string]string{"tile": t.Name()})
+					ws.status = actionError(locale.Message{Key: "actions.error.load_tile"}, r.err, map[string]string{"tile": t.Name()})
 					log.Printf("cena: %s: %v", t.Name(), r.err)
 					continue
 				}
 				logScene(t, r)
-				if t != tiles.focus || tiles.framed {
+				if t != ws.tiles.focus || ws.tiles.framed {
 					continue
 				}
 				// The opened tile arrived: frame it, as opening one map
 				// always did.
-				tiles.framed = true
-				sess.mapOpened(tiles.root, []scene.Tile{t})
+				ws.tiles.framed = true
+				sess.mapOpened(ws.tiles.root, []scene.Tile{t})
 				shell.Project.RecentMaps = sess.cfg.RecentMaps
-				cam = camera.ForBounds(renderBox(tiles.world, r.scene.Framing))
+				ws.cam = camera.ForBounds(renderBox(ws.tiles.world, r.scene.Framing))
 				if start != nil {
-					start.apply(&cam, tiles.world)
+					start.apply(&ws.cam, ws.tiles.world)
 				}
-				log.Printf("cena: câmera %s", formatPose(&cam, tiles.world))
-				status = actionStatus{} // the Tiles line names it
-				probe.click = scene.Hit{}
-				probe.clickHit = false
+				log.Printf("cena: câmera %s", formatPose(&ws.cam, ws.tiles.world))
+				ws.status = actionStatus{} // the Tiles line names it
+				ws.probe.click = scene.Hit{}
+				ws.probe.clickHit = false
 			}
 
 			if shell.Meshes.Toggled(gtx) {
-				status = action(locale.Message{Key: "actions.map.meshes_visible"})
+				ws.status = action(locale.Message{Key: "actions.map.meshes_visible"})
 				if shell.Meshes.On {
-					status = action(locale.Message{Key: "actions.map.meshes_hidden"})
+					ws.status = action(locale.Message{Key: "actions.map.meshes_hidden"})
 				}
 			}
 			if shell.Ground.Toggled(gtx) {
-				status = action(locale.Message{Key: "actions.map.grid_hidden"})
+				ws.status = action(locale.Message{Key: "actions.map.grid_hidden"})
 				if shell.Ground.On {
-					status = actionArgs(locale.Message{Key: "actions.map.grid_visible"}, map[string]string{"step": fmt.Sprint(render.GridMajor)})
+					ws.status = actionArgs(locale.Message{Key: "actions.map.grid_visible"}, map[string]string{"step": fmt.Sprint(render.GridMajor)})
 				}
 			}
-			moving := fly.Step(&cam, gtx.Now)
-			if tiles.world != nil {
+			moving := fly.Step(&ws.cam, gtx.Now)
+			if world := ws.world(); world != nil {
 				// Hidden meshes are not picked either: a vertex never lands
 				// on geometry the user cannot see.
-				tiles.world.HideMeshes = shell.Meshes.On
-				tiles.follow(worldPosition(tiles.world, cam.Position))
+				world.HideMeshes = shell.Meshes.On
+				ws.tiles.follow(worldPosition(world, ws.cam.Position))
 			}
-			waterSel.prune(tiles.world)
 			if lang, ok := shell.LanguageRequested(gtx); ok {
 				warning := sess.chooseLanguage(shell, lang)
 				zones.Language = shell.Language
 				if warning != "" {
-					status = sess.languageWarning
-				} else if status.problemClick {
-					status.raw = zones.reformatProblemClick(shell.Language)
+					ws.status = sess.languageWarning
+				} else if ws.status.problemClick {
+					ws.status.raw = zones.reformatProblemClick(shell.Language)
 				}
 				// Render the same state in the selected language next frame.
 				shell.Project.Name = sess.name(shell.Language)
 				gtx.Execute(op.InvalidateCmd{})
 			}
-			shell.WaterMenu.Disabled = zones.drawing
-			shell.Cursor, shell.Click = probe.status(tiles.world, &cam, shell.Viewport.Size(), shell.Language)
-			shell.Tiles, shell.Warnings = loadedTiles(tiles, shell.Language)
-			shell.Zone.Info = zones.info()
-			sel, _ = zones.selectedZone()
-			shell.Zones.Rows, shell.Zones.Selected = zones.rows(), sel.ID
-			if k := (groundKey{version: zones.version, zone: zones.zone, on: shell.Ground.On}); k != groundBuilt {
-				groundMark = zones.ground(shell.Ground.On)
-				shell.Zones.LeftOut = render.GroundLeftOut(groundMark)
-				groundBuilt = k
-			}
-			if msg := zones.panel(gtx, &shell.Edit, tiles.world, cover); msg != "" {
-				status = editorResult(msg, zones)
-			}
-			shell.Edit.Coverage = cover.inspector(zones, tiles.world, shell.Language)
-			if msg := zones.heightPanel(gtx, &shell.Height, tiles.world, cover); msg != "" {
-				status = editorResult(msg, zones)
-			}
-			cover.heightWindow(zones, tiles.world, &shell.Height, shell.Language)
-			shell.Arrow = zones.layoutArrow(tiles.world, &cam, shell.Viewport.Size(), gtx.Dp(90))
-			shell.EdgeLabels = nil
-			if shell.Ground.On && tiles.world != nil {
-				shell.EdgeLabels = zones.edgeLabels(tiles.world, &cam, shell.Viewport.Size(), shell.Language)
-			}
-			pins = cover.pins(zones, tiles.world)
-			// After the selected zone's coverage asked for its profiles, so
-			// they are measured first.
-			ws, wsChanged := cover.warnings(zones, tiles.world)
-			if rows, ok := zones.problemRows(ws, wsChanged, shell.Language); ok {
-				shell.Problems.Rows = rows
-			}
-			shell.Pins = nil
-			if tiles.world != nil {
-				shell.Pins = pinLabels(pins, tiles.world, &cam, shell.Viewport.Size(), shell.Language)
-			}
-			if zones.anchored && tiles.world != nil && probe.inside {
-				h, ok := pickAt(tiles.world, &cam, probe.cursor, shell.Viewport.Size())
-				if msg := zones.hoverAt(tiles.world, cover, h, ok); msg != "" {
-					status = editorResult(msg, zones)
-				}
-			} else {
-				zones.hoverAt(nil, cover, scene.Hit{}, false)
-			}
-			shell.Zone.Tools.Armed, shell.Zone.Tools.Active = zones.tool, zones.armed
+			m.present(gtx, ws)
+			shell.Cursor, shell.Click = ws.probe.status(ws.world(), &ws.cam, ws.viewport(), shell.Language)
+			shell.Tiles, shell.Warnings = loadedTiles(ws.tiles, shell.Language)
 			var renderer *render.Renderer
 			if g != nil {
 				renderer = g.renderer
 			}
-			shell.Loading, shell.Progress = tiles.progress(renderer, shell.Language)
+			shell.Loading, shell.Progress = ws.tiles.progress(renderer, shell.Language)
 
-			shell.Message = status.render(shell.Language)
+			shell.Mode = modes.active
+			shell.Message = ws.status.render(shell.Language)
 			rect := shell.Layout(gtx)
 			if e.Size != size || rect != vpRect {
 				log.Printf("frame: window %dx%d, viewport %v", e.Size.X, e.Size.Y, rect)
@@ -490,19 +377,11 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				continue
 			}
 			g.renderer.SetMeshesHidden(shell.Meshes.On)
-			uploading := tiles.sync(g.renderer, uploadBudget)
-			if line, from := cover.groundLine(zones, tiles.world); zonesShown != zones.version || waterShown != waterSel.version || lineShown != from || !samePinShapes(pins, pinsShown) {
-				shapes := append(zones.overlay(line), pinShapes(pins)...)
-				g.renderer.SetZones(append(shapes, waterSel.overlay(tiles.world)...))
-				zonesShown, waterShown, lineShown, pinsShown = zones.version, waterSel.version, from, pins
-			}
-			if groundShown != groundBuilt {
-				g.renderer.SetGround(groundMark)
-				groundShown = groundBuilt
-			}
+			uploading := ws.tiles.sync(g.renderer, uploadBudget)
+			m.sync(g.renderer, ws)
 
 			g.ctx.WaitClient() // lets ANGLE pick up a window resize
-			if err := g.renderer.DrawViewport(rect, e.Size, &cam); err != nil {
+			if err := g.renderer.DrawViewport(rect, e.Size, &ws.cam); err != nil {
 				return err
 			}
 			if err := g.gio.Frame(gtx.Ops, gpu.OpenGLRenderTarget{}, e.Size); err != nil {
@@ -512,7 +391,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				return err
 			}
 			if measure {
-				frames.frame(gtx.Now, g.renderer.Stats(), tiles.shown())
+				frames.frame(gtx.Now, g.renderer.Stats(), ws.tiles.shown())
 			}
 			if moving || uploading || measure {
 				gtx.Execute(op.InvalidateCmd{})

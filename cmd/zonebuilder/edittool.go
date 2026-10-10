@@ -524,12 +524,6 @@ func (e *zoneEditor) groundZRange(c *floorCoverage, s *scene.World) string {
 // "" to keep the current one.
 func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World, c *floorCoverage) string {
 	var msg string
-	if p.Undo.Clicked(gtx) {
-		msg = e.undo()
-	}
-	if p.Redo.Clicked(gtx) {
-		msg = e.redo()
-	}
 	if m, err := strconv.Atoi(strings.TrimSpace(p.Margin.Text())); err == nil && m >= 0 {
 		e.margin = m
 	}

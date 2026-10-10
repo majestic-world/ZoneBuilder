@@ -1,0 +1,12 @@
+{
+  "spawn.home.title": "What will you do?",
+  "spawn.home.zones.title": "Build zones",
+  "spawn.home.zones.phrase": "Draw peace, PvP, water and other zones over the map and compile the server's zone XML.",
+  "spawn.home.populate.title": "Populate zone",
+  "spawn.home.populate.phrase": "Mark spawn areas, spread the monsters over the free ground and compile the spawn XML.",
+  "spawn.areas.title": "Spawn areas",
+  "spawn.areas.empty": "No spawn areas in this project.",
+  "spawn.undo.empty": "Nothing to undo in the spawn areas",
+  "spawn.redo.empty": "Nothing to redo in the spawn areas",
+  "spawn.compile.empty": "No spawn areas to compile"
+}

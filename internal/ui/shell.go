@@ -29,16 +29,25 @@ var logo = func() *icon.Icon {
 }()
 
 // Shell arranges the window: the 3D viewport fills it edge to edge and
-// every control floats over it on cards: the brand mark top left, the tool
-// dock under it, the command bar at the top, the inspector down the right
-// side (map, new zone, zone list, problems, selected zone, editing), the
-// status pill at the bottom with the message card over it, and the height
-// and XML windows.
+// every control floats over it on cards. On the home screen (ModeHome) a
+// veil covers the viewport under the brand mark, the language selector
+// and the 2 mode cards. In a mode: the brand mark top left, the mode's
+// tool dock under it, the command bar at the top, the inspector down the
+// right side (the shared map section, then the mode's panel), the status
+// pill at the bottom with the message card over it, and the floating
+// windows.
 type Shell struct {
 	Theme    *material.Theme
 	// Language controls the presentation of this shell without replacing its widgets.
 	Language locale.Language
+	// Mode picks what Layout shows: the home screen, or the inspector
+	// panel, dock and viewport overlays of one mode. The window loop sets
+	// it; ModeRequested reports the user's picks.
+	Mode     Mode
 	Viewport Viewport
+	// Home holds the home screen's cards and the command bar's Início
+	// button.
+	Home HomeScreen
 	// Client is the client folder (the folder above Maps); Browse opens
 	// the folder picker for it.
 	Client widget.Editor
@@ -49,6 +58,9 @@ type Shell struct {
 	// Neighbours opens the tile with its neighbours, up to 3×3 around the
 	// camera's tile.
 	Neighbours widget.Bool
+	// GoTo holds the x y z the Go button (or Enter) flies the camera to.
+	GoTo widget.Editor
+	Go   widget.Clickable
 	// Loading is the map loading line shown under Open, with Progress (0
 	// to 1) as a bar; "" shows neither.
 	Loading  string
@@ -65,8 +77,11 @@ type Shell struct {
 	Problems ProblemList
 	// Props edits the selected zone's type and parameters.
 	Props PropertiesPanel
-	// Edit holds undo/redo and the shape/vertex editing controls.
+	// Edit holds the shape/vertex editing controls.
 	Edit EditPanel
+	// Undo, Redo and Compile are the command bar's buttons, for the
+	// active mode's history and output.
+	Undo, Redo, Compile widget.Clickable
 	// Height raises, lowers and sizes the selected zone from a window
 	// floating over the viewport.
 	Height HeightPanel
@@ -114,6 +129,8 @@ func NewShell(th *material.Theme, client, tile string) *Shell {
 	s.Tile.SingleLine = true
 	s.Tile.Submit = true
 	s.Tile.SetText(tile)
+	s.GoTo.SingleLine = true
+	s.GoTo.Submit = true
 	s.Zone.init()
 	s.Zones.init()
 	s.Props.init()
@@ -129,6 +146,15 @@ func (s *Shell) OpenRequested(gtx layout.Context) bool {
 	return requested(gtx, &s.Tile, &s.Open)
 }
 
+// GoToRequested reports a click on Go or Enter in the go-to field since
+// the last call, with the field's text.
+func (s *Shell) GoToRequested(gtx layout.Context) (string, bool) {
+	if submitted(gtx, &s.GoTo) || s.Go.Clicked(gtx) {
+		return s.GoTo.Text(), true
+	}
+	return "", false
+}
+
 // LanguageRequested reports a new choice from the always-visible selector.
 func (s *Shell) LanguageRequested(gtx layout.Context) (locale.Language, bool) {
 	for i, lang := range [...]locale.Language{locale.PtBR, locale.En} {
@@ -141,22 +167,36 @@ func (s *Shell) LanguageRequested(gtx layout.Context) (locale.Language, bool) {
 
 // Layout lays the window out and returns the viewport rectangle in window
 // pixels (origin top-left): all of it, as the cards float over the scene.
-// Nothing is painted under the viewport but the cards, so the 3D content
-// drawn before Gio's frame shows through and around them.
+// Nothing is painted under the viewport but the cards (and, on the home
+// screen, the veil), so the 3D content drawn before Gio's frame shows
+// through and around them.
 func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	gtx.Constraints.Min = gtx.Constraints.Max
 	area := gtx.Constraints.Max
 	s.Viewport.Layout(gtx)
-	// The arrow only paints; every card takes the pointer input over its
-	// bounds, so the viewport gets what lands between them.
-	s.Arrow.Layout(gtx)
-	s.edgeLabels(gtx)
-	s.pinLabels(gtx)
-
 	m := gtx.Dp(floatMargin)
+	if s.Mode == ModeHome {
+		s.homeVeil(gtx)
+		brand := at(gtx, image.Pt(m, m), s.brand)
+		at(gtx, image.Pt(m, m+brand.Y+gtx.Dp(8)), s.languageSelector)
+		s.homeCards(gtx)
+		return image.Rectangle{Max: s.Viewport.Size()}
+	}
+	zones := s.Mode == ModeZones
+	if zones {
+		// The arrow only paints; every card takes the pointer input over
+		// its bounds, so the viewport gets what lands between them.
+		s.Arrow.Layout(gtx)
+		s.edgeLabels(gtx)
+		s.pinLabels(gtx)
+	}
+
 	brand := at(gtx, image.Pt(m, m), s.brand)
 	language := at(gtx, image.Pt(m, m+brand.Y+gtx.Dp(8)), s.languageSelector)
-	dock := at(gtx, image.Pt(m, m+brand.Y+gtx.Dp(8)+language.Y+gtx.Dp(12)), s.dock)
+	var dock image.Point
+	if zones {
+		dock = at(gtx, image.Pt(m, m+brand.Y+gtx.Dp(8)+language.Y+gtx.Dp(12)), s.dock)
+	}
 
 	iw := gtx.Dp(InspectorWidth)
 	ix := area.X - m - iw
@@ -182,10 +222,14 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 		place(gtx, image.Pt(max(left, (ix-msg.X)/2), statusAt.Y-gtx.Dp(10)-msg.Y), call)
 	}
 
-	s.heightWindow(gtx)
+	if zones {
+		s.heightWindow(gtx)
+	}
 	s.xmlWindow(gtx)
 	s.projectMenu(gtx)
-	s.waterMenu(gtx)
+	if zones {
+		s.waterMenu(gtx)
+	}
 	return image.Rectangle{Max: s.Viewport.Size()}
 }
 
@@ -239,11 +283,16 @@ func (s *Shell) inspectorCard(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints = layout.Exact(size)
 		var children []layout.FlexChild
 		children = append(children, s.mapSection()...)
-		children = append(children, s.zonePanel()...)
-		children = append(children, s.zoneList()...)
-		children = append(children, s.problemList()...)
-		children = append(children, s.selectedZone()...)
-		children = append(children, s.editPanel()...)
+		switch s.Mode {
+		case ModeZones:
+			children = append(children, s.zonePanel()...)
+			children = append(children, s.zoneList()...)
+			children = append(children, s.problemList()...)
+			children = append(children, s.selectedZone()...)
+			children = append(children, s.editPanel()...)
+		case ModePopulate:
+			children = append(children, s.areaPanel()...)
+		}
 		// One list item holding the whole column: the card scrolls when
 		// the window is too short for it.
 		s.scrollList(&s.list).Layout(gtx, 1, func(gtx layout.Context, _ int) layout.Dimensions {
@@ -258,7 +307,6 @@ func (s *Shell) inspectorCard(gtx layout.Context) layout.Dimensions {
 // mapSection is the inspector's first section: the client folder, the
 // tile to open, the recent maps, the go-to field and the load warnings.
 func (s *Shell) mapSection() []layout.FlexChild {
-	l := &s.Zones
 	children := []layout.FlexChild{
 		layout.Rigid(s.section(true, icon.Map, locale.Text(s.Language, "ui.map.title"), s.Tiles)),
 		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.map.client"))),
@@ -271,7 +319,7 @@ func (s *Shell) mapSection() []layout.FlexChild {
 	children = append(children, s.recentMaps()...)
 	children = append(children,
 		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.map.go_to"))),
-		layout.Rigid(s.fieldButton(&l.GoTo, "83400 147943 -3400", icon.Crosshair, s.button(&l.Go, secondaryButton, icon.Navigation, ""))),
+		layout.Rigid(s.fieldButton(&s.GoTo, "83400 147943 -3400", icon.Crosshair, s.button(&s.Go, secondaryButton, icon.Navigation, ""))),
 	)
 	for _, w := range s.Warnings {
 		children = append(children, layout.Rigid(s.dimLabel(w)))
@@ -320,10 +368,14 @@ func (s *Shell) statusPill(gtx layout.Context) layout.Dimensions {
 	})
 }
 
-// messageCard is the last outcome and the armed tool's hints, over the
-// status pill; nothing when there are neither.
+// messageCard is the last outcome and, in the zone mode, the armed tool's
+// hints, over the status pill; nothing when there are neither.
 func (s *Shell) messageCard(gtx layout.Context) layout.Dimensions {
-	if s.Message == "" && len(s.Zone.Info) == 0 {
+	var hints []string
+	if s.Mode == ModeZones {
+		hints = s.Zone.Info
+	}
+	if s.Message == "" && len(hints) == 0 {
 		return layout.Dimensions{}
 	}
 	gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(560))
@@ -343,7 +395,7 @@ func (s *Shell) messageCard(gtx layout.Context) layout.Dimensions {
 	if s.Message != "" {
 		children = append(children, line(icon.Info, s.text(s.Message, smallSize, font.Normal, textColor, 3)))
 	}
-	for i, h := range s.Zone.Info {
+	for i, h := range hints {
 		if i > 0 || s.Message != "" {
 			children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(6)}.Layout))
 		}
