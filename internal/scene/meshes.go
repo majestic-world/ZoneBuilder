@@ -26,6 +26,10 @@ type MeshActor struct {
 	Sections []MeshActorSection
 	// Bounds is the world AABB of the kept sections' vertices.
 	Bounds geom.Box
+	// Collision is the actor's effective collision: its own flags over its
+	// class defaults (all false when the class defaults are unreadable,
+	// as UE2-Studio does).
+	Collision unreal.Collision
 }
 
 // Triangles is how many triangles the actor draws (0 when hidden).
@@ -76,6 +80,7 @@ func (s *Scene) addMeshes(ld *loader, m *l2pkg.Package, t Tile, footprint *geom.
 		}
 	}
 	missing := map[string]int{}
+	noDefaults := map[string]int{}
 	for _, class := range unreal.MeshActorClasses {
 		for i := range m.Exports {
 			if !placed[i] || m.Exports[i].ClassName != class {
@@ -101,6 +106,15 @@ func (s *Scene) addMeshes(ld *loader, m *l2pkg.Package, t Tile, footprint *geom.
 				Export: i, Name: m.Exports[i].ObjectName, Class: class,
 				Actor: *a, Hidden: a.Hidden || a.DeleteMe, Bounds: geom.EmptyBox(),
 			}
+			var def unreal.Collision
+			pkg, cls, err := unreal.ActorClass(m, i)
+			if err == nil {
+				def, err = ld.defaults.Collision(pkg, cls)
+			}
+			if err != nil {
+				noDefaults[class+": "+err.Error()]++
+			}
+			ma.Collision = a.Collision.Over(def)
 			kept, err := s.placeMesh(ld, &ma, m, owner, mesh, footprint)
 			if err != nil {
 				return fmt.Errorf("%s %s: %w", class, m.Exports[i].ObjectName, err)
@@ -109,6 +123,9 @@ func (s *Scene) addMeshes(ld *loader, m *l2pkg.Package, t Tile, footprint *geom.
 				s.Actors = append(s.Actors, ma)
 			}
 		}
+	}
+	for r, n := range noDefaults {
+		s.Warnings = append(s.Warnings, fmt.Sprintf("%s: padrão de colisão ilegível (%s): %s sem colisão", t.Name(), r, inflect.Count(n, "ator", "atores")))
 	}
 	reasons := make([]string, 0, len(missing))
 	for r := range missing {
@@ -201,7 +218,7 @@ func (s *Scene) placeMesh(ld *loader, ma *MeshActor, m, owner *l2pkg.Package, me
 				b.Indices = append(b.Indices, uint32(remap[v]))
 			}
 			b.Bounds.Union(box)
-			s.addPickable(triangleSet{Surface: SurfaceMesh, Batch: kept.Batch, First: kept.First, Count: kept.Count, Bounds: box, Mirrored: xf.Scale.X*xf.Scale.Y*xf.Scale.Z < 0})
+			s.addPickable(triangleSet{Surface: SurfaceMesh, Batch: kept.Batch, First: kept.First, Count: kept.Count, Bounds: box, Mirrored: xf.Scale.X*xf.Scale.Y*xf.Scale.Z < 0, Blocks: ma.Collision.Blocks()})
 		}
 		ma.Sections = append(ma.Sections, kept)
 	}

@@ -37,6 +37,9 @@ type Actor struct {
 	// Hidden and DeleteMe are bHidden and bDeleteMe: the client does not
 	// draw such an actor.
 	Hidden, DeleteMe bool
+	// Collision is the collision flags the actor's own properties carry;
+	// the rest come from its class (ClassDefaults).
+	Collision CollisionSettings
 }
 
 // ReadActor decodes the properties of export i (0-based) of p as an Actor.
@@ -75,6 +78,7 @@ func ReadActor(p *l2pkg.Package, i int) (*Actor, error) {
 	}
 	a.Hidden = props.Bool("bHidden")
 	a.DeleteMe = props.Bool("bDeleteMe")
+	a.Collision = readCollision(props)
 	return a, nil
 }
 

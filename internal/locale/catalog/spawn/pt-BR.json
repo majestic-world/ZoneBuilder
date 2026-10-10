@@ -8,5 +8,12 @@
   "spawn.areas.empty": "Nenhuma área de spawn neste projeto.",
   "spawn.undo.empty": "Nada para desfazer nas áreas de spawn",
   "spawn.redo.empty": "Nada para refazer nas áreas de spawn",
-  "spawn.compile.empty": "Nenhuma área de spawn para compilar"
+  "spawn.compile.empty": "Nenhuma área de spawn para compilar",
+  "spawn.play.button": "Jogar",
+  "spawn.play.no_map": "Abra um mapa para jogar",
+  "spawn.play.preparing": "Preparando as colisões do mapa…",
+  "spawn.play.no_human": "Personagem indisponível",
+  "spawn.play.stopped": "De volta à câmera de edição",
+  "spawn.play.hud.third": "WASD anda · Shift corre · Espaço pula · F voa · V primeira pessoa · arraste para olhar · Esc sai",
+  "spawn.play.hud.first": "WASD anda · Shift corre · Espaço pula · F voa · V terceira pessoa · arraste para olhar · Esc sai"
 }

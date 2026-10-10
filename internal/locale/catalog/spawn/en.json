@@ -8,5 +8,12 @@
   "spawn.areas.empty": "No spawn areas in this project.",
   "spawn.undo.empty": "Nothing to undo in the spawn areas",
   "spawn.redo.empty": "Nothing to redo in the spawn areas",
-  "spawn.compile.empty": "No spawn areas to compile"
+  "spawn.compile.empty": "No spawn areas to compile",
+  "spawn.play.button": "Play",
+  "spawn.play.no_map": "Open a map to play",
+  "spawn.play.preparing": "Preparing map collisions…",
+  "spawn.play.no_human": "Character unavailable",
+  "spawn.play.stopped": "Back to the edit camera",
+  "spawn.play.hud.third": "WASD walk · Shift run · Space jump · F fly · V first person · drag to look · Esc exit",
+  "spawn.play.hud.first": "WASD walk · Shift run · Space jump · F fly · V third person · drag to look · Esc exit"
 }

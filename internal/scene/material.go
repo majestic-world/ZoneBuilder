@@ -18,6 +18,8 @@ type loader struct {
 	materials map[materialKey]material
 	meshes    map[objectKey]*unreal.StaticMesh
 	batches   map[batchKey]int
+	// defaults are the script classes' collision defaults.
+	defaults *unreal.ClassDefaults
 }
 
 // objectKey names one export: its owning package and 0-based index.
@@ -58,6 +60,7 @@ func newLoader(c *l2pkg.Client) *loader {
 		materials: make(map[materialKey]material),
 		meshes:    make(map[objectKey]*unreal.StaticMesh),
 		batches:   make(map[batchKey]int),
+		defaults:  unreal.NewClassDefaults(c),
 	}
 }
 

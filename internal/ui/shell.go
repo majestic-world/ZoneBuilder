@@ -82,6 +82,8 @@ type Shell struct {
 	// Undo, Redo and Compile are the command bar's buttons, for the
 	// active mode's history and output.
 	Undo, Redo, Compile widget.Clickable
+	// Play starts the game mode, from either editing mode.
+	Play widget.Clickable
 	// Height raises, lowers and sizes the selected zone from a window
 	// floating over the viewport.
 	Height HeightPanel
@@ -118,6 +120,7 @@ type Shell struct {
 	languageButtons [2]widget.Clickable
 	brandSink, dockSink, barSink, inspector pointerSink
 	languageSink, statusSink, messageSink pointerSink
+	playSink                              pointerSink
 }
 
 // NewShell returns a shell with single-line fields holding client and
@@ -221,6 +224,7 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	if call, msg := measure(gtx, s.messageCard); msg.Y > 0 {
 		place(gtx, image.Pt(max(left, (ix-msg.X)/2), statusAt.Y-gtx.Dp(10)-msg.Y), call)
 	}
+	s.playButton(gtx, ix, statusAt.Y)
 
 	if zones {
 		s.heightWindow(gtx)
