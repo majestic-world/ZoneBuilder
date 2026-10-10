@@ -14,6 +14,7 @@
   "spawn.redo.done": "Área de spawn: refeito",
   "spawn.compile.empty": "Nenhuma área de spawn para compilar",
   "spawn.play.button": "Jogar",
+  "spawn.play.exit_button": "Sair",
   "spawn.play.no_map": "Abra um mapa para jogar",
   "spawn.play.preparing": "Preparando as colisões do mapa…",
   "spawn.play.no_human": "Personagem indisponível",

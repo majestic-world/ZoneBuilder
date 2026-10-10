@@ -190,7 +190,7 @@ O botão **Jogar** fica no canto inferior direito do viewport, nos 2 modos. Ele 
 | F | voar ou parar de voar; no voo, E e Q sobem e descem, sem colisão |
 | V | primeira ou terceira pessoa |
 | arrastar | olhar em volta |
-| Esc | sair e voltar à câmera de edição de antes |
+| Esc, ou o botão **Sair** (o **Jogar** durante o jogo) | sair e voltar à câmera de edição de antes |
 
 No modo zonas, o contorno das zonas continua desenhado; no modo população, os monstros da prévia aparecem e não têm colisão. O modo ativo não recebe nenhuma entrada desde a preparação até o fim do jogo: o inspetor, as propriedades, as ferramentas e a janela de altura ficam desabilitados, e a seleção, os documentos e o histórico de desfazer ficam como estavam. Digitação, colagem e submissões tardias também são descartadas antes de chegar aos editores: o texto dos campos não muda durante o jogo, nem fica pendente para executar depois de Esc. Idioma, visualização de meshes, grade e abertura de mapa continuam disponíveis.
 

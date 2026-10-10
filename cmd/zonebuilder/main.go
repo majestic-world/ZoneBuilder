@@ -295,10 +295,14 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 					m.compile(ws)
 				}
 			}
-			if shell.Play.Clicked(gtx) && !game.active() && modes.active != ui.ModeHome {
-				ws.status = action(game.start(ws))
-				fly = ui.FlyControls{}
-				focusViewport(gtx, ws)
+			if shell.Play.Clicked(gtx) {
+				if game.active() {
+					game.stop(ws)
+				} else if modes.active != ui.ModeHome {
+					ws.status = action(game.start(ws))
+					fly = ui.FlyControls{}
+					focusViewport(gtx, ws)
+				}
 			}
 			shell.EditorLocked = frozen || game.active()
 			if shell.EditorLocked {
@@ -415,6 +419,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			shell.Tiles, shell.Warnings = loadedTiles(ws.tiles, shell.Language)
 
 			shell.Mode = modes.active
+			shell.Playing = game.active()
 			shell.Message = ws.status.render(shell.Language)
 			if game.active() {
 				shell.Message = game.message(shell.Language)

@@ -14,6 +14,7 @@
   "spawn.redo.done": "Spawn area: redone",
   "spawn.compile.empty": "No spawn areas to compile",
   "spawn.play.button": "Play",
+  "spawn.play.exit_button": "Exit",
   "spawn.play.no_map": "Open a map to play",
   "spawn.play.preparing": "Preparing map collisions…",
   "spawn.play.no_human": "Character unavailable",
