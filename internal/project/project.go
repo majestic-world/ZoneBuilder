@@ -2,9 +2,10 @@
 // extension Ext) and the user config kept apart from it.
 //
 // A project holds the work of a session: the client folder, the XML output
-// folder, the open map tiles and the zone Document, incomplete zones
-// included. The user config (config.go) holds what the app pre-fills on
-// start: the last client and output folders and the recent maps.
+// folder, the open map tiles, the zone Document and the spawn Document,
+// incomplete zones and areas included. The user config (config.go) holds
+// what the app pre-fills on start: the last client and output folders and
+// the recent maps.
 package project
 
 import (
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"zonebuilder/internal/spawn"
 	"zonebuilder/internal/zone"
 )
 
@@ -20,8 +22,8 @@ import (
 const Ext = ".zbproj"
 
 // Version is the project file format the app writes; Load refuses newer
-// ones.
-const Version = 1
+// ones. Version 2 added Spawns; a version 1 file opens with no spawn area.
+const Version = 2
 
 // Project is one project file.
 type Project struct {
@@ -32,6 +34,8 @@ type Project struct {
 	Tiles []string
 	// Document holds the zones.
 	Document *zone.Document
+	// Spawns holds the spawn areas.
+	Spawns *spawn.Document
 }
 
 // file is the JSON object a project file holds.
@@ -45,6 +49,9 @@ type file struct {
 func Save(path string, p Project) error {
 	if p.Document == nil {
 		p.Document = zone.NewDocument()
+	}
+	if p.Spawns == nil {
+		p.Spawns = spawn.NewDocument()
 	}
 	data, err := json.MarshalIndent(file{Version: Version, Project: p}, "", "\t")
 	if err != nil {
@@ -87,6 +94,9 @@ func Load(path string) (Project, error) {
 	}
 	if f.Document == nil {
 		f.Document = zone.NewDocument()
+	}
+	if f.Spawns == nil {
+		f.Spawns = spawn.NewDocument()
 	}
 	return f.Project, nil
 }
