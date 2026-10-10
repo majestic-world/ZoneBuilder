@@ -44,8 +44,8 @@ type ZoneShape struct {
 }
 
 // groundLift raises the ground line along the walls this many units over
-// the floor it follows, so its visible pass wins the depth test against
-// the very triangles it lies on instead of flickering to dashed.
+// the floor it follows, so it wins the depth test against the very
+// triangles it lies on instead of flickering away.
 const groundLift = 2
 
 // problemColor is the edge and handle colour that flags a problem.
@@ -67,45 +67,34 @@ const (
 )
 
 // overlayVertex is one overlay vertex: an absolute client-space position,
-// a linear RGBA colour, for points the size in pixels, for lines the
-// line's first end (the same on both vertices), where its dashes start,
-// and for walls the shape's floor Z (client space), where its rings start.
+// a linear RGBA colour, for points the size in pixels, and for walls the
+// shape's floor Z (client space), where its rings start.
 type overlayVertex struct {
-	Pos    [3]float32
-	Color  [4]float32
-	Size   float32
-	Anchor [3]float32
-	Base   float32
+	Pos   [3]float32
+	Color [4]float32
+	Size  float32
+	Base  float32
 }
 
 // segment is the line from a to b in colour c.
 func segment(a, b [3]float32, c [4]float32) [2]overlayVertex {
-	return [2]overlayVertex{{Pos: a, Color: c, Anchor: a}, {Pos: b, Color: c, Anchor: a}}
+	return [2]overlayVertex{{Pos: a, Color: c}, {Pos: b, Color: c}}
 }
 
-// Overlay draw modes, the uMode uniform: plain colour, wall rings in front
-// of the scene and behind it (fainter), and buried lines (dashed along the
-// line on screen).
+// Overlay draw modes, the uMode uniform: plain colour and wall rings.
 const (
 	modeVisible = iota
 	modeWall
-	modeBuriedWall
-	modeBuriedLine
 )
 
 const overlayVert = `#version 300 es
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec4 aColor;
 layout(location = 2) in float aSize;
-layout(location = 3) in vec3 aAnchor;
-layout(location = 4) in float aBase;
+layout(location = 3) in float aBase;
 uniform highp vec3 uOrigin;
 uniform highp mat4 uViewProj;
 out vec4 vColor;
-// vAnchor is the clip position of the line's first end, equal on both
-// vertices so it reaches the fragment unchanged (no flat varying: ANGLE's
-// D3D11 backend drops lines that use one).
-out highp vec4 vAnchor;
 // vRise is the height over the shape's floor, where the wall rings count
 // from; client and server Z differ by a constant, so the rings fall on the
 // same server heights.
@@ -114,7 +103,6 @@ void main() {
 	vColor = aColor;
 	gl_PointSize = aSize;
 	gl_Position = uViewProj * vec4(aPos - uOrigin, 1.0);
-	vAnchor = uViewProj * vec4(aAnchor - uOrigin, 1.0);
 	vRise = aPos.z - aBase;
 }
 `
@@ -122,9 +110,7 @@ void main() {
 var overlayFrag = `#version 300 es
 precision mediump float;
 uniform int uMode;
-uniform highp vec2 uViewport;
 in vec4 vColor;
-in highp vec4 vAnchor;
 in highp float vRise;
 out vec4 oColor;
 
@@ -149,24 +135,10 @@ float rings() {
 
 void main() {
 	vec4 c = vColor;
-	if (uMode == ` + itoa(modeWall) + ` || uMode == ` + itoa(modeBuriedWall) + `) {
+	if (uMode == ` + itoa(modeWall) + `) {
 		float r = rings();
 		if (r <= 0.0) discard;
 		c.a *= r;
-		if (uMode == ` + itoa(modeBuriedWall) + `) {
-			c.a *= 0.35; // the rings behind the scene keep 35% of wallAlpha
-		}
-	} else if (uMode == ` + itoa(modeBuriedLine) + `) {
-		// Dashes 8 px on, 6 px off, measured on screen from the line's
-		// first end; a first end behind the camera falls back to a fixed
-		// diagonal pattern.
-		highp float d = gl_FragCoord.x + gl_FragCoord.y;
-		if (vAnchor.w > 0.0) {
-			highp vec2 a = (vAnchor.xy / vAnchor.w * 0.5 + 0.5) * uViewport;
-			d = distance(gl_FragCoord.xy, a);
-		}
-		if (mod(d, 14.0) >= 8.0) discard;
-		c.a *= 0.85;
 	}
 	oColor = c;
 }
@@ -174,20 +146,19 @@ void main() {
 
 // zoneOverlay draws zone shapes over the scene as hollow prisms: rings
 // along the walls, outlines and vertical edges, no fill. Walls and lines
-// draw in 2 passes: where they are in front of the scene, plain; where the
-// scene hides them, rings faint and lines dashed. Vertex handles go on top
-// of everything.
+// draw only where they are in front of the scene: the part under the
+// ground, or above it seen from below, stays hidden. Vertex handles go on
+// top of everything.
 type zoneOverlay struct {
 	prog     uint32
 	viewProj int32
 	origin   int32
 	mode     int32
-	viewport int32
 	vao, vbo uint32
-	// verts holds the wall triangle run, then the line run, then the
-	// ground line run, then the points.
-	verts               []overlayVertex
-	tris, lines, ground int
+	// verts holds the wall triangle run, then the line run (edges, then
+	// the ground line along the walls), then the points.
+	verts       []overlayVertex
+	tris, lines int
 	dirty       bool
 }
 
@@ -201,7 +172,6 @@ func newZoneOverlay() (*zoneOverlay, error) {
 		viewProj: gles.GetUniformLocation(p, "uViewProj"),
 		origin:   gles.GetUniformLocation(p, "uOrigin"),
 		mode:     gles.GetUniformLocation(p, "uMode"),
-		viewport: gles.GetUniformLocation(p, "uViewport"),
 		vao:      gles.GenVertexArray(),
 		vbo:      gles.GenBuffer(),
 	}
@@ -215,9 +185,7 @@ func newZoneOverlay() (*zoneOverlay, error) {
 	gles.EnableVertexAttribArray(2)
 	gles.VertexAttribPointer(2, 1, gles.FLOAT, false, stride, unsafe.Offsetof(overlayVertex{}.Size))
 	gles.EnableVertexAttribArray(3)
-	gles.VertexAttribPointer(3, 3, gles.FLOAT, false, stride, unsafe.Offsetof(overlayVertex{}.Anchor))
-	gles.EnableVertexAttribArray(4)
-	gles.VertexAttribPointer(4, 1, gles.FLOAT, false, stride, unsafe.Offsetof(overlayVertex{}.Base))
+	gles.VertexAttribPointer(3, 1, gles.FLOAT, false, stride, unsafe.Offsetof(overlayVertex{}.Base))
 	gles.BindVertexArray(0)
 	gles.BindBuffer(gles.ARRAY_BUFFER, 0)
 	return o, nil
@@ -301,15 +269,15 @@ func (o *zoneOverlay) set(shapes []ZoneShape) {
 		}
 	}
 	o.verts = append(append(append(append(o.verts[:0], tris...), lines...), ground...), points...)
-	o.tris, o.lines, o.ground = len(tris), len(lines), len(ground)
+	o.tris, o.lines = len(tris), len(lines)+len(ground)
 	o.dirty = true
 }
 
-// draw renders the overlay into the bound viewport target of size w×h,
-// whose depth buffer holds the scene (reversed Z, so LESS is behind the
-// scene). It leaves blending off, depth writes on and the depth test
-// GREATER, as the scene pass expects.
-func (o *zoneOverlay) draw(viewProj mat4, origin [3]float32, w, h int) {
+// draw renders the overlay into the bound viewport target, whose depth
+// buffer holds the scene (reversed Z, so GEQUAL is in front of it). It
+// leaves blending off, depth writes on and the depth test GREATER, as the
+// scene pass expects.
+func (o *zoneOverlay) draw(viewProj mat4, origin [3]float32) {
 	if len(o.verts) == 0 {
 		return
 	}
@@ -323,25 +291,18 @@ func (o *zoneOverlay) draw(viewProj mat4, origin [3]float32, w, h int) {
 	gles.UseProgram(o.prog)
 	gles.UniformMatrix4fv(o.viewProj, (*[16]float32)(&viewProj))
 	gles.Uniform3f(o.origin, origin[0], origin[1], origin[2])
-	gles.Uniform2f(o.viewport, float32(w), float32(h))
 	gles.Enable(gles.BLEND)
 	gles.BlendFunc(gles.SRC_ALPHA, gles.ONE_MINUS_SRC_ALPHA)
 	gles.DepthMask(false)
 
-	// Walls: rings in front of the scene, faint rings behind it.
+	// Walls and lines only in front of the scene.
 	o.pass(gles.TRIANGLES, 0, o.tris, gles.GEQUAL, modeWall)
-	o.pass(gles.TRIANGLES, 0, o.tris, gles.LESS, modeBuriedWall)
-	// Lines: solid in front of the scene, dashed behind it; the ground
-	// line along the walls the same way.
 	o.pass(gles.LINES, o.tris, o.lines, gles.GEQUAL, modeVisible)
-	o.pass(gles.LINES, o.tris, o.lines, gles.LESS, modeBuriedLine)
-	o.pass(gles.LINES, o.tris+o.lines, o.ground, gles.GEQUAL, modeVisible)
-	o.pass(gles.LINES, o.tris+o.lines, o.ground, gles.LESS, modeBuriedLine)
 
 	// Handles: over everything.
 	gles.Disable(gles.DEPTH_TEST)
 	gles.Uniform1i(o.mode, modeVisible)
-	run := o.tris + o.lines + o.ground
+	run := o.tris + o.lines
 	gles.DrawArrays(gles.POINTS, run, len(o.verts)-run)
 
 	gles.Enable(gles.DEPTH_TEST)

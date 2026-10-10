@@ -214,7 +214,7 @@ func (r *Renderer) DrawViewport(rect image.Rectangle, window image.Point, cam *c
 		r.modelPass.draw(viewProj, r.scene.rebase, r.queue, &r.scene.stats)
 	})
 	r.queue = r.queue[:0]
-	r.zones.draw(viewProj, [3]float32{r.scene.rebase.X, r.scene.rebase.Y, r.scene.rebase.Z}, size.X, size.Y)
+	r.zones.draw(viewProj, [3]float32{r.scene.rebase.X, r.scene.rebase.Y, r.scene.rebase.Z})
 
 	gles.Disable(gles.DEPTH_TEST)
 	gles.ClipControlEXT(gles.LOWER_LEFT_EXT, gles.NEGATIVE_ONE_TO_ONE_EXT)
