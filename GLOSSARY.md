@@ -59,3 +59,38 @@ _Evite_: superfície, nível da água.
 
 **Exata / aproximada**:
 Exata: paredes verticais e topo e fundo horizontais, então o prisma do servidor é o próprio volume. Aproximada: parede ou topo inclinado, e o prisma cobre o volume com sobra; a compilação avisa.
+
+## População
+
+**Área de spawn**:
+Polígono `x y` do modo população, com faixa Z, id do NPC, quantidade, respawn, `respawn_rand`, raio, afastamento, semente e pontos. Não é uma zona: não tem tipo nem exclusões (o servidor não suporta exclusão em spawn) e compila para o XML de spawn, não para o de zona. No código, `spawn.Area`.
+_Evite_: zona de spawn, território.
+
+**Ponto de spawn**:
+Um monstro da área: `x y z heading` em coordenadas do servidor, com heading em 1..65535. Vira 1 `<spawn>` com 1 `<npc count="1" pos="x y z h">` (ADR 0007). Gerado pela distribuição ou movido, apagado e adicionado à mão.
+_Evite_: pino (é o desenho do ponto no viewport).
+
+**Raio**:
+Raio de colisão do monstro. Afasta os pontos da borda da área e um ponto do outro (no mínimo 2 × raio). O padrão é 9, o raio medido na mesh do monstro de prévia (8,75) arredondado.
+
+**Afastamento**:
+Distância a mais, além do raio, que o ponto guarda das static meshes e das paredes. O padrão é 32.
+_Evite_: folga (é a do piso e do topo), margem (é a dos ajustes de faixa).
+
+**Célula livre**:
+Célula de 16 unidades com o centro dentro da área e a pelo menos 1 raio da borda, com chão de terreno ou BSP (`n.z ≥ 0,65`) dentro da faixa Z, fora d'água e sem mesh nem parede a até raio + afastamento na fatia da altura do monstro. Todas as meshes contam, mesmo com o botão Static meshes desligado.
+
+**Semente**:
+Número que determina o sorteio dos pontos e dos headings. A mesma semente, com as mesmas entradas, dá os mesmos pontos. **Gerar** usa a semente da área; **Regerar** troca a semente e descarta os ajustes manuais (1 passo de desfazer).
+
+**Pontos desatualizados**:
+O contorno, a faixa Z, a quantidade, o raio, o afastamento ou a semente mudaram depois da última geração. Bloqueia a compilação até gerar de novo. Nome, NPC, respawn e ajustes manuais dos pontos não desatualizam.
+_Evite_: pontos velhos, sujos.
+
+**Monstro de prévia**:
+O modelo embutido que a prévia desenha em todo ponto, seja qual for o id: o `death_knight_wizard_m00`, na animação `Wait`, virado pelo heading. Tem 66 de altura.
+_Evite_: modelo do NPC (o app não sabe qual é).
+
+**Modo jogo**:
+O port do Play Map do UE2-Studio, aberto pelo botão **Jogar** nos 2 modos: o humano embutido numa cápsula com gravidade e colisão, em terceira ou primeira pessoa. Não é um terceiro modo: fica na frente do modo ativo, que não recebe entrada, e Esc volta à câmera de edição.
+_Evite_: modo de teste, play.
