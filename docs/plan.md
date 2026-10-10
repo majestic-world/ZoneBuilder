@@ -2,6 +2,8 @@
 
 App desktop em Go + Gio para demarcar zonas do servidor Lineage 2 diretamente sobre o mapa do cliente (`.unr`) renderizado em 3D e compilar as demarcações para o XML que o servidor Java espera. O app só abre `.unr` e gera XML: não lê o datapack nem altera o servidor Java.
 
+O segundo modo de uso, **Popular zona** (assistente de spawn de monstros para zonas de farm), tem plano próprio em [plan-populacao.md](plan-populacao.md).
+
 O problema que resolve: hoje as zonas são gravadas andando com o personagem (`//zone_panel` em `AdminZoneBuilder.java`), o que não alcança todos os cantos, sempre emite `peace_zone`, grava um Z por ponto e despeja o XML no console do servidor. No Zone Builder, cada ponto vem de um clique no viewport (ray cast contra terreno, BSP e static meshes), em qualquer lugar do mapa.
 
 ## Fontes de verdade
@@ -188,10 +190,10 @@ Blowfish (211/212) e RSA + zlib (411-414), a partir das referências públicas d
 - Editar ou salvar `.unr` e qualquer escrita em pacote.
 - Gerar geodata.
 - Reload de zonas no servidor em runtime.
-- Iluminação (lightmaps, vertex colors), skeletal meshes, emitters e sons: o modo Textured do UE2-Studio também não usa iluminação.
+- Iluminação (lightmaps, vertex colors), emitters e sons: o modo Textured do UE2-Studio também não usa iluminação. Skeletal meshes só entram como modelo embutido do módulo Popular zona ([plan-populacao.md](plan-populacao.md)).
 - Ler, mostrar, importar ou editar zonas que já existem no datapack. O datapack só serviu de referência para entender o formato.
 - Qualquer mudança no servidor Java, inclusive no `//zone_panel` e no bug do `Circle.isInside`.
-- `domains.xml`, `restart_points.xml` e territórios de spawn (`<mesh><vertex .../>`). O modelo de shape serve para eles depois, mas os formatos de saída são outros.
+- `domains.xml` e `restart_points.xml`. O XML de spawn é do módulo Popular zona ([plan-populacao.md](plan-populacao.md)).
 
 ## Testes
 
