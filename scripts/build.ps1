@@ -33,19 +33,8 @@ foreach ($dll in $dlls) {
     }
 }
 
-$envFile = Join-Path $root '.env'
-if (-not (Test-Path $envFile)) {
-    throw ".env not found in $root (it must set APP_VERSION)"
-}
-$version = $null
-foreach ($line in Get-Content $envFile) {
-    if ($line -match '^\s*APP_VERSION\s*=\s*"?([^"#\s]+)"?\s*(#.*)?$') {
-        $version = $Matches[1]
-    }
-}
-if (-not $version) {
-    throw "APP_VERSION not set in $envFile"
-}
+. (Join-Path $PSScriptRoot 'appversion.ps1')
+$version = Get-AppVersion $root
 
 New-Item -ItemType Directory -Force -Path $bin | Out-Null
 $env:CGO_ENABLED = '0'
