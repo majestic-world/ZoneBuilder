@@ -86,12 +86,37 @@ type spawnEditor struct {
 	problems     []spawn.Problem
 	problemsAt   int
 	problemsLang locale.Language
+	// win is woken when a generation comes back on results; generating
+	// is the area one runs for, 0 when none (spawnpoints.go).
+	win        *app.Window
+	results    chan generation
+	generating spawn.AreaID
+	// free is the free floor each generation measured, by the
+	// fingerprint of the inputs it read: the inspector shows the one of
+	// the selected area's points.
+	free map[spawn.Fingerprint]float64
+	// point is the selected point, of the current area only (none when
+	// its area is 0 or another); pointDrag is a press on a point being
+	// dragged.
+	point     areaPoint
+	pointDrag pointDrag
+	// adding is set while viewport clicks add points to the current area.
+	adding bool
+	// pointsInfo is the panel's points section, built for pointsKey.
+	pointsInfo pointsInfo
+	pointsKey  pointsKey
 }
 
 // areaVertex is one outline vertex of one area, as known keys it.
 type areaVertex struct {
 	area spawn.AreaID
 	v    spawn.Vertex
+}
+
+// areaPoint is point index of area.
+type areaPoint struct {
+	area  spawn.AreaID
+	index int
 }
 
 // spawnHeightKey is the area and version the height fields were last
@@ -111,6 +136,9 @@ func newSpawnEditor(w *app.Window, radius int) *spawnEditor {
 		known:        map[areaVertex]int{},
 		step:         ui.DefaultZStep,
 		heightFilled: spawnHeightKey{version: -1},
+		win:          w,
+		results:      make(chan generation, 1),
+		free:         map[spawn.Fingerprint]float64{},
 	}
 }
 
@@ -145,11 +173,13 @@ func (e *spawnEditor) apply(c spawn.Command) error {
 // replace makes doc the edited document: the areas of an opened project.
 // Tool, selection and drag start over. When an area was left with fewer
 // than 3 vertices, it is selected with the polygon tool armed on it, so
-// the user carries on drawing it.
+// the user carries on drawing it. A generation still running for the old
+// document is dropped when it comes back (receive).
 func (e *spawnEditor) replace(doc *spawn.Document) {
 	*e = spawnEditor{
 		doc: doc, cover: e.cover, radius: e.radius, sel: -1, known: map[areaVertex]int{},
 		step: e.step, version: e.version + 1, edits: e.edits + 1, heightFilled: spawnHeightKey{version: -1},
+		win: e.win, results: e.results, free: e.free,
 	}
 	for _, a := range doc.Areas() {
 		e.area = a.ID
@@ -198,12 +228,12 @@ func (e *spawnEditor) remember(id spawn.AreaID, p zone.Point) {
 }
 
 // arm makes tool take the viewport clicks: each shape tool draws a new
-// area. It returns the status message.
+// area, and stops adding points. It returns the status message.
 func (e *spawnEditor) arm(tool ui.Tool) locale.Message {
 	if e.drawing {
 		return locale.Message{Key: "spawn.tool.finish_first"}
 	}
-	e.tool, e.armed = tool, true
+	e.tool, e.armed, e.adding = tool, true, false
 	e.anchored, e.hovering = false, false
 	e.version++
 	return e.hintMessage()
@@ -228,21 +258,28 @@ func (e *spawnEditor) hintMessage() locale.Message {
 	return locale.Message{Key: "spawn.hint.polygon_first"}
 }
 
-// info is the armed tool's hint, for the message card.
+// info is the armed tool's hint, or adding points', for the message card.
 func (e *spawnEditor) info(lang locale.Language) []string {
-	if !e.armed {
-		return nil
+	switch {
+	case e.armed:
+		return []string{e.hintMessage().Render(lang)}
+	case e.adding:
+		if a, ok := e.current(); ok {
+			return []string{locale.Format(lang, "spawn.hint.add_points", map[string]string{"name": a.Name})}
+		}
 	}
-	return []string{e.hintMessage().Render(lang)}
+	return nil
 }
 
 // escape puts the armed tool down, dropping a rectangle's first corner or
-// a circle's center. An open polygon stays: it is in the document and
-// closes with Enter.
+// a circle's center, or stops adding points. An open polygon stays: it is
+// in the document and closes with Enter.
 func (e *spawnEditor) escape() locale.Message {
 	switch {
 	case e.drawing:
 		return locale.Message{Key: "editor.polygon.open"}
+	case !e.armed && e.adding:
+		return e.setAdding(false)
 	case !e.armed:
 		return locale.Message{}
 	}

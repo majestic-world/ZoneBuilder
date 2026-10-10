@@ -22,6 +22,9 @@ type populateMode struct {
 	// the renderer's overlay was last built for.
 	sent, grid bool
 	shown      int
+	// pressTaken is set when the editor used the last press (a handle
+	// grabbed), so its click adds no point.
+	pressTaken bool
 }
 
 func newPopulateMode(w *app.Window) *populateMode {
@@ -38,13 +41,24 @@ func status(ws *workspace, msg locale.Message) {
 func (p *populateMode) viewportEvent(ws *workspace, ev event.Event) bool {
 	msg, used := p.spawns.viewportEvent(ws.world(), &ws.cam, ev, ws.viewport())
 	status(ws, msg)
+	if e, ok := ev.(pointer.Event); ok && e.Kind == pointer.Press {
+		p.pressTaken = used
+	}
 	return used
 }
 
 func (p *populateMode) click(ws *workspace, e pointer.Event, button pointer.Buttons) {
-	if button == pointer.ButtonPrimary {
-		status(ws, p.spawns.click(ws.world(), &ws.cam, e.Position, ws.viewport(), ws.probe.click, ws.probe.clickHit))
+	if button != pointer.ButtonPrimary {
+		return
 	}
+	spawns := p.spawns
+	if !spawns.armed && spawns.adding {
+		if !p.pressTaken {
+			status(ws, spawns.addPoint(ws.probe.click, ws.probe.clickHit))
+		}
+		return
+	}
+	status(ws, spawns.click(ws.world(), &ws.cam, e.Position, ws.viewport(), ws.probe.click, ws.probe.clickHit))
 }
 
 func (p *populateMode) key(ws *workspace, e key.Event) {
@@ -80,10 +94,14 @@ func (p *populateMode) update(gtx layout.Context, ws *workspace) {
 	}
 }
 
+// present fills the panel, the height window and the message card, and
+// takes back the generations that finished; one running shows in the
+// map section's loading line unless tiles are loading.
 func (p *populateMode) present(gtx layout.Context, ws *workspace) {
 	shell, spawns, w, lang := ws.shell, p.spawns, ws.world(), ws.shell.Language
 	panel := &shell.Spawn
 	spawns.cover.receive(spawns)
+	status(ws, spawns.receive())
 	status(ws, spawns.heightPanel(gtx, &shell.Height, w, lang))
 	if spawns.anchored && w != nil && ws.probe.inside {
 		h, ok := pickAt(w, &ws.cam, ws.probe.cursor, ws.viewport())
@@ -97,6 +115,12 @@ func (p *populateMode) present(gtx layout.Context, ws *workspace) {
 		panel.Problems.Rows = rows
 	}
 	panel.Tools.Armed, panel.Tools.Active = spawns.tool, spawns.armed
+	info := spawns.pointsPanel(lang)
+	panel.PointsNote, panel.PointStats, panel.PointWarnings = info.note, info.stats, info.warnings
+	panel.Generating, panel.Adding = spawns.generating != 0, spawns.adding
+	if a, ok := spawns.doc.Area(spawns.generating); ok && shell.Loading == "" {
+		shell.Loading, shell.Progress = locale.Format(lang, "spawn.generate.loading", map[string]string{"name": a.Name}), 0
+	}
 }
 
 func (p *populateMode) sync(r *render.Renderer, ws *workspace) {
@@ -105,7 +129,7 @@ func (p *populateMode) sync(r *render.Renderer, ws *workspace) {
 		p.sent, p.grid = true, on
 	}
 	if p.shown != p.spawns.version {
-		r.SetZones(p.spawns.overlay())
+		r.SetZones(append(p.spawns.overlay(), p.spawns.pins()...))
 		p.shown = p.spawns.version
 	}
 }
