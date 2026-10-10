@@ -357,14 +357,16 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				shell.Project.Name = sess.name(shell.Language)
 				gtx.Execute(op.InvalidateCmd{})
 			}
-			m.present(gtx, ws)
-			shell.Cursor, shell.Click = ws.probe.status(ws.world(), &ws.cam, ws.viewport(), shell.Language)
-			shell.Tiles, shell.Warnings = loadedTiles(ws.tiles, shell.Language)
 			var renderer *render.Renderer
 			if g != nil {
 				renderer = g.renderer
 			}
+			// Before present: a mode may show its own background work
+			// there while no tile loads.
 			shell.Loading, shell.Progress = ws.tiles.progress(renderer, shell.Language)
+			m.present(gtx, ws)
+			shell.Cursor, shell.Click = ws.probe.status(ws.world(), &ws.cam, ws.viewport(), shell.Language)
+			shell.Tiles, shell.Warnings = loadedTiles(ws.tiles, shell.Language)
 
 			shell.Mode = modes.active
 			shell.Message = ws.status.render(shell.Language)

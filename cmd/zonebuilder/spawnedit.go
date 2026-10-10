@@ -92,7 +92,7 @@ func (e *spawnEditor) sync() {
 		}
 		e.area, e.sel = 0, -1
 	}
-	e.drag = drag{}
+	e.drag, e.pointDrag = drag{}, pointDrag{}
 }
 
 func (e *spawnEditor) undo() locale.Message {
@@ -118,9 +118,10 @@ func (e *spawnEditor) redo() locale.Message {
 }
 
 // viewportEvent handles the editing input of the viewport: Ctrl+Z/Ctrl+Y,
-// Delete, PageUp/PageDown, and presses and drags on vertex and edge
-// midpoint handles. It reports whether it used ev (which then must not
-// move the camera) and the status message, empty to keep the current one.
+// Delete (the selected point, else the selected vertex), PageUp/PageDown,
+// and presses and drags on vertex, point and edge midpoint handles. It
+// reports whether it used ev (which then must not move the camera) and
+// the status message, empty to keep the current one.
 func (e *spawnEditor) viewportEvent(w *scene.World, cam *camera.Camera, ev event.Event, vp image.Point) (locale.Message, bool) {
 	switch ev := ev.(type) {
 	case key.Event:
@@ -135,6 +136,9 @@ func (e *spawnEditor) viewportEvent(w *scene.World, cam *camera.Camera, ev event
 		}
 		switch ev.Name {
 		case key.NameDeleteForward:
+			if _, ok := e.selectedPoint(); ok {
+				return e.removePoint(), true
+			}
 			return e.removeVertex(), true
 		case key.NamePageUp:
 			return e.shiftArea(e.step), true
@@ -148,6 +152,9 @@ func (e *spawnEditor) viewportEvent(w *scene.World, cam *camera.Camera, ev event
 		if e.drag.kind != dragNone {
 			return e.dragEvent(w, cam, ev, vp), true
 		}
+		if e.pointDrag.active {
+			return e.pointDragEvent(w, cam, ev, vp), true
+		}
 		if ev.Kind == pointer.Press && ev.Buttons == pointer.ButtonPrimary {
 			return e.press(w, cam, ev, vp)
 		}
@@ -155,9 +162,9 @@ func (e *spawnEditor) viewportEvent(w *scene.World, cam *camera.Camera, ev event
 	return locale.Message{}, false
 }
 
-// press grabs the vertex handle under ev (Ctrl grabs its whole area) or,
-// on the current area's edge midpoint handle, inserts a vertex there and
-// grabs it.
+// press grabs the vertex handle under ev (Ctrl grabs its whole area), else
+// the point pin under it, else, on the current area's edge midpoint
+// handle, inserts a vertex there and grabs it.
 func (e *spawnEditor) press(w *scene.World, cam *camera.Camera, ev pointer.Event, vp image.Point) (locale.Message, bool) {
 	best := float32(grabSlop)
 	var hit spawn.AreaID
@@ -173,7 +180,7 @@ func (e *spawnEditor) press(w *scene.World, cam *camera.Camera, ev pointer.Event
 		}
 	}
 	if hit != 0 {
-		e.area, e.sel = hit, index
+		e.area, e.sel, e.point = hit, index, areaPoint{}
 		e.version++
 		a, _ := e.doc.Area(hit)
 		p := e.points(a)[index]
@@ -183,6 +190,9 @@ func (e *spawnEditor) press(w *scene.World, cam *camera.Camera, ev pointer.Event
 			return locale.Message{Key: "spawn.drag.area", Args: map[string]string{"name": a.Name}}, true
 		}
 		return locale.Message{Key: "spawn.drag.vertex", Args: map[string]string{"index": intArg(index + 1), "name": a.Name, "x": intArg(p.X), "y": intArg(p.Y), "z": intArg(p.Z)}}, true
+	}
+	if msg, ok := e.pressPoint(w, cam, ev, vp); ok {
+		return msg, true
 	}
 	if a, ok := e.current(); ok && len(a.Outline) >= 2 {
 		pts := e.points(a)
@@ -298,7 +308,7 @@ func (e *spawnEditor) insertAfter(i int) locale.Message {
 		return locale.Message{Key: "editor.vertex.insert_failed"}
 	}
 	e.remember(a.ID, p)
-	e.sel = i + 1
+	e.sel, e.point = i+1, areaPoint{}
 	log.Printf("spawn: vértice %d inserido em %d %d %d", i+2, p.X, p.Y, p.Z)
 	return locale.Message{Key: "editor.vertex.inserted", Args: map[string]string{"index": intArg(i + 2), "x": intArg(p.X), "y": intArg(p.Y), "z": intArg(p.Z)}}
 }
@@ -507,6 +517,10 @@ func (e *spawnEditor) listRequest(req any, w *scene.World, cam *camera.Camera) l
 		return e.deleteArea(r.Area)
 	case ui.SetAreaField:
 		return e.setField(r.Area, r.Field, r.Text)
+	case ui.GenerateArea:
+		return e.generate(w, r.Regenerate)
+	case ui.AddPoints:
+		return e.setAdding(r.On)
 	}
 	return locale.Message{}
 }
@@ -680,7 +694,10 @@ func (e *spawnEditor) goToProblem(i int, w *scene.World, cam *camera.Camera) loc
 	if e.drawing {
 		msg = locale.Message{Key: "spawn.area.select_drawing"}
 	} else {
-		e.area, e.sel = a.ID, p.Vertex
+		e.area, e.sel, e.point = a.ID, p.Vertex, areaPoint{}
+		if p.Point >= 0 {
+			e.point = areaPoint{a.ID, p.Point}
+		}
 		e.version++
 	}
 	log.Printf("spawn: problema em %s: %s", a.Name, p.Text(locale.PtBR))

@@ -476,7 +476,7 @@ func (gr *grid) sample(r Request) Result {
 		c.claimed = true
 		res.Points = append(res.Points, Point{X: int(c.px), Y: int(c.py), Z: int(c.pz), Heading: 1 + rng.IntN(65535)})
 	}
-	res.MeanSpacing, res.MinSpacing = spacing(res.Points)
+	res.MeanSpacing, res.MinSpacing = Spacing(res.Points)
 	return res
 }
 
@@ -515,16 +515,23 @@ func nearest(pts []Point, x, y int32) float64 {
 	return d
 }
 
-// spacing is the mean and least distance from each of pts to its nearest
-// neighbour, 0 and 0 with fewer than 2.
-func spacing(pts []Point) (mean, least float64) {
+// Spacing is the mean and least X/Y distance from each of pts to its
+// nearest neighbour, 0 and 0 with fewer than 2: Result's MeanSpacing and
+// MinSpacing, and the same numbers for points adjusted by hand.
+func Spacing(pts []Point) (mean, least float64) {
 	if len(pts) < 2 {
 		return 0, 0
 	}
 	least = math.Inf(1)
 	for k, p := range pts {
-		others := append(pts[:k:k], pts[k+1:]...)
-		d := math.Sqrt(nearest(others, int32(p.X), int32(p.Y)))
+		d2 := math.Inf(1)
+		for j, q := range pts {
+			if j != k {
+				dx, dy := float64(q.X)-float64(p.X), float64(q.Y)-float64(p.Y)
+				d2 = math.Min(d2, dx*dx+dy*dy)
+			}
+		}
+		d := math.Sqrt(d2)
 		mean += d
 		least = math.Min(least, d)
 	}

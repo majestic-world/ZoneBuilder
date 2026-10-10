@@ -58,6 +58,17 @@ type AreaPanel struct {
 	Problems ProblemList
 
 	Duplicate, Delete widget.Clickable
+	// Generate distributes the selected area's points with its seed,
+	// Regenerate with another one; AddPoints toggles adding points with
+	// viewport clicks.
+	Generate, Regenerate, AddPoints widget.Clickable
+	// PointsNote is the points section's note; PointStats are its lines
+	// (free floor, spacing) and PointWarnings the ones in the warning
+	// colour (stale points, the distribution's warnings). Generating
+	// shows a generation running; Adding lights AddPoints.
+	PointsNote                string
+	PointStats, PointWarnings []string
+	Generating, Adding        bool
 
 	fields [areaFields]areaField
 	// loaded is the area the fields were last loaded for (0: none).
@@ -95,6 +106,17 @@ type (
 		Area  spawn.AreaID
 		Field AreaField
 		Text  string
+	}
+	// GenerateArea: Gerar (Regenerate false: the area's seed) or Regerar
+	// (another seed).
+	GenerateArea struct {
+		Area       spawn.AreaID
+		Regenerate bool
+	}
+	// AddPoints: the Adicionar pontos toggle, On to start adding.
+	AddPoints struct {
+		Area spawn.AreaID
+		On   bool
 	}
 )
 
@@ -135,6 +157,15 @@ func (p *AreaPanel) Update(gtx layout.Context, a spawn.Area, ok bool) []any {
 	}
 	if p.Delete.Clicked(gtx) {
 		reqs = append(reqs, DeleteArea{Area: a.ID})
+	}
+	if p.Generate.Clicked(gtx) {
+		reqs = append(reqs, GenerateArea{Area: a.ID})
+	}
+	if p.Regenerate.Clicked(gtx) {
+		reqs = append(reqs, GenerateArea{Area: a.ID, Regenerate: true})
+	}
+	if p.AddPoints.Clicked(gtx) {
+		reqs = append(reqs, AddPoints{Area: a.ID, On: !p.Adding})
 	}
 	values := [areaFields]string{
 		AreaName:        a.Name,
@@ -213,7 +244,7 @@ func (s *Shell) areaPanel() []layout.FlexChild {
 }
 
 // selectedArea is the section on the selected area: the duplicate and
-// delete actions, the height window, and its properties.
+// delete actions, the height window, its properties, then its points.
 func (s *Shell) selectedArea(sel *AreaRow) []layout.FlexChild {
 	p := &s.Spawn
 	title := locale.Text(s.Language, "spawn.area.section")
@@ -250,13 +281,40 @@ func (s *Shell) selectedArea(sel *AreaRow) []layout.FlexChild {
 	if s.Height.Zone != "" && s.Height.Window.Closed {
 		children = append(children, layout.Rigid(s.spaced(s.fullButton(&s.Height.Reopen, secondaryButton, icon.ArrowUp, locale.Text(s.Language, "spawn.area.reopen_height")))))
 	}
-	return append(children,
+	children = append(children,
 		layout.Rigid(field(AreaName, locale.Text(s.Language, "spawn.field.name"))),
 		pair(field(AreaNPC, locale.Text(s.Language, "spawn.field.npc")), field(AreaCount, locale.Text(s.Language, "spawn.field.count"))),
 		pair(field(AreaRespawn, locale.Text(s.Language, "spawn.field.respawn")), field(AreaRespawnRand, locale.Text(s.Language, "spawn.field.respawn_rand"))),
 		pair(field(AreaRadius, locale.Text(s.Language, "spawn.field.radius")), field(AreaClearance, locale.Text(s.Language, "spawn.field.clearance"))),
 		layout.Rigid(s.dimLabel(locale.Text(s.Language, "spawn.field.hint"))),
 	)
+	return append(children, s.areaPoints()...)
+}
+
+// areaPoints is the section on the selected area's points: Gerar and
+// Regerar, the Adicionar pontos toggle, the free floor and spacing, and
+// the warnings.
+func (s *Shell) areaPoints() []layout.FlexChild {
+	p := &s.Spawn
+	generate := locale.Text(s.Language, "spawn.points.generate")
+	if p.Generating {
+		generate = locale.Text(s.Language, "spawn.points.generating")
+	}
+	children := []layout.FlexChild{
+		layout.Rigid(s.section(false, icon.MapPin, locale.Text(s.Language, "spawn.points.title"), p.PointsNote)),
+		layout.Rigid(buttonRow(
+			s.button(&p.Generate, primaryButton, icon.MapPin, generate),
+			s.button(&p.Regenerate, secondaryButton, icon.Redo2, locale.Text(s.Language, "spawn.points.regenerate")),
+		)),
+		layout.Rigid(s.spaced(s.toggleButton(&p.AddPoints, icon.Plus, locale.Text(s.Language, "spawn.points.add"), p.Adding))),
+	}
+	for _, line := range p.PointStats {
+		children = append(children, layout.Rigid(s.dimLabel(line)))
+	}
+	for _, line := range p.PointWarnings {
+		children = append(children, layout.Rigid(s.spaced(s.text(line, smallSize, font.Normal, warnText, 0))))
+	}
+	return append(children, layout.Rigid(s.dimLabel(locale.Text(s.Language, "spawn.points.hint"))))
 }
 
 // areaRow is one list row, clickable to select: the colour swatch, the
