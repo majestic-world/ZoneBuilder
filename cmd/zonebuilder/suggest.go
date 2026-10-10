@@ -61,11 +61,12 @@ func (z zSuggestion) noteFor(lang locale.Language) string {
 // suggest is the Z range for shape i of e's selected zone, being added
 // with outline pts over w (spec D5): margin below the lowest and above the
 // highest floor under its whole area that the layer rule counts
-// (coverage.Profile.Fit). The rule measures BSP and mesh floors from the
-// range the shape would get without them: vmin…vmax, from its vertices,
-// or, with fromTerrain, the terrain under the outline plus the margin (the
-// whole tile, whose vertices lie on nothing). vmin…vmax is the range
-// itself when the panel asks for the clicked points (not with
+// (coverage.Profile.Fit). The rule judges every floor, the terrain
+// included (ADR 0006), from the range the shape would get without floor:
+// vmin…vmax, from its vertices, or, with fromTerrain, the terrain under
+// the outline plus the margin (the whole tile, whose vertices lie on
+// nothing). vmin…vmax is the range itself when the panel asks for the
+// clicked points (spec "Zona oca e faixa pelo clique", D2; not with
 // fromTerrain: the whole tile always takes the floor), when part of the
 // outline lies off w's tiles, when no floor counts, and, unless now,
 // while the outline's profile is measured in the background; now
@@ -88,7 +89,7 @@ func (c *floorCoverage) suggest(e *zoneEditor, w *scene.World, i int, pts []zone
 	}
 	lo, hi := vmin, vmax
 	if fromTerrain {
-		tlo, thi, ok := terrainSpan(p)
+		tlo, thi, ok := p.TerrainSpan()
 		if !ok {
 			z.from = zNoFloor
 			return z
@@ -120,16 +121,4 @@ func offTiles(w *scene.World, o coverage.Outline) bool {
 		}
 	}
 	return in < o.Area()-offSlack
-}
-
-// terrainSpan is the lowest and highest terrain in p, false when p has
-// none.
-func terrainSpan(p *coverage.Profile) (lo, hi float64, ok bool) {
-	lo, hi = math.Inf(1), math.Inf(-1)
-	for pc := range p.Pieces() {
-		if pc.Surface == scene.SurfaceTerrain {
-			lo, hi = min(lo, pc.Low.Z), max(hi, pc.High.Z)
-		}
-	}
-	return lo, hi, lo <= hi
 }

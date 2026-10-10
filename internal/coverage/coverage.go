@@ -518,7 +518,7 @@ func (p *Profile) Classify(zmin, zmax float64) Report {
 		case pc.nbans > 0 && p.excluded(pc):
 			r.Excluded += pc.area
 			continue
-		case !reaches(pc, zmin, zmax, r.Terrain):
+		case !counts(pc, zmin, zmax, r.Terrain):
 			r.Other += pc.area
 			continue
 		}
