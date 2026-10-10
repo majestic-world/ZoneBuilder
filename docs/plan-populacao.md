@@ -88,19 +88,23 @@ O inspetor mostra a área de chão livre, o espaçamento médio e o menor espaç
 ## Estrutura do código
 
 ```
-cmd/zonebuilder/home.go       tela inicial e troca de modo
-cmd/zonebuilder/spawntool.go  editor de áreas e pontos (reusa o desenho de polígono e a edição de vértices)
-cmd/zonebuilder/play.go       sessão do modo jogo
-cmd/zbmodel/                  CLI offline: cliente → .bin
-internal/spawn/               Area, Point, Document (Apply + histórico, como zone.Document), problemas, JSON
-internal/placement/           grade de candidatos, chão, obstáculos, best-candidate
-internal/spawnxml/            compilação para o XML de spawn
-internal/skeletal/            leitura de SkeletalMesh e MeshAnimation 132/40 (só para o zbmodel)
-internal/model/               UE2HUM01 (decoder e encoder), amostragem de pose, skinning na CPU
-internal/play/                BVH de colisão, cápsula, gravidade, câmera em terceira pessoa
-internal/render/              passe de modelos instanciados; bindings de instancing
-internal/ui/                  tela inicial, painéis de área e pontos, HUD do modo jogo
-assets/models/                monster.bin, human.bin e README com a procedência e o comando do zbmodel
+cmd/zonebuilder/mode.go          tipo de modo, workspace compartilhado e troca de modo (internal/ui/home.go: tela inicial)
+cmd/zonebuilder/zonemode.go      modo zonas (o estado que antes vivia em run)
+cmd/zonebuilder/populatemode.go  modo população
+cmd/zonebuilder/spawneditor.go   editor de áreas (spawnedit.go: entrada; spawnpoints.go: gerar, pinos e pontos; spawncompile.go: XML)
+cmd/zonebuilder/preview.go       prévia instanciada do monstro
+cmd/zonebuilder/playmode.go      sessão do modo jogo, na frente do modo ativo
+cmd/zbmodel/                     CLI offline: cliente → .bin
+internal/spawn/                  Area, Point, Document (Apply + histórico, como zone.Document), problemas, JSON, Compile
+internal/placement/              grade de candidatos, chão, obstáculos, best-candidate
+internal/spawnxml/               compilação para o XML de spawn
+internal/skeletal/               leitura de SkeletalMesh e MeshAnimation 132/40 (só para o zbmodel)
+internal/model/                  UE2HUM01 (decoder e encoder), amostragem de pose, skinning na CPU
+internal/model/assets/           monster.bin, human.bin e README com a procedência e o comando de regeneração
+internal/play/                   BVH de colisão, cápsula, gravidade, câmera em terceira pessoa
+internal/unreal/collision.go     flags de colisão dos atores, com o padrão lido das classes
+internal/render/                 passe de modelos instanciados; bindings de instancing
+internal/ui/                     tela inicial, painel de áreas e pontos, botões Prévia e Jogar
 ```
 
 ## Marcos
@@ -113,6 +117,8 @@ O app abre numa tela com 2 cartões: "Construir zonas" e "Popular zona". Cada ca
 
 **Pronto quando:** o app abre na tela inicial; "Construir zonas" leva ao editor de hoje sem nenhuma diferença de comportamento; "Popular zona" abre o viewport com a seção do mapa e o painel vazio de áreas; e ir e voltar entre os modos mantém os tiles abertos, a câmera e o projeto.
 
+**Resultado: entregue.** Tela inicial com os 2 cartões, botão com a casa (só ícone, para a barra caber em 1280 px), `-mode zones|populate`. Sem `-mode` o app abre na tela inicial mesmo com `-project`. Desfazer, refazer e Compilar ficaram na barra compartilhada e agem no modo ativo; o modo inativo não recebe entrada.
+
 ### P1. Área de spawn e documento
 
 - Modelo de área: nome, polígono (`zone.Shape` com `zmin zmax`), id do NPC, quantidade, `respawn` (padrão 60), `respawn_rand` (padrão 0), raio de colisão, afastamento das meshes, semente e pontos `{x y z heading}` em coordenadas do servidor.
@@ -123,11 +129,15 @@ O app abre numa tela com 2 cartões: "Construir zonas" e "Popular zona". Cada ca
 
 **Pronto quando:** 2 áreas são criadas só com o mouse e o teclado; salvar, fechar e reabrir devolve as 2 idênticas; e um `.zbproj` da versão 1 abre com as zonas intactas e sem áreas.
 
+**Resultado: entregue.** O contorno é um polígono `x y` próprio (não um `zone.Shape`), com `zmin zmax` na área; retângulo e círculo viram polígono ao criar. Padrões: raio 9 (o raio medido do monstro, 8,75, arredondado), afastamento 32, respawn 60, `respawn_rand` 0. O id do NPC e a quantidade começam em 0 e ficam como problema até serem digitados. Os avisos "cabem K de N" e "sem chão livre" ficam escondidos enquanto os pontos estão desatualizados.
+
 ### P2. Distribuição
 
 O algoritmo da seção Distribuição. Em edição, cada ponto aparece como pino com o círculo do raio de colisão no chão; o ponto selecionado tem alça de arraste. Os avisos "cabem K de N" e "área sem chão livre" não bloqueiam a compilação.
 
 **Pronto quando:** na área da captura de referência (campo entre árvores, pedra e cercas), 50 pontos ficam todos dentro do polígono, nenhum a menos de `r + a` de tronco, cerca ou pedra, nenhum sobre mesh ou água, e nenhum par a menos de 2r; e gerar 2 vezes com a mesma semente dá os mesmos pontos. Testes: ponto na borda do polígono, mesh logo fora da borda bloqueando por dentro, copa acima da fatia que não bloqueia, faixa Z com 2 camadas (ponte) que escolhe a camada certa, e área pequena demais para N.
+
+**Resultado: entregue.** 50 de 50 pontos na clareira de referência do 22_22, nenhum a menos de `r + a` de mesh, nenhum sobre mesh ou água, mesma semente → mesmo projeto byte a byte. A geração ignora o botão Static meshes (`HideMeshes = false` no instantâneo): esconder as meshes no viewport não tira os obstáculos. O app só traz o espaçamento médio e o menor dos pontos atuais; a área de chão livre vale só na sessão e reaparece depois de gerar de novo.
 
 ### P3. Compilação do XML de spawn
 
@@ -139,12 +149,16 @@ O algoritmo da seção Distribuição. Em edição, cada ponto aparece como pino
 
 **Pronto quando:** o XML de um projeto com 3 áreas é carregado por um harness do `SpawnParser`, no mesmo molde de `zone-builder-notes/zoneparser-harness`, sem exceção; e, depois de reiniciar o servidor com o arquivo em `data/spawn/`, os monstros estão nos pontos da prévia (o `//pos` ao lado de 3 deles fica a menos de 16 unidades) e virados para o heading mostrado.
 
+**Resultado: entregue no harness; verificação em jogo pendente.** O harness do `SpawnParser` carregou o XML de 3 áreas compilado no app (10 pontos) sem problema. O heading foi conferido no código do servidor: mesma unidade, mesmo zero e mesmo sentido do yaw da prévia. O `//pos` e o lado para onde o monstro olha no cliente dependem do usuário: veja o [ADR 0007](adr/0007-ponto-fixo-em-vez-de-mesh.md).
+
 ### P4. Monstro embutido e prévia
 
 - **Extração:** o `zbmodel` lê `LineageMonsters15.death_knight_wizard_m00`, `LineageMonsters15.death_knight_wizard_anim` e as skins `LineageMonstersTex9.death_knight_wizard.death_knight_wizard_t00` e `_t01`. Ele grava `assets/models/monster.bin` com o clip `Wait` e imprime o raio e a altura medidos, que viram as constantes do monstro de prévia. Ler o `human.bin` com o mesmo decoder e regravá-lo com o encoder Go deve dar os mesmos bytes, o que prova que o formato foi portado sem perda.
 - **App:** amostragem de pose (`sample_track` e `compose` do `pose.rs`), skinning na CPU e o passe instanciado. O botão flutuante "Prévia" troca os pinos pelo monstro em cada ponto, girado pelo heading (o heading do L2 e o yaw do Unreal usam a mesma unidade, 65536 = 360° **[INFERENCE]**, a confirmar no P3).
 
 **Pronto quando:** com a prévia ligada, cada ponto mostra o death knight wizard em `Wait`, com os pés no chão, o cajado na mão e virado para o heading; a pose de referência fica igual à captura do UE2-Studio (mesh, cajado e as 2 skins); e 500 instâncias mantêm 60 fps no hardware do M4.
+
+**Resultado: entregue.** O `zbmodel` grava `internal/model/assets/monster.bin` (raio 8,74579, altura 66,2339) e regenera os mesmos bytes; o `human.bin` passa ida e volta pelo decoder e pelo encoder sem mudar um byte. Na prévia, o cajado está na mão já na pose `Wait`, sem clip extra. 500 instâncias: cerca de 145 quadros/s, quadro médio de 7 ms.
 
 ### P5. Modo jogo
 
@@ -153,6 +167,8 @@ O algoritmo da seção Distribuição. Em edição, cada ponto aparece como pino
 - Controles: WASD, Shift, Espaço, F (voo), V (primeira ou terceira pessoa). O olhar é por arraste do mouse, como no voo de hoje: o Gio não tem captura relativa do ponteiro **[INFERENCE]**, a confirmar antes de portar o `confine` do UE2-Studio.
 
 **Pronto quando:** na área da captura, o personagem anda entre os monstros, é barrado pelas cercas, pela pedra e pelos troncos, sobe rampas de terreno até o limite de inclinação e pula; a proporção entre o humano e o monstro bate com o jogo; e, no modo zonas, dá para entrar e sair do modo jogo dentro de uma zona sem perder a seleção nem o histórico de desfazer.
+
+**Resultado: entregue, com 1 desvio.** O port fiel do UE2-Studio sobe uma rampa de 60°, porque o empurrão para fora da face íngreme tem um componente para cima maior que a gravidade. No `internal/play`, contato no interior de uma face com `0 < n.z ≤ 0,65` empurra só no plano horizontal; contato em aresta segue o Rust, então o degrau de 8 continua subindo. O modo jogo é uma sessão na frente do modo ativo, não um terceiro modo. Meshes ocultas pelo botão Static meshes continuam bloqueando. O humano tem 80 de altura e o monstro 66 (0,83 do humano); se isso bate com o jogo fica para a verificação em jogo.
 
 ## Fora do escopo
 

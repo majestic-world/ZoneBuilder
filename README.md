@@ -1,6 +1,6 @@
 # Zone Builder
 
-Editor desktop de zonas para servidores de Lineage II. O Zone Builder abre os mapas do cliente em 3D, deixa marcar as zonas com o mouse direto sobre o terreno e gera o XML no formato que o servidor Java carrega de `data/zone/`.
+Editor desktop de zonas e spawns para servidores de Lineage II. O Zone Builder abre os mapas do cliente em 3D, deixa marcar as zonas com o mouse direto sobre o terreno e gera o XML no formato que o servidor Java carrega de `data/zone/`. No modo **Popular zona**, distribui monstros pelo chão livre de uma área, mostra cada um na prévia e gera o XML de spawn de `data/spawn/`.
 
 ## O que ele faz
 
@@ -14,6 +14,8 @@ Editor desktop de zonas para servidores de Lineage II. O Zone Builder abre os ma
 - Mostra os problemas de cada zona enquanto você edita, como polígono que se cruza, nome repetido ou faixa Z invertida, e bloqueia a compilação até corrigir. Os avisos de chão aparecem na mesma lista, mas não bloqueiam.
 - Compila as zonas selecionadas em um arquivo por tipo (`zonebuilder_<tipo>.xml`) e mostra o XML numa janela com botão de copiar.
 - Guarda o trabalho em projetos `.zbproj`, inclusive zonas ainda incompletas.
+- Popula áreas com monstros: distribui os pontos de spawn longe das static meshes, mostra o monstro de prévia em cada ponto e compila um `<spawn>` com `pos` por ponto. Veja [Popular zona](#popular-zona).
+- Anda pelo mapa com um personagem, com gravidade e colisão, nos 2 modos. Veja [Modo jogo](#modo-jogo).
 
 ## Requisitos
 
@@ -186,6 +188,39 @@ Avisos, no status e no log, sem bloquear a compilação:
 **Remova a zona de água antiga do datapack no mesmo lugar.** A zona nova tem outro nome e não a sobrescreve, e onde as duas se cruzam o servidor usa o maior `zmax` das duas. Enquanto a antiga estiver em `water.xml`, a nova não vale ali.
 
 Fora do escopo: água sem `WaterVolume` (superfície decorativa, mar aberto feito com a ferramenta Tile inteiro) e outros volumes.
+
+## Popular zona
+
+Na tela inicial, clique em **Popular zona** (ou abra com `-mode populate`). A seção do mapa, o viewport, a câmera e o projeto são os mesmos do modo zonas. O inspetor mostra a lista **Áreas de spawn**, os problemas, o nome do **XML de spawn**, a **Área selecionada** e os **Pontos**. Os termos (área de spawn, ponto, raio, afastamento, célula livre, semente, pontos desatualizados, monstro de prévia, modo jogo) estão em [`GLOSSARY.md`](GLOSSARY.md), e a decisão de saída, no [ADR 0007](docs/adr/0007-ponto-fixo-em-vez-de-mesh.md).
+
+1. **Área.** Escolha polígono, retângulo ou círculo na barra à esquerda e desenhe sobre o mapa, como nas zonas; o círculo vira polígono. A faixa Z sai do chão da área, e a janela de altura sobe, desce e ajusta o piso e o topo ao chão. A área nova se chama `area_<id>`, com raio 9 (o do monstro de prévia), afastamento 32 e respawn 60. Digite o **ID do NPC** e a **Quantidade**: enquanto forem 0, a área tem problema e não gera nem compila.
+2. **Gerar.** Em **Pontos**, **Gerar** distribui a quantidade pedida nas células livres da área, em segundo plano. Os pontos ficam a 2 × raio um do outro, e a raio + afastamento das meshes e paredes; todas as meshes contam, mesmo com o botão **Static meshes** desligado. Se não couberem todos, o app gera os que cabem e avisa "cabem K de N", sem bloquear. **Regerar** troca a semente e descarta os ajustes manuais; Ctrl+Z volta os pontos anteriores.
+3. **Ajustar pontos.** Cada ponto é um pino com o círculo do raio no chão. Arraste o pino para mover o ponto (ele cai na superfície sob o cursor), Delete apaga o ponto selecionado e **Adicionar pontos** põe um ponto a cada clique, até Esc. Mudar o contorno, a faixa, a quantidade, o raio ou o afastamento depois de gerar deixa os pontos **desatualizados**, o que bloqueia a compilação até gerar de novo; mover, apagar ou adicionar pontos não.
+4. **Prévia.** O botão **Prévia**, no canto inferior direito do viewport, troca os pinos pelo monstro de prévia em cada ponto, em `Wait` e virado pelo heading. É sempre o mesmo modelo, seja qual for o id do NPC. Com a prévia ligada, os pontos continuam arrastáveis.
+5. **Modo jogo.** **Jogar**, ao lado da prévia, põe um personagem no chão para andar entre os monstros. Veja [Modo jogo](#modo-jogo).
+6. **Compilar.** **Compilar XML** abre a janela de XML com 1 arquivo para o projeto inteiro: o nome digitado em **XML de spawn** ou, em branco, o nome do projeto. Copie e grave em `data/spawn/` do servidor, e reinicie o servidor (`//reload_spawn` não relê o XML).
+
+O XML tem 1 `<spawn name="[<área>_<i>]">` por ponto, com `<npc id count="1" respawn [respawn_rand] pos="x y z h" />`, em coordenadas do servidor. O monstro nasce e renasce sempre naquele ponto. `respawn_rand` só aparece quando é maior que 0. Problemas que bloqueiam: polígono com menos de 3 vértices ou que se cruza, faixa Z invertida, NPC ou quantidade menor que 1, respawn negativo, `respawn_rand` maior que o respawn, nome vazio ou repetido, área sem pontos, pontos desatualizados e ponto fora do mundo.
+
+Atalhos, desfazer e refazer valem só para as áreas neste modo; o histórico das zonas não muda.
+
+## Modo jogo
+
+O botão **Jogar** fica no canto inferior direito do viewport, nos 2 modos. Ele põe o humano embutido no chão sob o centro da tela, com gravidade e colisão contra o terreno, o BSP sólido e as static meshes que bloqueiam no jogo (as flags de colisão de cada ator, com o padrão da classe). Meshes escondidas pelo botão **Static meshes** continuam bloqueando. Ao entrar, o app prepara as colisões dos tiles abertos por um instante ("Preparando as colisões do mapa…").
+
+| Tecla ou gesto | Ação |
+|---|---|
+| W, A, S, D | andar |
+| Shift | correr |
+| Espaço | pular |
+| F | voar ou parar de voar; no voo, E e Q sobem e descem, sem colisão |
+| V | primeira ou terceira pessoa |
+| arrastar | olhar em volta |
+| Esc | sair e voltar à câmera de edição de antes |
+
+No modo zonas, o contorno das zonas continua desenhado; no modo população, os monstros da prévia aparecem e não têm colisão. O modo ativo não recebe nenhuma entrada enquanto o jogo roda: a seleção e o histórico de desfazer ficam como estavam.
+
+O personagem sobe rampas de terreno até uma inclinação de cerca de 49° (`n.z` 0,65) e degraus baixos; numa rampa mais íngreme, ele para ou escorrega. Isso difere do Play Map do UE2-Studio, que sobe rampas de 60°.
 
 ## Licenças de terceiros
 
