@@ -137,7 +137,7 @@ func TestExclusionCompilesAsBannedPolygon(t *testing.T) {
 
 // An exclusion drawn with the rectangle tool still compiles as a
 // banned_polygon, through its 4 corners. Catches a banned_rectangle in the
-// output, the element the spec rules out for exclusions.
+// output, the element ruled out for exclusions.
 func TestBannedRectangleCompilesAsBannedPolygonOf4Corners(t *testing.T) {
 	d := zone.NewDocument()
 	id := d.NewZoneID()

@@ -1,6 +1,6 @@
 # Z do servidor: o chão do servidor fica 32 unidades acima da superfície do cliente
 
-O spec supunha que o Z do mapa do cliente é o Z do servidor, 1:1. Medido, não é: o chão que o servidor usa (a geodata do datapack, `gameserver/geodata/X_Y.l2j`, que é a altura em que ele põe NPCs e jogadores e a que o `//pos` imprime) fica cerca de 32 unidades acima da superfície do terreno do cliente. A superfície vem da fórmula do UE2 (`Location.Z + (h − 32768) · TerrainScale.Z / 256`), a mesma do UE2-Studio, que o ticket 03 conferiu contra ele. X e Y batem sem deslocamento. Por isso a cena guarda a geometria no espaço do cliente e converte na fronteira: `scene.ServerZOffset = 32`, `scene.ToServer` e `scene.FromServer`. O `Hit` do `Pick` já sai em coordenadas do servidor. Tudo que vem do servidor e precisa encontrar a geometria (zonas, um `x y z` digitado) passa por `FromServer`.
+O plano supunha que o Z do mapa do cliente é o Z do servidor, 1:1. Medido, não é: o chão que o servidor usa (a geodata do datapack, `gameserver/geodata/X_Y.l2j`, que é a altura em que ele põe NPCs e jogadores e a que o `//pos` imprime) fica cerca de 32 unidades acima da superfície do terreno do cliente. A superfície vem da fórmula do UE2 (`Location.Z + (h − 32768) · TerrainScale.Z / 256`), a mesma do UE2-Studio, conferida contra ele na leitura do terreno. X e Y batem sem deslocamento. Por isso a cena guarda a geometria no espaço do cliente e converte na fronteira: `scene.ServerZOffset = 32`, `scene.ToServer` e `scene.FromServer`. O `Hit` do `Pick` já sai em coordenadas do servidor. Tudo que vem do servidor e precisa encontrar a geometria (zonas, um `x y z` digitado) passa por `FromServer`.
 
 ## Medição (2026-10-08, cliente Fafurion, datapack Majestic)
 
@@ -9,7 +9,7 @@ O spec supunha que o Z do mapa do cliente é o Z do servidor, 1:1. Medido, não 
   - diferença cliente − servidor: média −29,8, mediana −31,35, p5 −32,7, p95 −19,9;
   - 3.323.441 células, 83%, caem em [−36, −28);
   - nos tiles de oceano (16_14, 18_11, 20_10, 16_22, 18_13…), a diferença é constante dentro de cada tile, entre −31,3 e −32,7.
-  - A cauda acima de −28 vem da quantização da geodata em passos de 8 e das células em que um mesh ou BSP ainda sem leitura (tickets 06/07) fica sobre o terreno.
+  - A cauda acima de −28 vem da quantização da geodata em passos de 8 e das células em que um mesh ou BSP (que o app ainda não lia na época da medição) fica sobre o terreno.
 - **Giran (22_22), terreno inteiro**, passo de 256 unidades, 14.846 células: mediana −28,5, p10 −33,5, p90 −14,0.
   - Um ajuste `Δ = c + a·∂z/∂x + b·∂z/∂y` dá inclinações perto de 0 em 7 tiles (22_22, 23_22, 21_22, 22_21, 17_22, 20_18, 22_23). Logo não há deslocamento em X/Y, só em Z.
 - **Spawns do datapack:** a geodata bate com a posição de spawn das NPCs a ±8 nos pontos de 1 camada (`spawn/22_22.xml`). As 10 NPCs dos portões de Giran, que estão em terreno aberto, dão Δ de −27,4 a −31,1. Com `ServerZOffset` somado, ficam entre +0,9 e +4,6. Esses 10 pontos são o teste `TestPickLandsOnGiranServerGround`.

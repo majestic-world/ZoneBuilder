@@ -23,7 +23,7 @@ import (
 	"zonebuilder/internal/scene"
 )
 
-// playMode is the game mode (spec D8): the embedded human walking the open
+// playMode is the game mode: the embedded human walking the open
 // map with its collision. It sits in front of the active editing mode: while
 // it runs, the viewport's events and keys come here and the mode gets none,
 // so its selection and history stay as they were; its panels are frozen

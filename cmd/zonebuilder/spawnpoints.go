@@ -34,8 +34,8 @@ const (
 // pinHeight is the stem's height: the preview monster's.
 func pinHeight() int { return int(math.Round(float64(model.MonsterHeight))) }
 
-// staleColor is the stem and circle colour of stale points (spec story
-// 48); their handles are filled with the overlay's problem colour.
+// staleColor is the stem and circle colour of stale points; their handles
+// are filled with the overlay's problem colour.
 var staleColor = [3]float32{0.42, 0.42, 0.42}
 
 // generation is one Gerar or Regerar: what it read when it started, and
@@ -106,7 +106,7 @@ func otherSeed(old uint64) uint64 {
 }
 
 // generate distributes the current area's points over w in the background
-// (spec D3): with the area's seed, or another one when regenerate. The
+// with the area's seed, or another one when regenerate. The
 // result comes back as one SetPoints in receive. It returns the status
 // message.
 //

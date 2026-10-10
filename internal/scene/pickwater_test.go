@@ -86,7 +86,7 @@ func TestPickWaterClipsTheRayByTheVolumePlanes(t *testing.T) {
 // TestPickWaterNeverChoosesAnUnsupportedVolume puts a sheared volume (its
 // shape is not the client's) above a plain one and beside it, same top.
 // Catches the unsupported volume selected by the click and then compiled;
-// or the click on it unable to say why it is not selected (spec D1).
+// or the click on it unable to say why it is not selected (ADR 0011).
 func TestPickWaterNeverChoosesAnUnsupportedVolume(t *testing.T) {
 	sheared := scenetest.UnitBrush()
 	sheared.MainScale.SheerRate = 0.5

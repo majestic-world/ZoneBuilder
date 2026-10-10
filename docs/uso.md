@@ -27,7 +27,11 @@ O app abre numa tela inicial com 2 cartões: **Construir zonas**, o editor de zo
 4. Ajuste altura, tipo e parâmetros no inspetor à direita e na janela **Altura da zona**.
 5. Clique em **Compilar XML**, copie cada arquivo da janela e cole em `data/zone/` do servidor com o nome indicado.
 
-O seletor **PT-BR / EN** fica sempre visível no alto da janela, abaixo do logotipo. Clique em **EN** para usar a interface em inglês ou em **PT-BR** para voltar ao português; a opção ativa fica destacada. A escolha é uma preferência pessoal salva na configuração do usuário (`%AppData%\ZoneBuilder\config.json`) e reaparece quando o app é aberto novamente. Sem preferência válida, o idioma inicial é pt-BR. A troca não modifica o projeto, os campos em edição nem o XML gerado.
+O seletor **PT-BR / EN** fica sempre visível no alto da janela, abaixo do logotipo. Clique em **EN** para usar a interface em inglês ou em **PT-BR** para voltar ao português; a opção ativa fica destacada. A escolha é uma preferência pessoal salva na configuração do usuário (`%AppData%\ZoneBuilder\config.json`) e reaparece quando o app é aberto novamente. Sem preferência válida, o idioma inicial é pt-BR. A troca não modifica o projeto, os campos em edição nem o XML gerado. Se o `config.json` não puder ser gravado, o idioma escolhido vale até fechar o app, e o status avisa que a escolha não será lembrada, com o erro original.
+
+Nos diálogos do Windows (abrir e salvar projeto, escolher a pasta do cliente), o app traduz só o título e o texto que ele passa, como o filtro `Zone Builder project (*.zbproj)` ou a descrição `Lineage II client folder (containing Maps)`, no idioma ativo quando o diálogo abre. Botões e navegação seguem o idioma do Windows, então um diálogo com partes em português e partes em inglês é o esperado. Um diálogo já aberto não muda de idioma. As decisões estão no [ADR 0009](adr/0009-interface-bilingue-pt-br-en.md).
+
+Se faltar um pacote de static meshes (`.usx`) na pasta do cliente, o app avisa com o nome do pacote e abre o resto do mapa.
 
 Controles do viewport:
 
@@ -73,7 +77,7 @@ O servidor só considera um personagem dentro da zona quando o `x y` dele está 
 
 A pegada (tinta, hachuras e linhas de nível) só pinta chão: as faces voltadas para cima, vistas de cima. Paredes e tetos ficam com a cor original. O contorno da zona aparece em qualquer superfície, mas só dentro da faixa Z do shape, onde a parede do prisma de fato encontra o mapa. Assim, com a zona erguida acima do chão, a borda da hachura e uma cerca ou muro que segue o contorno não acendem como se houvesse uma parede de prisma ali. Com a câmera dentro do prisma, o mapa fica limpo: só os anéis nas paredes e a pegada no piso.
 
-Clicar no rótulo de um pino leva a câmera ao ponto. O shader desenha a pegada de até 8 shapes e 128 pontos; acima disso, o inspetor diz "Pegada parcial: N shapes fora do desenho". Os números não têm esse limite.
+Clicar no rótulo de um pino leva a câmera ao ponto. Os pinos somem quando a zona selecionada é ocultada. O shader desenha a pegada de até 8 shapes e 128 pontos; acima disso, o inspetor diz "Pegada parcial: N shapes fora do desenho". Os números não têm esse limite.
 
 ### Números
 

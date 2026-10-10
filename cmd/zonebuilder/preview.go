@@ -19,7 +19,7 @@ const previewClip = 0
 const previewStep = 100 * time.Millisecond
 
 // headingYaw is the yaw of an L2 heading, in radians about Z from +X: an
-// Unreal rotator's unit, 65536 per turn (spec D7, [INFERENCE] until the
+// Unreal rotator's unit, 65536 per turn (ADR 0007, [INFERENCE] until the
 // in-game check).
 func headingYaw(h int) float32 {
 	return float32(float64(h) * (2 * math.Pi / 65536))

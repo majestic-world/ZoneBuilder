@@ -1,5 +1,5 @@
 // Package scene builds a map's renderable and pickable geometry in CPU
-// memory, with no GPU involved: the Scene seam of the spec (Load, Pick).
+// memory, with no GPU involved: the Scene seam (Load, Pick).
 //
 // Geometry positions are absolute client world coordinates in Unreal's
 // basis (X/Y horizontal, Z up): tile X_Y starts at ((X-20)*32768,

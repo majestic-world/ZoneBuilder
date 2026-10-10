@@ -1,4 +1,4 @@
-// Package water turns the map's water volumes into water zones (spec D5):
+// Package water turns the map's water volumes into water zones (ADR 0011):
 // one zone per server top, one polygon per volume. It has no GL and no Gio.
 package water
 

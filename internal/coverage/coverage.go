@@ -1,5 +1,5 @@
 // Package coverage measures how a shape's Z range covers the floor under
-// its outline (spec "Cobertura vertical", D1-D3): the lowest and highest
+// its outline (ADR 0004): the lowest and highest
 // floor under it, the clearance of its floor and top, and the area of
 // floor inside the range, above its top, below its floor and with no floor
 // at all. Everything is in server coordinates and exact: the floor's
@@ -77,7 +77,7 @@ type Profile struct {
 }
 
 // Ban is a banned shape of the same zone: its outline and Z range. Floor
-// under it and within its range is excluded, not a failure (spec D1).
+// under it and within its range is excluded, not a failure (ADR 0004).
 type Ban struct {
 	Outline    Outline
 	ZMin, ZMax float64
@@ -127,8 +127,8 @@ type clipped struct {
 
 // Report is a Profile sorted by a Z range [zmin, zmax]. Areas are X/Y
 // areas in server units². The floor of the range is the floor neither
-// excluded by a ban (spec D1) nor another layer by the layer rule (spec
-// D5, reaches): only it is sorted into Inside, Above and Below and gives
+// excluded by a ban (ADR 0004) nor another layer by the layer rule (ADR
+// 0004, reaches): only it is sorted into Inside, Above and Below and gives
 // the extremes and the clearances.
 type Report struct {
 	// Measured is false when the range has no floor under the outline:
@@ -192,7 +192,7 @@ func (r Report) Coverage() float64 {
 }
 
 // Sum is the report of a zone made of the shapes reported in rs, each
-// classified by its own Z range (spec D3): their areas summed, so floor
+// classified by its own Z range (ADR 0004): their areas summed, so floor
 // under 2 overlapping shapes counts twice ("soma dos shapes"), the lowest
 // and highest floor under any of them, the worst clearance of each side
 // and the most layers. Shapes whose range has no floor add their areas

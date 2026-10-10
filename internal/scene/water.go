@@ -11,7 +11,7 @@ import (
 )
 
 // WaterVolume is one live WaterVolume actor of a map: a convex brush whose
-// shape is every BSP node polygon of the Model its Brush names (spec D1),
+// shape is every BSP node polygon of the Model its Brush names (ADR 0011),
 // placed by the ABrush transform. Positions are client world coordinates,
 // Unreal basis.
 type WaterVolume struct {

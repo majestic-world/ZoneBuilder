@@ -47,6 +47,27 @@ Fração da área de chão sob o contorno que fica dentro da faixa Z.
 **Pior ponto**:
 O `x y z` do chão com a menor folga, separado para o piso (chão mais baixo) e para o topo (chão mais alto). É onde ficam os pinos e as marcas `piso` e `topo` da régua.
 
+### Termos em inglês
+
+Na interface em inglês, chão é a superfície medida e piso é o limite `zmin`: nunca use "floor" para os 2 ([ADR 0009](docs/adr/0009-interface-bilingue-pt-br-en.md)).
+
+| Português | Inglês |
+|---|---|
+| chão | ground ("Ground coverage", "Lowest ground", "Recalculate from ground") |
+| piso (`zmin`) | floor |
+| topo (`zmax`) | top |
+| folga do piso | floor clearance |
+| folga do topo | top clearance |
+| cobertura | coverage |
+| sem chão | no ground |
+| camada | layer |
+| outras camadas | other layers |
+| fura (folga negativa) | pierces |
+| margem | margin |
+| faixa Z | Z range |
+| afastamento (spawn) | Clearance |
+| marcas `piso` e `topo` da régua | floor, top |
+
 ## Água
 
 **Volume de água**:

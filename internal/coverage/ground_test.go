@@ -54,7 +54,7 @@ func TestPeakFarFromTheVerticesSetsTheTop(t *testing.T) {
 // roof is another layer: its 30 000 units² in Other, listed at its Z, and
 // none of it above the top, in the highest floor or in the ruler's
 // histogram. Catches a report that counts the layers the fit
-// left out (spec D5, risks): "chão acima do topo" and a red pin on a roof
+// left out (ADR 0004): "chão acima do topo" and a red pin on a roof
 // or a floating island right after "Recalcular pelo chão".
 func TestFarRoofIsAnotherLayerOfTheFittedRange(t *testing.T) {
 	f := append(grid(0), bspQuad(200, 0, 300, 300, 3256)...)
@@ -84,7 +84,7 @@ func TestFarRoofIsAnotherLayerOfTheFittedRange(t *testing.T) {
 // tops at 1112; the roof and the floors between are left out as layers.
 // Catches a fit that chains through stacked floors each within reach of
 // the last (fitting again from its own range until nothing more counts),
-// which pulls the tower's roof (spec D5: "o telhado de uma torre não
+// which pulls the tower's roof (ADR 0004: "o telhado de uma torre não
 // estica a faixa").
 func TestOneFitDoesNotClimbATowerToItsRoof(t *testing.T) {
 	f := grid(0)
@@ -192,7 +192,7 @@ var hillBan = coverage.Ban{Outline: square(300, 300, 700, 700), ZMin: -1000, ZMa
 // hill, at 0, with a top clearance of 100. Catches extremes and
 // clearances taken from all floor, excluded included, which put a red
 // "topo −300" pin and a "(fura)" on the inspector and the ruler over a
-// hill that is not a failure (spec D1).
+// hill that is not a failure (ADR 0004).
 func TestExcludedHillIsNotTheHighestFloor(t *testing.T) {
 	r := coverage.Measure(hillOnFlat(), square(0, 0, 1000, 1000), []coverage.Ban{hillBan}).Classify(-100, 100)
 	if !r.Measured || r.GroundMax.Z != 0 || r.TopClearance != 100 {

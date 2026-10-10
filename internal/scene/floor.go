@@ -32,7 +32,7 @@ func (w *World) Floor(box geom.Box, fn func(FloorTriangle)) {
 }
 
 // floorNormalZ is the least Z of a unit normal that a BSP or mesh face can
-// stand on (spec "Chão"): a slope up to 60°.
+// stand on (GLOSSARY.md, "Chão"): a slope up to 60°.
 const floorNormalZ = 0.5
 
 // upward reports a face of normal n (any length) as one to stand on.

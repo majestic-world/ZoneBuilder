@@ -15,7 +15,7 @@ import (
 	"zonebuilder/internal/zone"
 )
 
-// worstPinColor is the colour of the worst-point pins (spec D4e); a pin
+// worstPinColor is the colour of the worst-point pins (ADR 0004); a pin
 // whose clearance is negative is drawn as a problem, in red.
 var worstPinColor = [3]float32{1, 0.8, 0.15}
 

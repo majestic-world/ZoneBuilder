@@ -396,10 +396,10 @@ func (e *zoneEditor) setZoneHeight(text string) string {
 }
 
 // zoneToGround moves one side of every included shape of the selected
-// zone to the floor under it, by the layer rule of spec D5 from the
+// zone to the floor under it, by the layer rule of ADR 0004 from the
 // shape's own range: the top margin above its highest floor when top is
 // set, else the floor margin below its lowest. Exclusions keep their
-// range: it decides which floor they cut out (spec D1). All in one step
+// range: it decides which floor they cut out (ADR 0004). All in one step
 // to undo; a shape with no floor counted, or that the move would turn
 // upside down, keeps its range.
 func (e *zoneEditor) zoneToGround(c *floorCoverage, s *scene.World, top bool) string {

@@ -86,7 +86,7 @@ type datapackShape struct {
 
 // The 11 volumes of Floran's lake (22_24) with top -3780 compile to 1 water
 // zone of 11 polygons, each the shape the Majestic datapack generated from
-// that volume (water.xml, matched by the spec probe in datapack_matches.tsv).
+// that volume (water.xml, matched by the ADR 0011 probe in datapack_matches.tsv).
 // Catches a wrong offset, rounding, swapped bottom and top, Model.Points in
 // place of the faces, or a top split into several zones.
 func TestFloranLakeReproducesTheDatapack(t *testing.T) {

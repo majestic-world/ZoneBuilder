@@ -10,7 +10,7 @@ import (
 )
 
 // TestGiranWaterVolumesComeFromTheBrushFaces loads Giran and checks its
-// live WaterVolumes against the probe of the water-zone spec (Fafurion
+// live WaterVolumes against the probe of ADR 0011 (Fafurion
 // client, 2026-10-09): 8 of them, and WaterVolume0's faces spanning
 // x 86757…98304, y 152256…153600, z -8778…-3780. Catches the box taken
 // from Model.Points (x starts at 69989 there), a wrong brush transform, or

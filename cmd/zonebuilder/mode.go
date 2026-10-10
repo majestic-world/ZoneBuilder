@@ -17,7 +17,7 @@ import (
 	"zonebuilder/internal/ui"
 )
 
-// workspace is what every mode shares (spec D1): the shell, with the map
+// workspace is what every mode shares: the shell, with the map
 // section, the viewport and the command bar; the open tiles; the camera;
 // the cursor probe of the status pill; the static meshes hidden one by
 // one; and the status line. The project file is the session's, and holds

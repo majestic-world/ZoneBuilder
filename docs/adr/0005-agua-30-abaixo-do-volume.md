@@ -1,6 +1,6 @@
 # Zona de água: `zmin` e `zmax` ficam 30 abaixo do `WaterVolume`, contra o +32 do ADR 0003
 
-A zona `water` sai do `WaterVolume` do cliente (`internal/water`, spec "Zona de água a partir do WaterVolume"). O `zmax` dela **é** a superfície da água para o servidor: decide quando o personagem nada, quando perde fôlego e onde a boia de pesca fica. Para passar o Z do volume ao servidor há 2 dados, e eles se contradizem:
+A zona `water` sai do `WaterVolume` do cliente (`internal/water`; a fonte da geometria está no [ADR 0011](0011-agua-do-brush-do-watervolume.md)). O `zmax` dela **é** a superfície da água para o servidor: decide quando o personagem nada, quando perde fôlego e onde a boia de pesca fica. Para passar o Z do volume ao servidor há 2 dados, e eles se contradizem:
 
 | Fonte | Topo da zona em relação ao topo do volume |
 | --- | --- |
@@ -30,12 +30,25 @@ A sonda e a saída estão em `zone-builder-notes/zona-de-agua/00-evidence/`, for
 
 - A zona compilada se comporta como as cerca de 200 zonas de água que o servidor já carrega: um lago feito no app nada e respira igual ao mar ao lado.
 - O +32 do ADR 0003 mede o chão da geodata, não a água. O servidor não lê a água da geodata; ele só tem a zona. Seguir o +32 deixaria a superfície 62 acima da das zonas do datapack.
-- **Pendente:** o ticket 05 mede em jogo onde o personagem começa a nadar e a perder fôlego, e confirma ou troca a constante. Até lá, −30 vale por ser o que o servidor já usa.
+- **Pendente:** falta medir em jogo onde o personagem começa a nadar e a perder fôlego (ver [Pendente](#pendente)). Até lá, −30 vale por ser o que o servidor já usa.
 
 **Descartada:** +32, pela regra do ADR 0003. É coerente com o resto do app, mas diverge de 119 dos 129 shapes do datapack, que é o que o servidor carrega hoje.
 
 ## Consequences
 
-- **A zona compilada aparece no viewport com o topo 62 unidades abaixo da superfície da água.** O overlay converte do servidor com `FromServer` (−32, ADR 0003), então o topo `T − 30` é desenhado em `T − 62`. É esperado: não "corrija" o overlay nem a constante sem a medição do ticket 05. A seleção da água continua desenhando o volume do cliente, sem esse deslocamento.
+- **A zona compilada aparece no viewport com o topo 62 unidades abaixo da superfície da água.** O overlay converte do servidor com `FromServer` (−32, ADR 0003), então o topo `T − 30` é desenhado em `T − 62`. É esperado: não "corrija" o overlay nem a constante sem a medição em jogo (ver [Pendente](#pendente)). A seleção da água continua desenhando o volume do cliente, sem esse deslocamento.
 - O `zmin` e o `zmax` de uma zona de água compilada não seguem a regra "Z do servidor = Z do cliente + 32" que vale para as outras zonas e para o `Hit` do `Pick`. Quem converter um Z de água deve usar `water.ServerZOffset`, nunca `scene.ToServer`.
-- Se o ticket 05 trocar a constante, as zonas de água já salvas nos `.zbproj` ficam com o valor antigo: o app não recompila uma zona que já existe no projeto (spec D5, "Repetição").
+- Se a medição trocar a constante, as zonas de água já salvas nos `.zbproj` ficam com o valor antigo: o app nunca recompila uma zona cujo nome já existe no projeto.
+
+## Pendente
+
+`water.ServerZOffset = -30` ainda não foi verificado em jogo. Procedimento:
+
+1. Pôr no datapack a zona de um lago compilada pelo app. Usar um lago sem zona no `water.xml`, ou trocar a zona de 22_22 pela do app depois de remover a antiga.
+2. Reiniciar o servidor. Como GM:
+   1. Andar da margem para dentro da água. Anotar o `//pos` quando o personagem começa a nadar no cliente e quando o servidor aplica a velocidade de nado.
+   2. Mergulhar até aparecer a barra de fôlego e anotar o `//pos`.
+   3. Pescar da margem, com uma zona `FISHING` por cima, e conferir que a boia fica na superfície.
+3. Registrar as 3 medições com `//pos` e o topo do volume.
+
+Se o nado do cliente e o do servidor diferirem em mais de 16 unidades, reabrir este ADR com a medição e trocar `water.ServerZOffset`. Se a constante mudar, atualizar também `docs/uso.md` §Zona de água ("Z = Z do cliente − 30" e a nota dos "62 abaixo") e o termo "Topo" do `GLOSSARY.md`.

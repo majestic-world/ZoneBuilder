@@ -20,7 +20,7 @@ import (
 )
 
 // profileBudget is how long measuring a shape's floor profile may take off
-// the event loop (spec D2: a whole tile); longer ones are logged.
+// the event loop (ADR 0004: a whole tile); longer ones are logged.
 const profileBudget = 100 * time.Millisecond
 
 // shapeRef names one shape of one zone, or, in the spawn editor's own
@@ -253,7 +253,7 @@ func newCoverageKey(src coverageSource, ref shapeRef, pts []zone.Point, w *scene
 // profile is the floor profile of shape ref for outline pts over w: the
 // one kept when it is up to date; else, when now, measured on the spot
 // and kept, so a click that fits a Z range to the floor or closes a shape
-// never reads a stale outline's profile (spec D5); else nil, and measured
+// never reads a stale outline's profile (ADR 0004); else nil, and measured
 // in the background once nothing else is. A shape being added is kept as
 // the index it gets once added, so it needs no measuring again. nil for an
 // outline of fewer than 3 points.
@@ -341,7 +341,7 @@ func (c *floorCoverage) receive(src coverageSource) {
 }
 
 // groundLine is the floor line along the walls of e's current shape over
-// w (spec D4d), as segments in server coordinates, and the key of the
+// w (ADR 0004), as segments in server coordinates, and the key of the
 // report it comes from. The line runs only on floor the layer rule counts
 // for the shape's range, so it follows the range as it is dragged. It is
 // nil, with the zero key, while the shape's outline or scene is being

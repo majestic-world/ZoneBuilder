@@ -442,7 +442,7 @@ func (e *spawnEditor) setHeight(text string) locale.Message {
 }
 
 // toGround moves one side of the current area's range to the floor under
-// it over w, by the layer rule of spec D5 from its own range: the top
+// it over w, by the layer rule of ADR 0004 from its own range: the top
 // margin above its highest floor when top is set, else the floor margin
 // below its lowest.
 func (e *spawnEditor) toGround(w *scene.World, top bool) locale.Message {

@@ -14,8 +14,8 @@ import (
 	"zonebuilder/internal/locale"
 )
 
-// Ruler is the height window's vertical scale of the selected zone (spec
-// D7), read the same from any camera angle: Z runs up from Lo to Hi, the
+// Ruler is the height window's vertical scale of the selected zone (ADR
+// 0004), read the same from any camera angle: Z runs up from Lo to Hi, the
 // zone's range is a bar, the floor's area by Z is a histogram coloured by
 // state beside it and Marks label the lowest and highest floor. It only
 // shows; the window loop fills it.

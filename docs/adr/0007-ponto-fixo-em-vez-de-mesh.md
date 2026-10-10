@@ -30,7 +30,7 @@ Mesma unidade, mesmo zero e mesmo sentido. Resta uma **[INFERENCE]** só do lado
 
 **Formato atual:** build, vet e suíte passaram. O smoke compilou e copiou o XML de 2 áreas com 50 e 5 pontos e IDs `1 2 3 4`: grupos únicos, posições/headings preservados, respawn 60 sem rand, divisões 13/13/12/12 e 2/1/1/1, e 2 compilações byte a byte iguais. Essa verificação não reiniciou o servidor nem substitui o teste em jogo; o roteiro abaixo usa o artefato anterior.
 
-**Pendente:** a verificação em jogo, que depende do usuário. Com `tres-areas.xml` em `gameserver/data/spawn/` e o servidor reiniciado (de preferência com `RndWalk = False` em `config/ai.properties`, porque o monstro vagueia e gira quando um jogador chega perto):
+**Pendente:** a verificação em jogo, que depende do usuário. As evidências e o roteiro passo a passo ficam fora do repositório, em `C:/Workspace/zone-builder-notes/popular-zona/`: o roteiro é `13-verificacao-no-servidor.md` e o artefato é `13-evidence/tres-areas.xml` (3 áreas, 10 pontos na clareira do 22_22); o harness segue `zone-builder-notes/zoneparser-harness`. Com `tres-areas.xml` em `gameserver/data/spawn/` e o servidor reiniciado (de preferência com `RndWalk = False` em `config/ai.properties`, porque o monstro vagueia e gira quando um jogador chega perto):
 
 | Spawn | `pos` | Heading | Ponto 150 à frente |
 | --- | --- | --- | --- |
@@ -42,7 +42,7 @@ Para cada spawn: `//teleport` ao ponto à frente, conferir que o monstro mostra 
 
 - a diferença entre o `//pos` e o `pos` de cada um dos 3 spawns;
 - se cada monstro olha para o ponto à frente. De costas (180°) ou de lado (±90°) quer dizer que o cliente usa outra convenção: a conversão entra num lugar só, no caminho da compilação junto com `headingYaw` da prévia;
-- se a altura do monstro de prévia (66, 0,83 do humano de 80) parece a do jogo.
+- se a altura do monstro de prévia (66, 0,83 do humano de 80) parece a do jogo. O monstro sai com drawscale 1 porque o drawscale do `Npcgrp.dat` não é lido. Se o tamanho estiver errado, regenerar o `monster.bin` com `go run ./cmd/zbmodel … -drawscale <s>` e atualizar `MonsterRadius` e `MonsterHeight` em `internal/model/embed.go` e o tamanho e o hash em `internal/model/assets/README.md`.
 
 ## Consequences
 

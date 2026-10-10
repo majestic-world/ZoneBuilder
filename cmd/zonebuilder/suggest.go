@@ -13,10 +13,10 @@ import (
 type zSource int
 
 const (
-	// zByFloor: the floor under the shape's whole area (spec D5).
+	// zByFloor: the floor under the shape's whole area (ADR 0004).
 	zByFloor zSource = iota
-	// zByVertices: the clicked points alone, as the panel asks (spec
-	// D2); nothing is measured.
+	// zByVertices: the clicked points alone, as the panel asks (ADR
+	// 0006); nothing is measured.
 	zByVertices
 	// zMeasuring: the vertices, while the floor under the outline is
 	// measured in the background (the preview only).
@@ -59,14 +59,14 @@ func (z zSuggestion) noteFor(lang locale.Language) string {
 }
 
 // suggest is the Z range for src's shape ref, being added with outline
-// pts over w (spec D5): margin below the lowest and above the highest
+// pts over w (ADR 0004): margin below the lowest and above the highest
 // floor under its whole area that the layer rule counts
 // (coverage.Profile.Fit). The rule judges every floor, the terrain
 // included (ADR 0006), from the range the shape would get without floor:
 // vmin…vmax, from its vertices, or, with fromTerrain, the terrain under
 // the outline plus the margin (the whole tile, whose vertices lie on
 // nothing). vmin…vmax is the range itself when the panel asks for the
-// clicked points (spec "Zona oca e faixa pelo clique", D2; not with
+// clicked points (ADR 0006; not with
 // fromTerrain: the whole tile always takes the floor), when part of the
 // outline lies off w's tiles, when no floor counts, and, unless now,
 // while the outline's profile is measured in the background; now

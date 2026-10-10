@@ -11,7 +11,7 @@ import (
 // TestWaterVolumeScaleDecodesAsTaggedStruct reads the MainScale and
 // PostScale of Giran's WaterVolume0, which the client stores as tagged
 // Scale structs holding the unit scale and no shear (measured with the
-// probe of the water-zone spec, 2026-10-09). Catches the Scale struct
+// probe of ADR 0011, 2026-10-09). Catches the Scale struct
 // skipped (no fields at all), read as 17 raw bytes, or decoded off by a
 // field.
 func TestWaterVolumeScaleDecodesAsTaggedStruct(t *testing.T) {

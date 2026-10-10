@@ -23,7 +23,7 @@ import (
 	"zonebuilder/internal/zone"
 )
 
-// spawnRadius is a new area's default radius (spec story 21): the
+// spawnRadius is a new area's default radius: the
 // collision radius measured on the preview monster's mesh, rounded to the
 // server's integer units.
 func spawnRadius() int { return int(math.Round(float64(model.MonsterRadius))) }
@@ -45,7 +45,7 @@ const spawnZMargin = zone.DefaultZMargin
 type spawnEditor struct {
 	doc   *spawn.Document
 	cover *floorCoverage
-	// radius is a new area's radius: the preview monster's (spec story 21).
+	// radius is a new area's radius: the preview monster's.
 	radius int
 	// version counts changes to what the overlay and the panel show;
 	// edits counts the document's changes, for the unsaved indicator.

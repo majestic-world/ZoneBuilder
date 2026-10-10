@@ -74,7 +74,7 @@ func (p *Profile) span(pc *piece) (lo, hi Spot) {
 // column is a floor at its Z. The piece counts in floored when no terrain
 // lies under that point and it is the lowest floor there; its area is
 // then taken whole, so the error stays within 1 triangle along a terrain
-// hole's border, as for exclusions (spec D1).
+// hole's border, as for exclusions (ADR 0004).
 func (p *Profile) stack(o Outline) {
 	var terrain float64
 	type column struct {

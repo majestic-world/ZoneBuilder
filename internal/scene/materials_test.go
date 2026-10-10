@@ -52,7 +52,7 @@ func bspSurface(t *testing.T, s *scene.Scene, index int) scene.BSPSurface {
 // BSP surfaces and mesh sections reach the texture and render mode
 // UE2-Studio's load_visual_scene gives them (measured on the Fafurion
 // client on 2026-10-08; the same holds for all 1 125 746 surfaces and
-// sections of the 309 tile maps, see the ticket 09 notes). Leaves and
+// sections of the 309 tile maps). Leaves and
 // fences cut out by mask, flags and the mood light's flame add light, and
 // water draws in the Water pass, whether it is a BSP sheet or a mesh. The
 // flag reaches its texture through a Shader set in the actor's Skins, over

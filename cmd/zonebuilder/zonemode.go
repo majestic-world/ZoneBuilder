@@ -34,7 +34,7 @@ type zoneMode struct {
 	// for; groundMark was last built for groundBuilt.
 	groundShown, groundBuilt groundKey
 	groundMark               render.Ground
-	// pins are the current shape's worst points (spec D4e), as last laid
+	// pins are the current shape's worst points (ADR 0004), as last laid
 	// out; pinsShown are the ones the renderer's overlay has.
 	pins, pinsShown []worstPin
 }

@@ -11,13 +11,13 @@ import (
 )
 
 // GroundReach is how far, in Z, floor may lie from a shape's Z range and
-// still pull it (spec D5): nearer, it is the floor of a building, a
+// still pull it (ADR 0004): nearer, it is the floor of a building, a
 // bridge or a ramp the zone is about; farther, it is a tower's roof, a
 // tree canopy, a cave floor or the ground under a tower the zone is not
 // meant to reach.
 const GroundReach = 1024
 
-// reaches is the layer rule of spec D5 for one BSP or mesh piece: whether
+// reaches is the layer rule of ADR 0004 for one BSP or mesh piece: whether
 // pc is floor of the Z range [zmin, zmax], that is, crosses the range or
 // lies within GroundReach of it; else it is another layer.
 func reaches(pc *piece, zmin, zmax float64) bool {
@@ -69,8 +69,8 @@ func (p *Profile) TerrainSpan() (lo, hi float64, ok bool) {
 	return p.terrainLo, p.terrainHi, p.terrainLo <= p.terrainHi
 }
 
-// terrainCounts is the layer rule for the terrain under the outline (spec
-// "Zona oca e faixa pelo clique", D1), judged as one block since it is one
+// terrainCounts is the layer rule for the terrain under the outline (ADR
+// 0006), judged as one block since it is one
 // continuous surface: it is floor of the Z range [zmin, zmax] when its
 // span lies within GroundReach of the range, or when no BSP or mesh floor
 // that is not excluded does (the fallback, so a range far from everything
@@ -118,7 +118,7 @@ func (p *Profile) overReach(zmax float64) int {
 	return over
 }
 
-// Ground is the floor a Z range spans by the layer rule of spec D5.
+// Ground is the floor a Z range spans by the layer rule of ADR 0004.
 type Ground struct {
 	// Measured is false when no floor counts; Min and Max are then
 	// meaningless.
@@ -144,7 +144,7 @@ const (
 )
 
 // Fit fits the given sides of the Z range [zmin, zmax] to the floor under
-// the profile's outline (spec D5): the floor margin units below the
+// the profile's outline (ADR 0004): the floor margin units below the
 // lowest floor that counts, the top margin units above the highest,
 // rounded outwards to whole units so the clearance is never under margin.
 // Which floor counts is judged once, from [zmin, zmax], so a tower's
@@ -152,7 +152,7 @@ const (
 // nor the terrain under a zone drawn on its top. Classify judges from the
 // fitted range, so a layer beyond reach of [zmin, zmax] but within reach
 // of the fitted range is reported above or below it right after the fit;
-// fitting again takes it in. That is spec D5's rule: the user decides.
+// fitting again takes it in. That is ADR 0004's rule: the user decides.
 // Floor a ban excludes is not counted, as Classify does not. It gives the
 // fitted range and the floor it spans; the range is [zmin, zmax]
 // unchanged when no floor counts (g.Measured false).

@@ -1,5 +1,5 @@
 // Package placement spreads the spawn points of an area over the free
-// floor under it (spec D3): a grid of 16-unit cells inside the outline,
+// floor under it: a grid of 16-unit cells inside the outline,
 // each standing on terrain or BSP floor within the area's Z range, out of
 // water and clear of the static meshes and BSP walls around it, sampled by
 // Mitchell's best candidate with a seeded generator. Everything is in
@@ -85,7 +85,7 @@ func (r Result) Fit() int { return len(r.Points) }
 const jitterReach = CellSize/2*math.Sqrt2 + 1
 
 // Distribute spreads r.Count points over the free floor of g under r's
-// outline, or as many as fit (spec D3):
+// outline, or as many as fit:
 //
 //   - a cell is a candidate when its centre lies inside the outline, at
 //     least Radius from its edges;

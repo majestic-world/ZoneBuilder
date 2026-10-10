@@ -23,7 +23,7 @@ const waterTouchSlack = 0.01
 // volume is a convex polyhedron the ray is clipped against, plane by plane,
 // so a click on the surface, on the bottom seen through the water or on a
 // static mesh fountain finds the volume, and a click on the dry bank next
-// to it does not (spec D3).
+// to it does not (ADR 0011).
 func (w *World) PickWater(r Ray, maxDist float32) (*WaterVolume, float32, bool) {
 	return pickWater(w.waterVolumes(true), r, maxDist)
 }

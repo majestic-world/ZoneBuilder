@@ -12,7 +12,7 @@ import (
 // lower arm. Catches a check of "part of the outline lies off the loaded
 // tiles" made on the outline's bounding box, which sends a concave
 // polygon or a circle near a tile's edge to the vertex-based range
-// (spec D5), and a clip of the concave outline whose bridging edges add
+// (ADR 0004), and a clip of the concave outline whose bridging edges add
 // area.
 func TestAreaInBoxFollowsAConcaveOutline(t *testing.T) {
 	l := coverage.Outline{{0, 0}, {200, 0}, {200, 100}, {100, 100}, {100, 200}, {0, 200}}

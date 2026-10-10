@@ -20,8 +20,8 @@ import (
 	"zonebuilder/internal/zonexml"
 )
 
-// waterSelection is the water volumes the user selected by clicking (spec
-// D3), kept by identity so they survive the tiles' scenes being re-added
+// waterSelection is the water volumes the user selected by clicking (ADR
+// 0011), kept by identity so they survive the tiles' scenes being re-added
 // and drop out when their tile goes.
 type waterSelection struct {
 	// ids are the selected volumes, in the order they were selected.
@@ -103,7 +103,7 @@ func (ws *waterSelection) prune(w *scene.World) {
 // volume the ray through p enters first before the surface h it hit (ok:
 // it hit one), or before the far plane. Without one, unsupported is the
 // Unsupported volume there, if any, so the click can say why it selects
-// nothing (spec D1).
+// nothing (ADR 0011).
 func pickWaterAt(w *scene.World, cam *camera.Camera, p f32.Point, viewport image.Point, h scene.Hit, ok bool) (v, unsupported *scene.WaterVolume) {
 	maxDist := cam.Far
 	if ok {
@@ -161,7 +161,7 @@ func (ws *waterSelection) click(w *scene.World, cam *camera.Camera, p f32.Point,
 	return msg
 }
 
-// rightClick handles a right click at viewport pixel p (spec D4): a water
+// rightClick handles a right click at viewport pixel p (ADR 0011): a water
 // volume outside the selection becomes the selection alone;
 // over any water volume, open reports that the context menu opens, with
 // the selection's status. Over an Unsupported volume msg says why it is
@@ -195,8 +195,8 @@ func (ws *waterSelection) selected(w *scene.World) (selected, live []scene.Water
 	return selected, live
 }
 
-// compileWater turns the selected water volumes into water zones (spec
-// D5): the zones they don't have yet are created in one undo step, then
+// compileWater turns the selected water volumes into water zones (ADR
+// 0011): the zones they don't have yet are created in one undo step, then
 // only those zones are compiled, leaving the list's compile selection
 // alone. live are every volume of the loaded tiles, for the overlap
 // warning. It returns the status line and the files for the XML window.

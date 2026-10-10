@@ -39,7 +39,7 @@ const (
 	// the surface under it: it starts groundAbove over the clicked height
 	// and takes a hit no further than groundReach from it, so a roof or a
 	// cave floor far from the drawing level is not picked (the reach of
-	// the range rule, spec D5).
+	// the range rule, ADR 0004).
 	groundAbove = zone.DefaultZMargin
 	groundReach = coverage.GroundReach
 )
@@ -155,8 +155,8 @@ func (e *zoneEditor) rectangleClick(s *scene.World, c *floorCoverage, v zone.Poi
 // wholeTile adds to the selected zone a polygon over tile t's whole square,
 // [origin, origin+TileSpan-1] on X and Y (the last unit stays inside the
 // tile, and inside the world bounds for the last tile), with the Z range
-// suggested by the floor under it, measured over w from the terrain (spec
-// D5); with no floor there, the range spans everything the tile's scene s
+// suggested by the floor under it, measured over w from the terrain (ADR
+// 0004); with no floor there, the range spans everything the tile's scene s
 // holds, terrain, BSP and meshes, plus the margin. It is a polygon, not a
 // rectangle, so its vertices can be moved and more inserted to trim it.
 // banned adds it as an exclusion.

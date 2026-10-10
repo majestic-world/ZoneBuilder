@@ -10,7 +10,7 @@ import (
 // grid of absolute Z, so the histograms of a zone's shapes share bins.
 const HistogramStep = 16
 
-// Histogram is a profile's floor area by Z (spec D7's ruler): Terrain[i]
+// Histogram is a profile's floor area by Z (ADR 0004's ruler): Terrain[i]
 // and Built[i] are the X/Y areas of the terrain and of the BSP and mesh
 // floor with Z in [(First+i)·HistogramStep, (First+i+1)·HistogramStep).
 // It depends only on the profile; Split sorts it by a Z range.
@@ -59,7 +59,7 @@ func (p *Profile) Histogram() Histogram {
 
 // Split is h's floor with Z in [lo, hi] sorted by the Z range [zmin,
 // zmax]: inside it, above zmax and below zmin. Floor the layer rule
-// leaves out is another layer (spec D5) and left out: BSP and mesh floor
+// leaves out is another layer (ADR 0004) and left out: BSP and mesh floor
 // farther than GroundReach from the range, and the terrain when terrain
 // is false (Report.Terrain of the range). A bin cut by lo, hi, zmin, zmax
 // or the reach is apportioned as if its floor spread evenly over its Z,
