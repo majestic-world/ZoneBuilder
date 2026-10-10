@@ -91,10 +91,6 @@ type spawnEditor struct {
 	win        *app.Window
 	results    chan generation
 	generating spawn.AreaID
-	// free is the free floor each generation measured, by the
-	// fingerprint of the inputs it read: the inspector shows the one of
-	// the selected area's points.
-	free map[spawn.Fingerprint]float64
 	// point is the selected point, of the current area only (none when
 	// its area is 0 or another); pointDrag is a press on a point being
 	// dragged.
@@ -138,7 +134,6 @@ func newSpawnEditor(w *app.Window, radius int) *spawnEditor {
 		heightFilled: spawnHeightKey{version: -1},
 		win:          w,
 		results:      make(chan generation, 1),
-		free:         map[spawn.Fingerprint]float64{},
 	}
 }
 
@@ -179,7 +174,7 @@ func (e *spawnEditor) replace(doc *spawn.Document) {
 	*e = spawnEditor{
 		doc: doc, cover: e.cover, radius: e.radius, sel: -1, known: map[areaVertex]int{},
 		step: e.step, version: e.version + 1, edits: e.edits + 1, heightFilled: spawnHeightKey{version: -1},
-		win: e.win, results: e.results, free: e.free,
+		win: e.win, results: e.results,
 	}
 	for _, a := range doc.Areas() {
 		e.area = a.ID

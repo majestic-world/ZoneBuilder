@@ -204,3 +204,26 @@ func TestCameraArmShortensBehindAWall(t *testing.T) {
 		t.Fatal("body hidden with the camera 94 units away")
 	}
 }
+
+func TestCollisionReplacementPreservesPlayerAndUsesLoadedGeometry(t *testing.T) {
+	for _, flying := range []bool{false, true} {
+		s := play.NewSession(play.NewWorld(ground(0)), geom.Vec3{Z: play.EyeHeight}, 0, -0.2)
+		s.Step(play.Input{Seconds: frame, ToggleFlight: flying, Jump: !flying, Forward: 1})
+		feet, velocity, motion := s.Feet(), s.Velocity(), s.Motion()
+		yaw, pitch := s.View()
+		s.ReplaceWorld(play.NewWorld(append(ground(0), wall(300)...)))
+		y, p := s.View()
+		if s.Feet() != feet || s.Velocity() != velocity || s.Motion() != motion || y != yaw || p != pitch {
+			t.Fatal("rebuilding collision reset the player")
+		}
+		// Flight intentionally bypasses collision; return to walking before
+		// checking that the newly loaded wall stops the capsule.
+		if flying {
+			s.Step(play.Input{ToggleFlight: true})
+		}
+		run(s, 180, play.Input{Seconds: frame, Forward: 1})
+		if x := s.Feet().X; x > 284 {
+			t.Fatalf("player crossed newly loaded wall: x=%v", x)
+		}
+	}
+}

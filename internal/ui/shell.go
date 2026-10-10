@@ -37,14 +37,16 @@ var logo = func() *icon.Icon {
 // pill at the bottom with the message card over it, the viewport buttons
 // in the scene's bottom right corner, and the floating windows.
 type Shell struct {
-	Theme    *material.Theme
+	Theme *material.Theme
 	// Language controls the presentation of this shell without replacing its widgets.
 	Language locale.Language
 	// Mode picks what Layout shows: the home screen, or the inspector
 	// panel, dock and viewport overlays of one mode. The window loop sets
 	// it; ModeRequested reports the user's picks.
-	Mode     Mode
-	Viewport Viewport
+	Mode Mode
+	// EditorLocked freezes editor controls while preparing/playing.
+	EditorLocked bool
+	Viewport     Viewport
 	// Home holds the home screen's cards and the command bar's Início
 	// button.
 	Home HomeScreen
@@ -123,10 +125,10 @@ type Shell struct {
 	Cursor, Click, Tiles string
 
 	list                                    widget.List
-	languageButtons [2]widget.Clickable
+	languageButtons                         [2]widget.Clickable
 	brandSink, dockSink, barSink, inspector pointerSink
-	languageSink, statusSink, messageSink pointerSink
-	viewportSink                          pointerSink
+	languageSink, statusSink, messageSink   pointerSink
+	viewportSink                            pointerSink
 }
 
 // NewShell returns a shell with single-line fields holding client and
@@ -207,9 +209,9 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	dockAt := image.Pt(m, m+brand.Y+gtx.Dp(8)+language.Y+gtx.Dp(12))
 	switch s.Mode {
 	case ModeZones:
-		dock = at(gtx, dockAt, s.dock)
+		dock = at(gtx, dockAt, s.editorControls(s.dock))
 	case ModePopulate:
-		dock = at(gtx, dockAt, s.areaDock)
+		dock = at(gtx, dockAt, s.editorControls(s.areaDock))
 	}
 
 	iw := gtx.Dp(InspectorWidth)
@@ -237,13 +239,35 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	}
 	s.viewportButtons(gtx, ix, statusAt.Y)
 
-	s.heightWindow(gtx)
+	s.editorControls(s.heightWindow)(gtx)
 	s.xmlWindow(gtx)
-	s.projectMenu(gtx)
+	s.editorControls(func(gtx layout.Context) layout.Dimensions { s.projectMenu(gtx); return layout.Dimensions{} })(gtx)
 	if zones {
-		s.waterMenu(gtx)
+		s.editorControls(func(gtx layout.Context) layout.Dimensions { s.waterMenu(gtx); return layout.Dimensions{} })(gtx)
 	}
 	return image.Rectangle{Max: s.Viewport.Size()}
+}
+
+func (s *Shell) editorControls(w layout.Widget) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		if s.EditorLocked {
+			gtx = gtx.Disabled()
+		}
+		return w(gtx)
+	}
+}
+
+// DiscardEditorInput consumes requests even while locked; none may replay
+// after Esc. The editor's document, selection and history are not consulted.
+func (s *Shell) DiscardEditorInput(gtx layout.Context) {
+	discardClicks(gtx, &s.Undo, &s.Redo, &s.Compile, &s.Zone.PrevType, &s.Zone.NextType, &s.Zone.Create, &s.Edit.PrevFrom, &s.Edit.NextFrom, &s.Edit.GroundZ, &s.Edit.InsertAfter, &s.Edit.RemoveVertex, &s.Edit.SetZRange, &s.Edit.MoveShape, &s.Edit.SetCoords, &s.Height.Up, &s.Height.Down, &s.Height.SetBase, &s.Height.SetHeight, &s.Height.FloorToGround, &s.Height.TopToGround, &s.Height.Reopen, &s.Project.OpenProject, &s.Project.Save, &s.Project.SaveAs)
+	s.Edit.ZRangeRequested(gtx)
+	s.Edit.MoveShapeRequested(gtx)
+	s.Edit.CoordsRequested(gtx)
+	s.Height.BaseRequested(gtx)
+	s.Height.HeightRequested(gtx)
+	s.Project.Requests(gtx)
+	s.WaterMenu.CompileRequested(gtx)
 }
 
 // place adds the recorded call at p.
@@ -296,16 +320,20 @@ func (s *Shell) inspectorCard(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints = layout.Exact(size)
 		var children []layout.FlexChild
 		children = append(children, s.mapSection()...)
-		switch s.Mode {
-		case ModeZones:
-			children = append(children, s.zonePanel()...)
-			children = append(children, s.zoneList()...)
-			children = append(children, s.problemList(&s.Problems)...)
-			children = append(children, s.selectedZone()...)
-			children = append(children, s.editPanel()...)
-		case ModePopulate:
-			children = append(children, s.areaPanel()...)
-		}
+		children = append(children, layout.Rigid(s.editorControls(func(gtx layout.Context) layout.Dimensions {
+			var controls []layout.FlexChild
+			switch s.Mode {
+			case ModeZones:
+				controls = append(controls, s.zonePanel()...)
+				controls = append(controls, s.zoneList()...)
+				controls = append(controls, s.problemList(&s.Problems)...)
+				controls = append(controls, s.selectedZone()...)
+				controls = append(controls, s.editPanel()...)
+			case ModePopulate:
+				controls = append(controls, s.areaPanel()...)
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, controls...)
+		})))
 		// One list item holding the whole column: the card scrolls when
 		// the window is too short for it.
 		s.scrollList(&s.list).Layout(gtx, 1, func(gtx layout.Context, _ int) layout.Dimensions {

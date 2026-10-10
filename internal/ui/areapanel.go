@@ -61,7 +61,9 @@ type AreaPanel struct {
 	// Generate distributes the selected area's points with its seed,
 	// Regenerate with another one; AddPoints toggles adding points with
 	// viewport clicks.
-	Generate, Regenerate, AddPoints widget.Clickable
+	Generate, Regenerate, AddPoints     widget.Clickable
+	ConfirmRegenerate, CancelRegenerate widget.Clickable
+	confirmRegenerate                   spawn.AreaID
 	// PointsNote is the points section's note; PointStats are its lines
 	// (free floor, spacing) and PointWarnings the ones in the warning
 	// colour (stale points, the distribution's warnings). Generating
@@ -137,6 +139,20 @@ func (p *AreaPanel) init() {
 func (p *AreaPanel) Reset() {
 	p.rows = map[spawn.AreaID]*areaRowWidgets{}
 	p.loaded = 0
+	p.confirmRegenerate = 0
+}
+
+// Discard consumes pending events without accepting any editor action or
+// changing an existing regeneration confirmation.
+func (p *AreaPanel) Discard(gtx layout.Context, a spawn.Area, ok bool) {
+	discardClicks(gtx, &p.Duplicate, &p.Delete, &p.Generate, &p.Regenerate, &p.AddPoints, &p.ConfirmRegenerate, &p.CancelRegenerate)
+	for _, r := range p.Rows {
+		w := p.widgets(r.ID)
+		discardClicks(gtx, &w.pick, &w.toggle)
+	}
+	confirm := p.confirmRegenerate
+	p.Update(gtx, a, ok)
+	p.confirmRegenerate = confirm
 }
 
 // Update loads a, the selected area (ok false: none), into the property
@@ -166,7 +182,21 @@ func (p *AreaPanel) Update(gtx layout.Context, a spawn.Area, ok bool) []any {
 	if p.Generate.Clicked(gtx) {
 		reqs = append(reqs, GenerateArea{Area: a.ID})
 	}
+	if p.confirmRegenerate != a.ID {
+		p.confirmRegenerate = 0
+	}
 	if p.Regenerate.Clicked(gtx) {
+		if len(a.Points) > 0 {
+			p.confirmRegenerate = a.ID
+		} else {
+			reqs = append(reqs, GenerateArea{Area: a.ID, Regenerate: true})
+		}
+	}
+	if p.CancelRegenerate.Clicked(gtx) {
+		p.confirmRegenerate = 0
+	}
+	if p.ConfirmRegenerate.Clicked(gtx) && p.confirmRegenerate == a.ID {
+		p.confirmRegenerate = 0
 		reqs = append(reqs, GenerateArea{Area: a.ID, Regenerate: true})
 	}
 	if p.AddPoints.Clicked(gtx) {
@@ -317,6 +347,15 @@ func (s *Shell) areaPoints() []layout.FlexChild {
 			s.button(&p.Regenerate, secondaryButton, icon.Redo2, locale.Text(s.Language, "spawn.points.regenerate")),
 		)),
 		layout.Rigid(s.spaced(s.toggleButton(&p.AddPoints, icon.Plus, locale.Text(s.Language, "spawn.points.add"), p.Adding))),
+	}
+	if p.confirmRegenerate != 0 {
+		children = append(children,
+			layout.Rigid(s.spaced(s.text(locale.Text(s.Language, "spawn.generate.confirm_warning"), smallSize, font.Normal, warnText, 0))),
+			layout.Rigid(buttonRow(
+				s.button(&p.ConfirmRegenerate, primaryButton, icon.Redo2, locale.Text(s.Language, "spawn.generate.confirm")),
+				s.button(&p.CancelRegenerate, secondaryButton, nil, locale.Text(s.Language, "spawn.generate.cancel")),
+			)),
+		)
 	}
 	for _, line := range p.PointStats {
 		children = append(children, layout.Rigid(s.dimLabel(line)))

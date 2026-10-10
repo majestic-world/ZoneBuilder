@@ -33,7 +33,8 @@ func generated(t *testing.T, name string) (*spawn.Document, spawn.AreaID) {
 	a, _ := d.Area(id)
 	apply(t, d, spawn.SetPoints{
 		Area: id, Seed: 7, Fingerprint: a.Fingerprint(7),
-		Points: []spawn.Point{{X: 83100, Y: 147700, Z: -3404, Heading: 1200}, {X: 83300, Y: 147900, Z: -3398, Heading: 40000}},
+		Points:      []spawn.Point{{X: 83100, Y: 147700, Z: -3404, Heading: 1200}, {X: 83300, Y: 147900, Z: -3398, Heading: 40000}},
+		Measurement: spawn.Measurement{Known: true, FreeArea: 16384},
 	})
 	return d, id
 }
@@ -218,12 +219,14 @@ func TestProblemsBlockAndWarningsDoNot(t *testing.T) {
 // Undo would leave new points with an old fingerprint, or the reverse).
 func TestOneUndoRevertsAGeneration(t *testing.T) {
 	d, id := generated(t, "giran")
+	apply(t, d, spawn.MovePoint{Area: id, Index: 0, Point: spawn.Point{X: 83234, Y: 147765, Z: -3400, Heading: 4321}})
 	before, _ := d.Area(id)
 	before = spawn.CloneArea(before)
 	apply(t, d, spawn.SetPoints{
 		Area: id, Seed: 99, Fingerprint: before.Fingerprint(99),
-		Points:   []spawn.Point{{X: 83200, Y: 147800, Z: -3400, Heading: 7}},
-		Warnings: []spawn.Warning{{Rule: spawn.FitsOnly, Placed: 1, Requested: 2}},
+		Points:      []spawn.Point{{X: 83200, Y: 147800, Z: -3400, Heading: 7}},
+		Warnings:    []spawn.Warning{{Rule: spawn.FitsOnly, Placed: 1, Requested: 2}},
+		Measurement: spawn.Measurement{Known: true, FreeArea: 8192},
 	})
 	after, _ := d.Area(id)
 	after = spawn.CloneArea(after)

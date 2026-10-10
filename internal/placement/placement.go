@@ -103,8 +103,9 @@ const jitterReach = CellSize/2*math.Sqrt2 + 1
 //     free cells drawn at random, never nearer than 2 Radius to any of
 //     them, moved at random within its cell (no farther than keeps it
 //     clear of the edges and obstacles, and never into water) and rounded
-//     to whole units, its Z on the cell's floor plane, and its heading
-//     drawn too, all from one PCG generator seeded with r.Seed;
+//     to whole units, its Z on the highest supported floor at that final
+//     location (or the safe centre), and its heading drawn too, all from
+//     one PCG generator seeded with r.Seed;
 //   - when no free cell is left 2 Radius from the points, the points so
 //     far are the result: Fit < Count.
 //
@@ -125,6 +126,7 @@ func Distribute(g Geometry, r Request) Result {
 type cell struct {
 	state          state
 	z, gx, gy      float32
+	geometry       int // one-based head of nearby geometry references
 	slack          float32
 	px, py, pz     int32 // the point drawn in the cell, once drawn
 	drawn, claimed bool
@@ -148,7 +150,32 @@ type grid struct {
 	// water is the water volumes around the outline.
 	water []scene.WaterVolume
 	// height is the monster's height.
-	height float64
+	height    float64
+	triangles []scene.Triangle
+	nearby    []geometryRef
+}
+
+type geometryRef struct {
+	triangle, next int
+}
+
+// index retains nearby triangles for validating the final rounded point,
+// including floors that cover another part of the cell, not its centre.
+func (gr *grid) index(t scene.Triangle, reach float64) {
+	ti := len(gr.triangles)
+	gr.triangles = append(gr.triangles, t)
+	i0, i1 := span(float64(min(t.A.X, t.B.X, t.C.X))-reach, float64(max(t.A.X, t.B.X, t.C.X))+reach, gr.x0, gr.nx)
+	j0, j1 := span(float64(min(t.A.Y, t.B.Y, t.C.Y))-reach, float64(max(t.A.Y, t.B.Y, t.C.Y))+reach, gr.y0, gr.ny)
+	for j := j0; j <= j1; j++ {
+		for i := i0; i <= i1; i++ {
+			c := &gr.cells[j*gr.nx+i]
+			if c.state == out {
+				continue
+			}
+			gr.nearby = append(gr.nearby, geometryRef{triangle: ti, next: c.geometry})
+			c.geometry = len(gr.nearby)
+		}
+	}
 }
 
 func newGrid(r Request) *grid {
@@ -224,8 +251,10 @@ func (gr *grid) scan(g Geometry, r Request) {
 		switch {
 		case isFloor(t):
 			gr.floor(t, r)
+			gr.index(t, jitterReach)
 		case t.Surface == scene.SurfaceMesh || t.Surface == scene.SurfaceBSP && float64(t.Normal.Z) < FloorNormalZ:
 			obstacles = append(obstacles, t)
+			gr.index(t, reach)
 		}
 	}, func(v scene.WaterVolume) { gr.water = append(gr.water, v) })
 	for k := range gr.water {
@@ -454,7 +483,7 @@ func (gr *grid) sample(r Request) Result {
 			ci := avail[k]
 			c := &gr.cells[ci]
 			if !c.drawn {
-				gr.draw(ci, rng)
+				gr.draw(ci, rng, r)
 			}
 			d2 := nearest(res.Points, c.px, c.py)
 			if c.claimed || d2 < minD2 {
@@ -480,11 +509,10 @@ func (gr *grid) sample(r Request) Result {
 	return res
 }
 
-// draw moves cell ci's point at random within the cell, no farther from
-// its centre than its slack less 1 allows, onto the cell's floor plane,
-// and rounds it to whole units; back to the centre when that lands it in
-// water the centre is clear of.
-func (gr *grid) draw(ci int32, rng *rand.Rand) {
+// draw jitters within the cell's clearance, then verifies actual support,
+// range, water and obstacles at the final integer location. An invalid
+// jitter falls back to the already validated centre.
+func (gr *grid) draw(ci int32, rng *rand.Rand, r Request) {
 	c := &gr.cells[ci]
 	i, j := int(ci)%gr.nx, int(ci)/gr.nx
 	x, y := gr.centre(i, j)
@@ -493,15 +521,50 @@ func (gr *grid) draw(ci int32, rng *rand.Rand) {
 		dx, dy = dx*room/l, dy*room/l
 	}
 	px, py := math.Round(x+dx), math.Round(y+dy)
-	pz := float64(c.z) + float64(c.gx)*(px-x) + float64(c.gy)*(py-y)
-	for k := range gr.water {
-		if v := &gr.water[k]; gr.wet(v, px, py, pz) {
-			px, py, pz = x, y, float64(c.z)
-			break
-		}
+	pz, supported := gr.support(c, px, py, r)
+	if !supported || !gr.clearAt(c, px, py, math.Round(pz), r) {
+		px, py, pz = x, y, float64(c.z)
 	}
 	c.px, c.py, c.pz = int32(px), int32(py), int32(math.Round(pz))
 	c.drawn = true
+}
+
+func (gr *grid) support(c *cell, x, y float64, r Request) (float64, bool) {
+	z := math.Inf(-1)
+	for head := c.geometry; head != 0; {
+		ref := gr.nearby[head-1]
+		head = ref.next
+		t := gr.triangles[ref.triangle]
+		if !isFloor(t) || !inTriangle(x, y, float64(t.A.X), float64(t.A.Y), float64(t.B.X), float64(t.B.Y), float64(t.C.X), float64(t.C.Y)) {
+			continue
+		}
+		h := float64(t.A.Z) - (float64(t.Normal.X)*(x-float64(t.A.X))+float64(t.Normal.Y)*(y-float64(t.A.Y)))/float64(t.Normal.Z)
+		if h >= r.ZMin && h <= r.ZMax && math.Round(h) >= r.ZMin && math.Round(h) <= r.ZMax {
+			z = math.Max(z, h)
+		}
+	}
+	return z, !math.IsInf(z, -1)
+}
+
+func (gr *grid) clearAt(c *cell, x, y, z float64, r Request) bool {
+	for k := range gr.water {
+		if gr.wet(&gr.water[k], x, y, z) {
+			return false
+		}
+	}
+	for head := c.geometry; head != 0; {
+		ref := gr.nearby[head-1]
+		head = ref.next
+		t := gr.triangles[ref.triangle]
+		if isFloor(t) {
+			continue
+		}
+		tri := [3][3]float64{{float64(t.A.X), float64(t.A.Y), float64(t.A.Z)}, {float64(t.B.X), float64(t.B.Y), float64(t.B.Z)}, {float64(t.C.X), float64(t.C.Y), float64(t.C.Z)}}
+		if d, ok := sliceDistance(tri, z-SliceBelow, z+r.Height, x, y); ok && d <= r.Radius+r.Clearance {
+			return false
+		}
+	}
+	return true
 }
 
 // nearest is the squared distance from (x, y) to the nearest of pts, +Inf

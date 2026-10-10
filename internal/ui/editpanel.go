@@ -90,6 +90,13 @@ func requested(gtx layout.Context, e *widget.Editor, b *widget.Clickable) bool {
 	}
 }
 
+func discardClicks(gtx layout.Context, clicks ...*widget.Clickable) {
+	for _, c := range clicks {
+		for c.Clicked(gtx) {
+		}
+	}
+}
+
 // editPanel is the inspector's last section: the Z margin and the new
 // range source, then the current shape's Z range and move, then the
 // selected vertex.

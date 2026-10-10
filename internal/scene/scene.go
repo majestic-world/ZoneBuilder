@@ -191,7 +191,9 @@ type Scene struct {
 	BSPSurfaces []BSPSurface
 	// pickables are the triangle sets Pick tests besides the terrains.
 	pickables []triangleSet
-	Terrains  []Terrain
+	// hiddenCollision contains solid BSP and non-rendered blocking meshes.
+	hiddenCollision []Triangle
+	Terrains        []Terrain
 	// Bounds is the world AABB of every batch vertex.
 	Bounds geom.Box
 	// Framing is Bounds with vertex outliers trimmed, what the opening

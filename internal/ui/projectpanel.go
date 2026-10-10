@@ -82,15 +82,15 @@ func (s *Shell) commandBar(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(s.iconToggle(&s.Home.Back, icon.House, false)),
 			layout.Rigid(divider),
-			layout.Rigid(s.projectButton),
+			layout.Rigid(s.editorControls(s.projectButton)),
 			layout.Rigid(divider),
-			layout.Rigid(s.iconToggle(&s.Undo, icon.Undo2, false)),
-			layout.Rigid(s.iconToggle(&s.Redo, icon.Redo2, false)),
+			layout.Rigid(s.editorControls(s.iconToggle(&s.Undo, icon.Undo2, false))),
+			layout.Rigid(s.editorControls(s.iconToggle(&s.Redo, icon.Redo2, false))),
 			layout.Rigid(divider),
 			layout.Rigid(s.toggleButton(&s.Meshes.button, meshes, locale.Text(s.Language, "ui.command.meshes"), s.Meshes.On)),
 			layout.Rigid(s.toggleButton(&s.Ground.button, icon.Grid3x3, locale.Text(s.Language, "ui.command.ground"), s.Ground.On)),
 			layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-			layout.Rigid(s.button(&s.Compile, primaryButton, icon.CodeXML, locale.Text(s.Language, "ui.command.compile"))),
+			layout.Rigid(s.editorControls(s.button(&s.Compile, primaryButton, icon.CodeXML, locale.Text(s.Language, "ui.command.compile")))),
 		)
 	})
 }

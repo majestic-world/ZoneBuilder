@@ -122,6 +122,19 @@ func (p *PropertiesPanel) Applied(r EditZone, err error) locale.Message {
 	return r.status
 }
 
+// Discard drains clicks and field commits without accepting commands or
+// leaving a type-picker toggle to replay after play.
+func (p *PropertiesPanel) Discard(gtx layout.Context) {
+	discardClicks(gtx, &p.prevType, &p.nextType, &p.listTypes, &p.add)
+	for i := range p.typeItems {
+		discardClicks(gtx, &p.typeItems[i])
+	}
+	for _, f := range p.params {
+		discardClicks(gtx, &f.remove)
+	}
+	p.input(gtx)
+}
+
 // load brings the fields up to date with z. A field whose zone value did
 // not change since the last load keeps what is being typed in it, unless
 // fresh (another zone) is set.

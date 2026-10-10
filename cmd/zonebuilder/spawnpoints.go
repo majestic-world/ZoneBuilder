@@ -193,10 +193,9 @@ func (e *spawnEditor) store(g generation) locale.Message {
 	case g.res.Fit() < g.count:
 		warnings = []spawn.Warning{{Rule: spawn.FitsOnly, Placed: g.res.Fit(), Requested: g.count}}
 	}
-	if e.apply(spawn.SetPoints{Area: g.area, Seed: g.seed, Fingerprint: g.fp, Points: pts, Warnings: warnings}) != nil {
+	if e.apply(spawn.SetPoints{Area: g.area, Seed: g.seed, Fingerprint: g.fp, Points: pts, Warnings: warnings, Measurement: spawn.Measurement{Known: true, FreeArea: g.res.FreeArea}}) != nil {
 		return locale.Message{Key: "spawn.generate.failed", Args: map[string]string{"name": g.name}}
 	}
-	e.free[g.fp] = g.res.FreeArea
 	if g.area == e.area {
 		e.point, e.pointDrag = areaPoint{}, pointDrag{}
 	}
@@ -430,8 +429,8 @@ func (e *spawnEditor) pointsPanel(lang locale.Language) pointsInfo {
 		info.note = locale.Plural(lang, "spawn.points.count", len(a.Points), nil)
 	}
 	free := locale.Text(lang, "spawn.points.free_unknown")
-	if f, known := e.free[a.Generated]; known && a.Generated != "" && !a.Stale() {
-		free = locale.Format(lang, "spawn.points.free", map[string]string{"area": locale.Number(lang, f, 0)})
+	if a.Measurement.Known && a.Generated != "" && !a.Stale() {
+		free = locale.Format(lang, "spawn.points.free", map[string]string{"area": locale.Number(lang, a.Measurement.FreeArea, 0)})
 	}
 	pts := make([]placement.Point, len(a.Points))
 	for i, p := range a.Points {

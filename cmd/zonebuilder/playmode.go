@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"math"
+	"slices"
 	"time"
 
 	"gioui.org/app"
@@ -25,8 +26,8 @@ import (
 // playMode is the game mode (spec D8): the embedded human walking the open
 // map with its collision. It sits in front of the active editing mode: while
 // it runs, the viewport's events and keys come here and the mode gets none,
-// so its selection and history stay as they were; the mode still presents
-// and syncs, so its overlay (the zone outlines) stays drawn. Esc ends it and
+// so its selection and history stay as they were; its panels are frozen
+// while sync keeps its overlay drawn. Esc ends it and
 // puts the edit camera back where it was.
 type playMode struct {
 	w *app.Window
@@ -35,22 +36,26 @@ type playMode struct {
 	results  chan playPrepared
 	starting bool
 	// saved is the edit camera, restored on stop.
-	saved camera.Camera
+	saved      camera.Camera
+	source     *scene.World
+	scenes     []*scene.Scene
+	eye        geom.Vec3
+	yaw, pitch float32
 
 	s           *play.Session
 	origin      geom.Vec3 // the World's origin the camera is rebased on
 	firstPerson bool
 	body        *humanBody
 
-	held           map[key.Name]bool
-	shift          bool
-	jump, flight   bool
-	dragging       bool
-	last           f32.Point
-	lookX, lookY   float32
-	stepped        time.Time
-	triangles      int
-	bundle         *model.Bundle
+	held         map[key.Name]bool
+	shift        bool
+	jump, flight bool
+	dragging     bool
+	last         f32.Point
+	lookX, lookY float32
+	stepped      time.Time
+	triangles    int
+	bundle       *model.Bundle
 	// gpu is the human on owner, the renderer it was made for.
 	gpu      *render.Model
 	owner    *render.Renderer
@@ -62,6 +67,8 @@ type playMode struct {
 type playPrepared struct {
 	gen       int
 	world     *play.World
+	source    *scene.World
+	scenes    []*scene.Scene
 	triangles int
 	bundle    *model.Bundle
 	err       error
@@ -94,8 +101,6 @@ func (p *playMode) start(ws *workspace) locale.Message {
 	if w == nil {
 		return locale.Message{Key: "spawn.play.no_map"}
 	}
-	p.gen++
-	p.starting = true
 	p.saved = ws.cam
 	p.origin = w.Origin
 	vp := ws.viewport()
@@ -103,23 +108,31 @@ func (p *playMode) start(ws *workspace) locale.Message {
 	if hit, ok := pickAt(w, &ws.cam, f32.Pt(float32(vp.X)/2, float32(vp.Y)/2), vp); ok {
 		eye = scene.FromServer(hit.Pos).Add(geom.Vec3{Z: play.EyeHeight})
 	}
-	// A snapshot of the scenes: the loop may add or remove tiles meanwhile.
-	// Collision is the map's: meshes hidden from view still block.
+	p.prepare(w, eye, ws.cam.Yaw, ws.cam.Pitch)
+	log.Printf("jogo: preparando colisões a partir de %.0f %.0f %.0f", eye.X, eye.Y, eye.Z)
+	return locale.Message{Key: "spawn.play.preparing"}
+}
+
+// prepare captures a scene set. While rebuilding, step pauses the existing
+// session instead of respawning its player.
+func (p *playMode) prepare(w *scene.World, eye geom.Vec3, yaw, pitch float32) {
+	p.gen++
+	p.starting = true
+	p.eye, p.yaw, p.pitch = eye, yaw, pitch
+	p.source, p.scenes = w, slices.Clone(w.Scenes())
 	snap := scene.NewWorld(w.Origin)
-	for _, s := range w.Scenes() {
+	for _, s := range p.scenes {
 		snap.Add(s)
 	}
-	gen, yaw, pitch, bundle := p.gen, ws.cam.Yaw, ws.cam.Pitch, p.bundle
+	gen, bundle := p.gen, p.bundle
 	go func() {
 		t0 := time.Now()
 		var tris []play.Triangle
-		snap.Geometry(collisionBox, func(t scene.Triangle) {
-			if t.Blocks {
-				tris = append(tris, play.Triangle{scene.FromServer(t.A), scene.FromServer(t.B), scene.FromServer(t.C)})
-			}
-		}, nil)
+		snap.Collision(collisionBox, func(t scene.Triangle) {
+			tris = append(tris, play.Triangle{scene.FromServer(t.A), scene.FromServer(t.B), scene.FromServer(t.C)})
+		})
 		n := len(tris)
-		res := playPrepared{gen: gen, world: play.NewWorld(tris), triangles: n, eye: eye, yaw: yaw, pitch: pitch, bundle: bundle}
+		res := playPrepared{gen: gen, source: w, scenes: snap.Scenes(), world: play.NewWorld(tris), triangles: n, eye: eye, yaw: yaw, pitch: pitch, bundle: bundle}
 		if res.bundle == nil {
 			res.bundle, res.err = model.Decode(model.Human)
 		}
@@ -127,15 +140,32 @@ func (p *playMode) start(ws *workspace) locale.Message {
 		p.results <- res
 		p.w.Invalidate()
 	}()
-	log.Printf("jogo: preparando colisões a partir de %.0f %.0f %.0f", eye.X, eye.Y, eye.Z)
-	return locale.Message{Key: "spawn.play.preparing"}
+}
+
+// refresh stops on map replacement and pauses/rebuilds on tile changes.
+func (p *playMode) refresh(ws *workspace) {
+	if !p.active() {
+		return
+	}
+	w := ws.world()
+	if w != p.source {
+		p.stop(ws)
+		return
+	}
+	if !slices.Equal(w.Scenes(), p.scenes) {
+		p.prepare(w, p.eye, p.yaw, p.pitch)
+		log.Printf("jogo: reconstruindo colisões para %s; personagem pausado", inflect.Count(len(p.scenes), "tile", "tiles"))
+		p.stepped = time.Time{}
+		clear(p.held)
+		p.jump, p.flight, p.lookX, p.lookY = false, false, 0, 0
+	}
 }
 
 // receive installs a finished preparation, if any.
 func (p *playMode) receive(ws *workspace) {
 	select {
 	case r := <-p.results:
-		if r.gen != p.gen || !p.starting {
+		if r.gen != p.gen || !p.starting || r.source != ws.world() || !slices.Equal(r.scenes, ws.world().Scenes()) {
 			return
 		}
 		p.starting = false
@@ -147,6 +177,12 @@ func (p *playMode) receive(ws *workspace) {
 		}
 		p.bundle = r.bundle
 		p.triangles = r.triangles
+		if p.s != nil {
+			p.s.ReplaceWorld(r.world)
+			p.stepped = time.Time{}
+			p.place(ws)
+			return
+		}
 		p.s = play.NewSession(r.world, r.eye, r.yaw, r.pitch)
 		p.body = newHumanBody(r.bundle, r.yaw)
 		p.body.advance(0, geom.Vec3{}, p.s.Motion())
@@ -176,6 +212,7 @@ func (p *playMode) stop(ws *workspace) {
 	}
 	p.s = nil
 	p.body = nil
+	p.source, p.scenes = nil, nil
 	ws.cam = p.saved
 	log.Printf("jogo: fim, câmera %s", formatPoseOr(&ws.cam, ws.world()))
 	ws.status = action(locale.Message{Key: "spawn.play.stopped"})
@@ -198,6 +235,9 @@ func (p *playMode) event(ws *workspace, ev event.Event) {
 			}
 			return
 		}
+		if p.starting {
+			return
+		}
 		down := e.State == key.Press
 		if e.Name == key.NameShift {
 			p.shift = down
@@ -218,6 +258,9 @@ func (p *playMode) event(ws *workspace, ev event.Event) {
 			p.held[e.Name] = down
 		}
 	case pointer.Event:
+		if p.starting {
+			return
+		}
 		switch e.Kind {
 		case pointer.Press:
 			p.dragging, p.last = true, e.Position

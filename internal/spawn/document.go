@@ -303,6 +303,7 @@ type SetPoints struct {
 	Fingerprint Fingerprint
 	Points      []Point
 	Warnings    []Warning
+	Measurement Measurement
 }
 
 func (c SetPoints) apply(d *Document) error {
@@ -321,6 +322,7 @@ func (c SetPoints) apply(d *Document) error {
 	a.Seed, a.Generated = c.Seed, c.Fingerprint
 	a.Points = slices.Clone(c.Points)
 	a.Warnings = slices.Clone(c.Warnings)
+	a.Measurement = c.Measurement
 	return nil
 }
 

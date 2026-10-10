@@ -86,6 +86,17 @@ func (p *ToolPanel) Requested(gtx layout.Context) (Tool, bool) {
 	return t, ok
 }
 
+// Discard consumes tool requests without changing the chosen shape.
+func (p *ToolPanel) Discard(gtx layout.Context) {
+	for i := range p.buttons {
+		discardClicks(gtx, &p.buttons[i])
+	}
+	discardClicks(gtx, &p.WholeTile)
+	banned := p.Banned.Value
+	p.Banned.Update(gtx)
+	p.Banned.Value = banned
+}
+
 // icon is the tool's dock icon.
 func (t Tool) icon() *icon.Icon {
 	switch t {

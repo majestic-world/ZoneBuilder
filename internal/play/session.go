@@ -55,6 +55,13 @@ func NewSession(w *World, eye geom.Vec3, yaw, pitch float32) *Session {
 	return s
 }
 
+// ReplaceWorld installs rebuilt collision without resetting movement,
+// position, flight, velocity or view.
+func (s *Session) ReplaceWorld(w *World) {
+	s.world = w
+	s.positionCamera()
+}
+
 // Step runs one time step: flight toggle, jump, look, then the move along
 // the view (horizontal on foot, the full view direction in flight).
 func (s *Session) Step(in Input) {
