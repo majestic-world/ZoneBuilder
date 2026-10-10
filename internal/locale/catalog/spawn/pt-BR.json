@@ -1,0 +1,12 @@
+{
+  "spawn.home.title": "O que você vai fazer?",
+  "spawn.home.zones.title": "Construir zonas",
+  "spawn.home.zones.phrase": "Desenhe zonas de paz, PvP, água e outras sobre o mapa e compile o XML de zonas do servidor.",
+  "spawn.home.populate.title": "Popular zona",
+  "spawn.home.populate.phrase": "Demarque áreas de spawn, espalhe os monstros pelo chão livre e compile o XML de spawn.",
+  "spawn.areas.title": "Áreas de spawn",
+  "spawn.areas.empty": "Nenhuma área de spawn neste projeto.",
+  "spawn.undo.empty": "Nada para desfazer nas áreas de spawn",
+  "spawn.redo.empty": "Nada para refazer nas áreas de spawn",
+  "spawn.compile.empty": "Nenhuma área de spawn para compilar"
+}

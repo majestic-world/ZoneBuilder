@@ -13,9 +13,8 @@ import (
 
 // ZonePanel holds the zone controls: in the inspector, the name and type
 // of the next zone and the button that creates it and arms the chosen
-// shape tool; the tool dock; and the command bar's Compile button, which
-// opens the compiled XML in the XML window. It only collects input; the
-// window loop turns the requests into zone.Document commands.
+// shape tool; and the tool dock. It only collects input; the window loop
+// turns the requests into zone.Document commands.
 type ZonePanel struct {
 	Name widget.Editor
 	// TypeIndex is the chosen type in zone.Types; PrevType and NextType
@@ -24,8 +23,7 @@ type ZonePanel struct {
 	PrevType, NextType widget.Clickable
 	Create             widget.Clickable
 	// Tools are the viewport tool buttons.
-	Tools   ToolPanel
-	Compile widget.Clickable
+	Tools ToolPanel
 	// Info lines are shown under the controls: the armed tool's hint.
 	Info []string
 }

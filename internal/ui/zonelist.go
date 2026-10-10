@@ -35,10 +35,9 @@ type ZoneRow struct {
 // ZoneList is the inspector's zone list: every zone with its name, type
 // and problem count, narrowed by a name search and a type filter, with a
 // show/hide toggle per zone and per type, and the rename, delete,
-// duplicate and colour actions on the selected zone; plus the field that
-// sends the camera to a typed x y z. Like ZonePanel it only collects
-// input: Update reports what the user asked for and the window loop turns
-// it into zone.Document commands and camera moves.
+// duplicate and colour actions on the selected zone. Like ZonePanel it
+// only collects input: Update reports what the user asked for and the
+// window loop turns it into zone.Document commands and camera moves.
 type ZoneList struct {
 	// Rows are every zone of the document, set by the window loop each
 	// frame; Selected is the selected zone's ID (0: none).
@@ -59,10 +58,6 @@ type ZoneList struct {
 	// CompileAll and CompileNone put every shown zone in, or out of, the
 	// compile selection.
 	CompileAll, CompileNone widget.Clickable
-
-	// GoTo holds the x y z the Go button (or Enter) flies the camera to.
-	GoTo widget.Editor
-	Go   widget.Clickable
 
 	rows map[zone.ZoneID]*rowWidgets
 	// named is the selection NewName was last filled for.
@@ -93,8 +88,6 @@ type (
 	DeleteZone     struct{ Zone zone.ZoneID }
 	DuplicateZone  struct{ Zone zone.ZoneID }
 	CycleZoneColor struct{ Zone zone.ZoneID }
-	// GoTo: Go (or Enter in the GoTo field) with the field's text.
-	GoTo struct{ Text string }
 	// SelectForCompile: a zone's compile checkbox, or "todas"/"nenhuma"
 	// on the shown zones, changed the compile selection.
 	SelectForCompile struct {
@@ -107,14 +100,11 @@ func (l *ZoneList) init() {
 	l.Search.SingleLine = true
 	l.NewName.SingleLine = true
 	l.NewName.Submit = true
-	l.GoTo.SingleLine = true
-	l.GoTo.Submit = true
 	l.Reset()
 }
 
 // Reset clears the search, the type filter and the per-zone state, for a
-// document whose zone IDs mean other zones (an opened project). The go-to
-// field keeps its text.
+// document whose zone IDs mean other zones (an opened project).
 func (l *ZoneList) Reset() {
 	l.Search.SetText("")
 	l.TypeFilter = -1
@@ -124,7 +114,7 @@ func (l *ZoneList) Reset() {
 }
 
 // Update returns the requests since the last call, in the order: row
-// clicks, toggles, actions, go-to. Call it before Layout.
+// clicks, toggles, actions. Call it before Layout.
 func (l *ZoneList) Update(gtx layout.Context) []any {
 	var reqs []any
 	n := len(zone.Types) + 1 // the types and "all"
@@ -178,9 +168,6 @@ func (l *ZoneList) Update(gtx layout.Context) []any {
 	}
 	if l.Color.Clicked(gtx) {
 		reqs = append(reqs, CycleZoneColor{Zone: l.Selected})
-	}
-	if submitted(gtx, &l.GoTo) || l.Go.Clicked(gtx) {
-		reqs = append(reqs, GoTo{Text: l.GoTo.Text()})
 	}
 	return reqs
 }

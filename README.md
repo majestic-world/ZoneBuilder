@@ -41,6 +41,7 @@ Opções de linha de comando:
 | `-project` | projeto `.zbproj` aberto ao iniciar |
 | `-camera` | pose inicial da câmera, `x,y,z,yaw,pitch` |
 | `-fps` | mede a taxa de quadros e registra no log |
+| `-mode` | abre direto num modo, sem a tela inicial: `zones` (Construir zonas) ou `populate` (Popular zona); sem a opção, o app abre na tela inicial, mesmo com `-project` |
 
 Sem `-client`, o app usa a última pasta salva na configuração do usuário (`%AppData%\ZoneBuilder\config.json`), depois a variável de ambiente `ZB_CLIENT`.
 
@@ -52,7 +53,9 @@ Apresente texto estático com `locale.Text`, texto parametrizado com `locale.For
 
 ## Como usar
 
-1. Informe a pasta do cliente e o tile, e clique em **Abrir**.
+O app abre numa tela inicial com 2 cartões: **Construir zonas**, o editor de zonas descrito abaixo, e **Popular zona**, o modo de áreas de spawn. O botão com a casa, no começo da barra de comandos, volta à tela inicial. Os tiles abertos, a câmera e o projeto são os mesmos nos 2 modos; atalhos, desfazer e refazer agem só no modo ativo.
+
+1. Na tela inicial, clique em **Construir zonas**. Informe a pasta do cliente e o tile, e clique em **Abrir**.
 2. Em **Nova zona**, digite o nome, escolha o tipo e clique em **Criar zona e desenhar**.
 3. Clique sobre o mapa para marcar os vértices; Enter ou um clique no primeiro vértice fecha o polígono.
 4. Ajuste altura, tipo e parâmetros no inspetor à direita e na janela **Altura da zona**.
