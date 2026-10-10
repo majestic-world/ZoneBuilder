@@ -10,6 +10,7 @@ import (
 	"zonebuilder/internal/locale"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
+	"zonebuilder/internal/ui"
 )
 
 // populateMode is the spawn area editor ("Popular zona"): the spawn
@@ -81,7 +82,7 @@ func (p *populateMode) compile(ws *workspace) {
 	msg, files := p.spawns.compile(panel.XMLName.Text(), panel.XMLDefault)
 	ws.status = action(msg)
 	if len(files) > 0 {
-		ws.shell.XML.Open(files)
+		ws.shell.XML.Open(files, ui.SpawnXML)
 	}
 }
 
