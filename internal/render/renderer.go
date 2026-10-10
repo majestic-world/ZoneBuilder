@@ -64,6 +64,11 @@ type Renderer struct {
 	comp       *compositor
 	scene      *sceneRenderer
 	zones      *zoneOverlay
+	modelPass  *modelPass
+	// models are the Models made and not released; queue the ones the
+	// next DrawViewport draws (DrawModel).
+	models map[*Model]struct{}
+	queue  []*Model
 }
 
 // New checks the extensions the renderer depends on and creates its GL
@@ -73,7 +78,7 @@ func New(surfaceSRGB bool) (*Renderer, error) {
 	if err := gles.Load(); err != nil {
 		return nil, err
 	}
-	r := &Renderer{Info: queryInfo(), encodeSRGB: !surfaceSRGB}
+	r := &Renderer{Info: queryInfo(), encodeSRGB: !surfaceSRGB, models: make(map[*Model]struct{})}
 	var missing []error
 	if !r.Info.ClipControl {
 		missing = append(missing, errors.New("GL_EXT_clip_control (reversed Z, ADR 0001)"))
@@ -93,6 +98,10 @@ func New(surfaceSRGB bool) (*Renderer, error) {
 		return nil, err
 	}
 	if r.zones, err = newZoneOverlay(); err != nil {
+		r.Release()
+		return nil, err
+	}
+	if r.modelPass, err = newModelPass(); err != nil {
 		r.Release()
 		return nil, err
 	}
@@ -153,6 +162,15 @@ func (r *Renderer) SetGround(g Ground) {
 	r.scene.ground.set(g)
 }
 
+// DrawModel queues m's instances for the next DrawViewport only: whoever
+// shows a model calls it every frame, so a model nobody queues is gone
+// from the next frame on. Models draw in a pass of their own between the
+// scene's Masked (and terrain layer) and Translucent passes, in queue
+// order.
+func (r *Renderer) DrawModel(m *Model) {
+	r.queue = append(r.queue, m)
+}
+
 // DrawViewport renders the scene seen by cam into rect (window pixels,
 // origin top-left) of the window framebuffer, which is window pixels in
 // size. The projection uses rect's own aspect ratio, so resizing never
@@ -185,7 +203,10 @@ func (r *Renderer) DrawViewport(rect image.Rectangle, window image.Point, cam *c
 	view := lookAt(cam.Position, cam.Forward(), right, up)
 	proj := reversedPerspective(camera.FovY, aspect, camera.Near, cam.Far)
 	viewProj := mul(proj, mul(view, unrealToRender))
-	r.scene.draw(viewProj, scene.ToRender(cam.Position))
+	r.scene.draw(viewProj, scene.ToRender(cam.Position), func() {
+		r.modelPass.draw(viewProj, r.scene.rebase, r.queue, &r.scene.stats)
+	})
+	r.queue = r.queue[:0]
 	r.zones.draw(viewProj, [3]float32{r.scene.rebase.X, r.scene.rebase.Y, r.scene.rebase.Z}, size.X, size.Y)
 
 	gles.Disable(gles.DEPTH_TEST)
@@ -199,6 +220,12 @@ func (r *Renderer) DrawViewport(rect image.Rectangle, window image.Point, cam *c
 
 // Release frees the GL resources. The context must still be current.
 func (r *Renderer) Release() {
+	for m := range r.models {
+		m.Release()
+	}
+	if r.modelPass != nil {
+		r.modelPass.release()
+	}
 	if r.scene != nil {
 		r.scene.release()
 	}

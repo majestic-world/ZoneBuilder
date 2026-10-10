@@ -15,5 +15,7 @@
   "spawn.play.no_human": "Personagem indisponível",
   "spawn.play.stopped": "De volta à câmera de edição",
   "spawn.play.hud.third": "WASD anda · Shift corre · Espaço pula · F voa · V primeira pessoa · arraste para olhar · Esc sai",
-  "spawn.play.hud.first": "WASD anda · Shift corre · Espaço pula · F voa · V terceira pessoa · arraste para olhar · Esc sai"
+  "spawn.play.hud.first": "WASD anda · Shift corre · Espaço pula · F voa · V terceira pessoa · arraste para olhar · Esc sai",
+  "spawn.preview.button": "Prévia",
+  "spawn.preview.error": "Não foi possível mostrar a prévia: {detail}"
 }

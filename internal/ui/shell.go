@@ -34,8 +34,8 @@ var logo = func() *icon.Icon {
 // and the 2 mode cards. In a mode: the brand mark top left, the mode's
 // tool dock under it, the command bar at the top, the inspector down the
 // right side (the shared map section, then the mode's panel), the status
-// pill at the bottom with the message card over it, and the floating
-// windows.
+// pill at the bottom with the message card over it, the viewport buttons
+// in the scene's bottom right corner, and the floating windows.
 type Shell struct {
 	Theme    *material.Theme
 	// Language controls the presentation of this shell without replacing its widgets.
@@ -97,6 +97,9 @@ type Shell struct {
 	// terrain grid, the selected zone's footprint on the ground and
 	// EdgeLabels.
 	Ground Switch
+	// Preview is the populate mode's floating switch that shows, while
+	// On, the preview monster on every spawn point instead of its pin.
+	Preview Switch
 	// EdgeLabels are the lengths of the selected zone's edges, drawn on
 	// the viewport at their midpoints.
 	EdgeLabels []EdgeLabel
@@ -120,7 +123,7 @@ type Shell struct {
 	languageButtons [2]widget.Clickable
 	brandSink, dockSink, barSink, inspector pointerSink
 	languageSink, statusSink, messageSink pointerSink
-	playSink                              pointerSink
+	viewportSink                          pointerSink
 }
 
 // NewShell returns a shell with single-line fields holding client and
@@ -224,7 +227,7 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	if call, msg := measure(gtx, s.messageCard); msg.Y > 0 {
 		place(gtx, image.Pt(max(left, (ix-msg.X)/2), statusAt.Y-gtx.Dp(10)-msg.Y), call)
 	}
-	s.playButton(gtx, ix, statusAt.Y)
+	s.viewportButtons(gtx, ix, statusAt.Y)
 
 	if zones {
 		s.heightWindow(gtx)

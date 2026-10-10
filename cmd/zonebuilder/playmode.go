@@ -18,6 +18,7 @@ import (
 	"zonebuilder/internal/locale"
 	"zonebuilder/internal/model"
 	"zonebuilder/internal/play"
+	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
 )
 
@@ -50,6 +51,10 @@ type playMode struct {
 	stepped        time.Time
 	triangles      int
 	bundle         *model.Bundle
+	// gpu is the human on owner, the renderer it was made for.
+	gpu      *render.Model
+	owner    *render.Renderer
+	instance [1]render.Instance
 }
 
 // playPrepared is a finished preparation: the collision world and the
@@ -295,11 +300,10 @@ func (p *playMode) message(lang locale.Language) string {
 	if p.starting {
 		return locale.Text(lang, "spawn.play.preparing")
 	}
-	key := "spawn.play.hud.third"
 	if p.firstPerson {
-		key = "spawn.play.hud.first"
+		return locale.Text(lang, "spawn.play.hud.first")
 	}
-	return locale.Text(lang, key)
+	return locale.Text(lang, "spawn.play.hud.third")
 }
 
 // humanBody is the human's animation state: the clip chosen from the
@@ -380,4 +384,24 @@ func formatPoseOr(cam *camera.Camera, w *scene.World) string {
 // it right after the Jogar button took the click.
 func focusViewport(gtx layout.Context, ws *workspace) {
 	gtx.Execute(key.FocusCmd{Tag: &ws.shell.Viewport})
+}
+
+// draw queues the human on r for this frame, when shown. The GPU model
+// belongs to the renderer it was made on: a new renderer makes it again.
+func (p *playMode) draw(r *render.Renderer) error {
+	if !p.bodyShown() {
+		return nil
+	}
+	if p.owner != r {
+		gpu, err := r.NewModel(p.bundle)
+		if err != nil {
+			return err
+		}
+		p.gpu, p.owner = gpu, r
+	}
+	p.gpu.Pose(p.body.anim)
+	p.instance[0] = render.Instance{Pos: scene.ToServer(p.s.Feet()), Yaw: p.body.yaw}
+	p.gpu.SetInstances(p.instance[:])
+	r.DrawModel(p.gpu)
+	return nil
 }

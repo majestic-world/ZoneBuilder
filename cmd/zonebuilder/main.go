@@ -404,6 +404,11 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			g.renderer.SetMeshesHidden(shell.Meshes.On)
 			uploading := ws.tiles.sync(g.renderer, uploadBudget)
 			m.sync(g.renderer, ws)
+			if err := game.draw(g.renderer); err != nil {
+				log.Printf("jogo: humano: %v", err)
+				game.stop(ws)
+				ws.status = actionError(locale.Message{Key: "spawn.play.no_human"}, err, nil)
+			}
 
 			g.ctx.WaitClient() // lets ANGLE pick up a window resize
 			if err := g.renderer.DrawViewport(rect, e.Size, &ws.cam); err != nil {

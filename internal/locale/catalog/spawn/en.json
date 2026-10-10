@@ -15,5 +15,7 @@
   "spawn.play.no_human": "Character unavailable",
   "spawn.play.stopped": "Back to the edit camera",
   "spawn.play.hud.third": "WASD walk · Shift run · Space jump · F fly · V first person · drag to look · Esc exit",
-  "spawn.play.hud.first": "WASD walk · Shift run · Space jump · F fly · V third person · drag to look · Esc exit"
+  "spawn.play.hud.first": "WASD walk · Shift run · Space jump · F fly · V third person · drag to look · Esc exit",
+  "spawn.preview.button": "Preview",
+  "spawn.preview.error": "Could not show the preview: {detail}"
 }
