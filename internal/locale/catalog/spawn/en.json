@@ -8,5 +8,7 @@
   "spawn.areas.empty": "No spawn areas in this project.",
   "spawn.undo.empty": "Nothing to undo in the spawn areas",
   "spawn.redo.empty": "Nothing to redo in the spawn areas",
-  "spawn.compile.empty": "No spawn areas to compile"
+  "spawn.compile.empty": "No spawn areas to compile",
+  "spawn.preview.button": "Preview",
+  "spawn.preview.error": "Could not show the preview: {detail}"
 }

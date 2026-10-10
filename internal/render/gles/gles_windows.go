@@ -25,14 +25,14 @@ var (
 	pClear, pClearColor, pClearDepthf, pCompileShader, pCompressedTexImage2D, pCreateProgram,
 	pCreateShader, pDeleteBuffers, pDeleteFramebuffers, pDeleteProgram,
 	pDeleteRenderbuffers, pDeleteShader, pDeleteTextures, pDeleteVertexArrays, pDepthFunc,
-	pDisable, pDrawArrays, pDrawElements, pEnable, pEnableVertexAttribArray,
+	pDisable, pDrawArrays, pDrawElements, pDrawElementsInstanced, pEnable, pEnableVertexAttribArray,
 	pFramebufferRenderbuffer, pFramebufferTexture2D, pGenBuffers, pGenFramebuffers, pGenRenderbuffers, pGenTextures,
 	pGenVertexArrays, pGetError, pGetIntegerv, pGetProgramInfoLog, pGetProgramiv,
 	pGetShaderInfoLog, pGetShaderiv, pGetString, pGetStringi, pGetUniformLocation,
 	pLinkProgram, pRenderbufferStorage, pShaderSource,
 	pTexImage2D, pTexParameteri, pUniform1i, pUniform2f, pUniform3f, pUniform2fv, pUniform4fv, pUniform4iv,
 	pUniformMatrix4fv, pUseProgram,
-	pVertexAttribPointer, pViewport uintptr
+	pVertexAttribDivisor, pVertexAttribPointer, pViewport uintptr
 
 	pBlendFuncSeparate uintptr
 
@@ -91,6 +91,7 @@ func load() error {
 		{"glDisable", &pDisable},
 		{"glDrawArrays", &pDrawArrays},
 		{"glDrawElements", &pDrawElements},
+		{"glDrawElementsInstanced", &pDrawElementsInstanced},
 		{"glEnable", &pEnable},
 		{"glEnableVertexAttribArray", &pEnableVertexAttribArray},
 		{"glFramebufferRenderbuffer", &pFramebufferRenderbuffer},
@@ -122,6 +123,7 @@ func load() error {
 		{"glUniform4iv", &pUniform4iv},
 		{"glUniformMatrix4fv", &pUniformMatrix4fv},
 		{"glUseProgram", &pUseProgram},
+		{"glVertexAttribDivisor", &pVertexAttribDivisor},
 		{"glVertexAttribPointer", &pVertexAttribPointer},
 		{"glViewport", &pViewport},
 	}
@@ -241,6 +243,12 @@ func DrawArrays(mode uint32, first, count int) {
 
 func DrawElements(mode uint32, count int, typ uint32, offset uintptr) {
 	syscall.SyscallN(pDrawElements, uintptr(mode), uintptr(count), uintptr(typ), offset)
+}
+
+// DrawElementsInstanced draws the indexed range instances times; attributes
+// with a divisor of 1 advance once per instance.
+func DrawElementsInstanced(mode uint32, count int, typ uint32, offset uintptr, instances int) {
+	syscall.SyscallN(pDrawElementsInstanced, uintptr(mode), uintptr(count), uintptr(typ), offset, uintptr(instances))
 }
 
 func FramebufferRenderbuffer(target, attachment, rbTarget, rb uint32) {
@@ -380,6 +388,12 @@ func UniformMatrix4fv(loc int32, m *[16]float32) {
 
 func VertexAttribPointer(index uint32, size int, typ uint32, normalized bool, stride int, offset uintptr) {
 	syscall.SyscallN(pVertexAttribPointer, uintptr(index), uintptr(size), uintptr(typ), b2u(normalized), uintptr(stride), offset)
+}
+
+// VertexAttribDivisor makes attribute index advance once every divisor
+// instances (0: once per vertex).
+func VertexAttribDivisor(index, divisor uint32) {
+	syscall.SyscallN(pVertexAttribDivisor, uintptr(index), uintptr(divisor))
 }
 
 // HasClipControl reports whether ANGLE exports glClipControlEXT. The

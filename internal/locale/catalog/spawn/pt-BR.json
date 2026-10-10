@@ -8,5 +8,7 @@
   "spawn.areas.empty": "Nenhuma área de spawn neste projeto.",
   "spawn.undo.empty": "Nada para desfazer nas áreas de spawn",
   "spawn.redo.empty": "Nada para refazer nas áreas de spawn",
-  "spawn.compile.empty": "Nenhuma área de spawn para compilar"
+  "spawn.compile.empty": "Nenhuma área de spawn para compilar",
+  "spawn.preview.button": "Prévia",
+  "spawn.preview.error": "Não foi possível mostrar a prévia: {detail}"
 }
