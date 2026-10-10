@@ -21,7 +21,8 @@ type Ground struct {
 	// tinted with Color; inside the outline but above the range it gets
 	// a warm hatch, below it a cold one; lines mark where it crosses
 	// each shape's ZMin and ZMax. Walls and ceilings keep their colour;
-	// the outline is drawn on whatever surface it crosses. Banned shapes
+	// the outline is drawn on the floor at any height and on walls and
+	// ceilings only inside the shape's Z range. Banned shapes
 	// cut holes. Shapes past the shader's room are left out
 	// (GroundLeftOut).
 	Shapes []GroundShape
@@ -208,13 +209,16 @@ vec3 ground(vec3 c) {
 	}
 	if ((uGround & 2) != 0) {
 		bool inside = false, above = false, below = false, cut = false;
-		highp float edge = 1e20;
+		// edge is the distance to the nearest outline; edgeIn the same,
+		// only over shapes whose Z range holds the fragment.
+		highp float edge = 1e20, edgeIn = 1e20;
 		// top and bottom are the nearest crossings, in pixels, of the ZMax
 		// and ZMin of a shape whose outline holds the fragment.
 		highp float top = 1e20, bottom = 1e20;
 		for (int s = 0; s < uShapeCount; s++) {
 			ivec4 sh = uShapes[s];
 			bool in_ = false;
+			highp float d = 1e20;
 			for (int k = 0; k < sh.y; k++) {
 				highp vec2 a = polyPoint(sh.x + k);
 				highp vec2 b = polyPoint(sh.x + (k + 1) % sh.y);
@@ -223,9 +227,13 @@ vec3 ground(vec3 c) {
 				}
 				highp vec2 ab = b - a;
 				highp float t = clamp(dot(vPos.xy - a, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
-				edge = min(edge, length(vPos.xy - a - ab * t));
+				d = min(d, length(vPos.xy - a - ab * t));
 			}
 			bool zin = vPos.z >= uShapeZ[s].x && vPos.z <= uShapeZ[s].y;
+			edge = min(edge, d);
+			if (zin) {
+				edgeIn = min(edgeIn, d);
+			}
 			if (in_ && sh.z != 0) {
 				cut = cut || zin;
 			} else if (in_) {
@@ -238,7 +246,7 @@ vec3 ground(vec3 c) {
 		}
 		// The tint, hatches and level lines only mark the floor: surfaces
 		// facing up and seen from above, so walls and ceilings keep
-		// their colour. The outline below marks any surface.
+		// their colour.
 		float floor_ = up * step(vPos.z, uEye.z);
 		if (!cut) {
 			if (inside) {
@@ -257,8 +265,13 @@ vec3 ground(vec3 c) {
 			c = mix(c, groundAbove * 1.1 + 0.1, (1.0 - smoothstep(1.0, 2.0, top)) * floor_);
 			c = mix(c, groundBelow * 1.1 + 0.1, (1.0 - smoothstep(1.0, 2.0, bottom)) * floor_);
 		}
+		// The outline marks the floor at any height, and other surfaces
+		// (walls, ceilings) only inside a shape's Z range: a wall standing
+		// on the outline under a raised shape would otherwise light up
+		// whole, like a prism wall that is not there.
 		float line = 1.0 - smoothstep(px * 1.2, px * 2.4, edge);
-		c = mix(c, uZoneColor * 1.3 + 0.15, line);
+		float lineIn = 1.0 - smoothstep(px * 1.2, px * 2.4, edgeIn);
+		c = mix(c, uZoneColor * 1.3 + 0.15, max(line * floor_, lineIn));
 	}
 	return c;
 }

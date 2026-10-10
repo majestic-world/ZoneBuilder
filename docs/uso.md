@@ -72,7 +72,7 @@ O servidor só considera um personagem dentro da zona quando o `x y` dele está 
 | Pino com rótulo `piso −96` | chão mais baixo do shape e a folga do piso nele |
 | Rótulo vermelho | folga negativa: o chão sai da faixa naquele ponto |
 
-A pegada (tinta, hachuras e linhas de nível) só pinta chão: as faces voltadas para cima, vistas de cima. Paredes e tetos ficam com a cor original; só o contorno da zona continua desenhado sobre qualquer superfície que ele cruze, para mostrar onde a parede do prisma encontra o mapa. Com a câmera dentro do prisma, o mapa fica limpo: só os anéis nas paredes e a pegada no piso.
+A pegada (tinta, hachuras e linhas de nível) só pinta chão: as faces voltadas para cima, vistas de cima. Paredes e tetos ficam com a cor original. O contorno da zona aparece no chão em qualquer altura; em paredes e tetos, só dentro da faixa Z do shape, onde a parede do prisma de fato encontra o mapa. Assim, com a zona erguida acima de uma cerca ou de um muro que segue o contorno, a cerca não acende como se houvesse uma parede de prisma ali. Com a câmera dentro do prisma, o mapa fica limpo: só os anéis nas paredes e a pegada no piso.
 
 Clicar no rótulo de um pino leva a câmera ao ponto. O shader desenha a pegada de até 8 shapes e 128 pontos; acima disso, o inspetor diz "Pegada parcial: N shapes fora do desenho". Os números não têm esse limite.
 
