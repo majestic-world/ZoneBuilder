@@ -10,6 +10,8 @@ import (
 // distribution reported.
 type Rule int
 
+// Numeric values are persisted in distribution warnings; removed rules
+// leave gaps so existing projects retain their warning meanings.
 const (
 	// TooFewVertices: an outline needs 3 vertices or more.
 	TooFewVertices Rule = iota
@@ -21,17 +23,10 @@ const (
 	RepeatedVertex
 	// InvertedZRange: the area's zmin is above its zmax.
 	InvertedZRange
-	// InvalidNPC: the npc id is not positive.
-	InvalidNPC
 	// InvalidCount: the count is below 1.
-	InvalidCount
-	// NegativeRespawn: the respawn is below 0.
-	NegativeRespawn
-	// RespawnRandAboveRespawn: respawn_rand exceeds respawn, which the
-	// server rejects together with the whole file.
-	RespawnRandAboveRespawn
+	InvalidCount Rule = 5
 	// EmptyName: the name is empty or only spaces.
-	EmptyName
+	EmptyName Rule = iota + 3
 	// DuplicateName: another area of the document has the same name, so
 	// their <spawn> names collide.
 	DuplicateName
@@ -80,7 +75,7 @@ type Problem struct {
 	// Count is how many areas share the name of DuplicateName.
 	Count int
 	// Numbers are the rule's values: the vertex count of TooFewVertices
-	// (1-based vertex numbers elsewhere), zmin zmax, respawn_rand respawn,
+	// (1-based vertex numbers elsewhere), zmin zmax,
 	// a point's number x y, K N of FitsOnly.
 	Numbers [4]int
 }
@@ -136,17 +131,8 @@ func (d *Document) validate() []Problem {
 			out = append(out, Problem{Rule: DuplicateName, Area: a.ID, Vertex: -1, Point: -1, Name: a.Name, Count: n})
 		}
 		p := a.Params
-		if p.NPCID <= 0 {
-			add(InvalidNPC, -1, -1, p.NPCID)
-		}
 		if p.Count < 1 {
 			add(InvalidCount, -1, -1, p.Count)
-		}
-		if p.Respawn < 0 {
-			add(NegativeRespawn, -1, -1, p.Respawn)
-		}
-		if p.RespawnRand > p.Respawn {
-			add(RespawnRandAboveRespawn, -1, -1, p.RespawnRand, p.Respawn)
 		}
 		if a.ZMin > a.ZMax {
 			add(InvertedZRange, -1, -1, a.ZMin, a.ZMax)

@@ -25,16 +25,10 @@ type Vertex struct{ X, Y int }
 // Heading is the server's 0..65535 turn.
 type Point struct{ X, Y, Z, Heading int }
 
-// Params are what the user types for an area. NPCID, Respawn and
-// RespawnRand only go into the XML; Count, Radius and Clearance drive the
-// distribution and are part of its Fingerprint.
+// Params drive an area's distribution and are part of its Fingerprint.
 type Params struct {
-	// NPCID is the npc id of the datapack; 0 until the user types one.
-	NPCID int
 	// Count is how many points the distribution asks for.
 	Count int
-	// Respawn and RespawnRand are in seconds.
-	Respawn, RespawnRand int
 	// Radius is the monster's collision radius: points keep it from the
 	// outline and 2 × Radius from each other.
 	Radius int
@@ -44,17 +38,12 @@ type Params struct {
 }
 
 // The defaults of a new area's Params.
-const (
-	DefaultRespawn     = 60
-	DefaultRespawnRand = 0
-	DefaultClearance   = 32
-)
+const DefaultClearance = 32
 
-// DefaultParams is a new area's Params for a monster of radius: respawn
-// 60, respawn_rand 0, clearance 32. NPCID and Count start at 0, which are
-// problems until the user types them.
+// DefaultParams is a new area's Params for a monster of radius.
+// Count starts at 0, a problem until the user types it.
 func DefaultParams(radius int) Params {
-	return Params{Respawn: DefaultRespawn, RespawnRand: DefaultRespawnRand, Radius: radius, Clearance: DefaultClearance}
+	return Params{Radius: radius, Clearance: DefaultClearance}
 }
 
 // Fingerprint identifies the inputs of a distribution: outline, Z range,

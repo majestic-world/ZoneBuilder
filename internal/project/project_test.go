@@ -94,7 +94,7 @@ func generatedArea(t *testing.T, d *spawn.Document, name string, outline []spawn
 	t.Helper()
 	id := d.NewAreaID()
 	params := spawn.DefaultParams(24)
-	params.NPCID, params.Count = 20001, len(points)+len(warnings)
+	params.Count = len(points) + len(warnings)
 	if err := d.Apply(spawn.CreateArea{ID: id, Name: name, Outline: outline, ZMin: -3600, ZMax: -3200, Params: params}); err != nil {
 		t.Fatal(err)
 	}
@@ -211,5 +211,33 @@ func TestNewerProjectVersionIsRefused(t *testing.T) {
 	}
 	if _, err := project.Load(path); err == nil {
 		t.Errorf("Load accepted a version %d file", project.Version+1)
+	}
+}
+
+func TestOldSpawnParametersAreIgnoredWithoutLosingPointsOrWarnings(t *testing.T) {
+	const old = `{"Version":2,"Spawns":{"LastID":1,"Areas":[{
+		"ID":1,"Name":"farm",
+		"Outline":[{"X":83000,"Y":147600},{"X":83400,"Y":147600},{"X":83400,"Y":148000}],
+		"ZMin":-3600,"ZMax":-3200,
+		"Params":{"NPCID":0,"Respawn":-1,"RespawnRand":999,"Count":2,"Radius":24,"Clearance":32},
+		"Points":[{"X":83100,"Y":147700,"Z":-3404,"Heading":1200}],
+		"Warnings":[{"Rule":13,"Placed":1,"Requested":2}]
+	}]}}`
+	path := filepath.Join(t.TempDir(), "old"+project.Ext)
+	if err := os.WriteFile(path, []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := project.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	area, ok := got.Spawns.Area(1)
+	if !ok || area.Params != (spawn.Params{Count: 2, Radius: 24, Clearance: 32}) ||
+		!reflect.DeepEqual(area.Points, []spawn.Point{{X: 83100, Y: 147700, Z: -3404, Heading: 1200}}) ||
+		!reflect.DeepEqual(area.Warnings, []spawn.Warning{{Rule: spawn.FitsOnly, Placed: 1, Requested: 2}}) {
+		t.Fatalf("loaded area = %+v, exists = %v", area, ok)
+	}
+	if _, err := got.Spawns.Compile("farm", []int{20001}); err != nil {
+		t.Fatalf("obsolete parameters blocked compilation: %v", err)
 	}
 }

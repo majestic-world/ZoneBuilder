@@ -1,7 +1,7 @@
 // Package spawnxml writes spawn points in the XML the Java server's
 // SpawnParser loads (majestic-java SpawnParser.java; data/spawn/*.xml in the
-// datapack): the header, DOCTYPE and <list> root, tab indentation, LF line
-// ends, and one <spawn> per point with a fixed pos and count="1", so the
+// datapack): the header, DOCTYPE and <list> root, space indentation, LF line
+// ends, and one <spawn> per area with fixed positions and count="1", so each
 // monster is born and reborn on the point the user approved. It never
 // writes <mesh> (the server would draw a new point on every respawn),
 // event_name, period_of_day, respawn_cron or ai_params.
@@ -19,13 +19,11 @@ const Ext = ".xml"
 
 // Area is the spawn points of one area, written in this order.
 type Area struct {
-	// Name makes each point's <spawn name="[Name_i]">, i from 0.
+	// Name makes the area's <spawn name="[Name_0]">.
 	Name string
-	NPCID int
-	// Respawn and RespawnRand are seconds; RespawnRand is written only
-	// when above 0.
-	Respawn, RespawnRand int
-	Points               []Point
+	// NPCIDs is nonempty for areas with points; IDs are assigned cyclically.
+	NPCIDs []int
+	Points []Point
 }
 
 // Point is a pos="X Y Z Heading" in server coordinates.
@@ -57,15 +55,11 @@ func Compile(name string, areas []Area) File {
 	b.WriteString("<!DOCTYPE list SYSTEM \"spawn.dtd\">\n")
 	b.WriteString("<list>\n")
 	for _, a := range areas {
+		fmt.Fprintf(&b, "   <spawn name=\"%s\">\n", attr("["+a.Name+"_0]"))
 		for i, p := range a.Points {
-			fmt.Fprintf(&b, "\t<spawn name=\"%s\">\n", attr(fmt.Sprintf("[%s_%d]", a.Name, i)))
-			fmt.Fprintf(&b, "\t\t<npc id=\"%d\" count=\"1\" respawn=\"%d\"", a.NPCID, a.Respawn)
-			if a.RespawnRand > 0 {
-				fmt.Fprintf(&b, " respawn_rand=\"%d\"", a.RespawnRand)
-			}
-			fmt.Fprintf(&b, " pos=\"%d %d %d %d\" />\n", p.X, p.Y, p.Z, Heading(p.Heading))
-			b.WriteString("\t</spawn>\n")
+			fmt.Fprintf(&b, "      <npc id=\"%d\" count=\"1\" respawn=\"60\" pos=\"%d %d %d %d\" />\n", a.NPCIDs[i%len(a.NPCIDs)], p.X, p.Y, p.Z, Heading(p.Heading))
 		}
+		b.WriteString("   </spawn>\n")
 	}
 	b.WriteString("</list>\n")
 	return File{Name: FileName(name), Data: b.Bytes()}

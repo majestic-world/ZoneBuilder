@@ -22,14 +22,8 @@ func (p Problem) Message() locale.Message {
 		return locale.Message{Key: "spawn.problem.repeated_vertex", Args: map[string]string{"first": n(p.Numbers[0]), "second": n(p.Numbers[1])}}
 	case InvertedZRange:
 		return locale.Message{Key: "spawn.problem.inverted_z", Args: map[string]string{"min": n(p.Numbers[0]), "max": n(p.Numbers[1])}}
-	case InvalidNPC:
-		return locale.Message{Key: "spawn.problem.invalid_npc", Args: map[string]string{"value": n(p.Numbers[0])}}
 	case InvalidCount:
 		return locale.Message{Key: "spawn.problem.invalid_count", Args: map[string]string{"value": n(p.Numbers[0])}}
-	case NegativeRespawn:
-		return locale.Message{Key: "spawn.problem.negative_respawn", Args: map[string]string{"value": n(p.Numbers[0])}}
-	case RespawnRandAboveRespawn:
-		return locale.Message{Key: "spawn.problem.respawn_rand_above", Args: map[string]string{"rand": n(p.Numbers[0]), "respawn": n(p.Numbers[1])}}
 	case EmptyName:
 		return locale.Message{Key: "spawn.problem.empty_name"}
 	case DuplicateName:

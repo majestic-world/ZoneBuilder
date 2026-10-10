@@ -22,7 +22,7 @@ import (
 // folders and maps the app pre-fills on its next start.
 type session struct {
 	cfgPath string
-	cfgErr error
+	cfgErr  error
 	cfg     project.Config
 	// path is the project file; "" until the first save or open.
 	path string
@@ -201,6 +201,7 @@ func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, spawns
 	shell.Zones.Reset()
 	spawns.replace(p.Spawns)
 	shell.Spawn.Reset()
+	shell.NPCIDs.Window.Closed = true
 	s.path, s.saved, s.savedSpawns = path, zones.version, spawns.edits
 	s.cfg.Project = path
 	s.saveConfig()

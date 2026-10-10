@@ -87,12 +87,12 @@ func (p *populateMode) undo(ws *workspace) { ws.status = action(p.spawns.undo())
 func (p *populateMode) redo(ws *workspace) { ws.status = action(p.spawns.redo()) }
 
 func (p *populateMode) compile(ws *workspace) {
-	panel := &ws.shell.Spawn
-	msg, files := p.spawns.compile(panel.XMLName.Text(), panel.XMLDefault)
-	ws.status = action(msg)
-	if len(files) > 0 {
-		ws.shell.XML.Open(files, ui.SpawnXML)
+	if msg := p.spawns.compilationProblem(len(p.spawns.doc.Areas())); msg.Key != "" {
+		ws.status = action(msg)
+		return
 	}
+	ws.shell.XML.Window.Closed = true
+	ws.shell.NPCIDs.Open()
 }
 
 func (p *populateMode) update(gtx layout.Context, ws *workspace) {
@@ -107,6 +107,19 @@ func (p *populateMode) update(gtx layout.Context, ws *workspace) {
 			}
 		}
 		return
+	}
+	prompt := &ws.shell.NPCIDs
+	if text, submit := prompt.Requested(gtx); submit {
+		ids, err := spawn.ParseNPCIDs(text)
+		prompt.Invalid = err != nil
+		if err == nil {
+			msg, files := spawns.compile(panel.XMLName.Text(), panel.XMLDefault, ids)
+			ws.status = action(msg)
+			if len(files) > 0 {
+				prompt.Window.Closed = true
+				ws.shell.XML.Open(files, ui.SpawnXML)
+			}
+		}
 	}
 	if t, ok := panel.Tools.Requested(gtx); ok {
 		status(ws, spawns.arm(t))

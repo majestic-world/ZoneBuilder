@@ -18,7 +18,7 @@ import (
 type AreaRow struct {
 	ID   spawn.AreaID
 	Name string
-	// Detail is the line under the name (npc id, count, drawing state).
+	// Detail is the line under the name (count, drawing state).
 	Detail string
 	// Problems is how many blocking problems the area has.
 	Problems int
@@ -31,10 +31,7 @@ type AreaField int
 
 const (
 	AreaName AreaField = iota
-	AreaNPC
 	AreaCount
-	AreaRespawn
-	AreaRespawnRand
 	AreaRadius
 	AreaClearance
 	areaFields
@@ -61,9 +58,7 @@ type AreaPanel struct {
 	// Generate distributes the selected area's points with its seed,
 	// Regenerate with another one; AddPoints toggles adding points with
 	// viewport clicks.
-	Generate, Regenerate, AddPoints     widget.Clickable
-	ConfirmRegenerate, CancelRegenerate widget.Clickable
-	confirmRegenerate                   spawn.AreaID
+	Generate, Regenerate, AddPoints widget.Clickable
 	// PointsNote is the points section's note; PointStats are its lines
 	// (free floor, spacing) and PointWarnings the ones in the warning
 	// colour (stale points, the distribution's warnings). Generating
@@ -139,13 +134,11 @@ func (p *AreaPanel) init() {
 func (p *AreaPanel) Reset() {
 	p.rows = map[spawn.AreaID]*areaRowWidgets{}
 	p.loaded = 0
-	p.confirmRegenerate = 0
 }
 
-// Discard consumes pending events without accepting any editor action or
-// changing an existing regeneration confirmation.
+// Discard consumes pending events without accepting any editor action.
 func (p *AreaPanel) Discard(gtx layout.Context) {
-	discardClicks(gtx, &p.Duplicate, &p.Delete, &p.Generate, &p.Regenerate, &p.AddPoints, &p.ConfirmRegenerate, &p.CancelRegenerate)
+	discardClicks(gtx, &p.Duplicate, &p.Delete, &p.Generate, &p.Regenerate, &p.AddPoints)
 	for _, r := range p.Rows {
 		w := p.widgets(r.ID)
 		discardClicks(gtx, &w.pick, &w.toggle)
@@ -184,34 +177,17 @@ func (p *AreaPanel) Update(gtx layout.Context, a spawn.Area, ok bool) []any {
 	if p.Generate.Clicked(gtx) {
 		reqs = append(reqs, GenerateArea{Area: a.ID})
 	}
-	if p.confirmRegenerate != a.ID {
-		p.confirmRegenerate = 0
-	}
 	if p.Regenerate.Clicked(gtx) {
-		if len(a.Points) > 0 {
-			p.confirmRegenerate = a.ID
-		} else {
-			reqs = append(reqs, GenerateArea{Area: a.ID, Regenerate: true})
-		}
-	}
-	if p.CancelRegenerate.Clicked(gtx) {
-		p.confirmRegenerate = 0
-	}
-	if p.ConfirmRegenerate.Clicked(gtx) && p.confirmRegenerate == a.ID {
-		p.confirmRegenerate = 0
 		reqs = append(reqs, GenerateArea{Area: a.ID, Regenerate: true})
 	}
 	if p.AddPoints.Clicked(gtx) {
 		reqs = append(reqs, AddPoints{Area: a.ID, On: !p.Adding})
 	}
 	values := [areaFields]string{
-		AreaName:        a.Name,
-		AreaNPC:         strconv.Itoa(a.Params.NPCID),
-		AreaCount:       strconv.Itoa(a.Params.Count),
-		AreaRespawn:     strconv.Itoa(a.Params.Respawn),
-		AreaRespawnRand: strconv.Itoa(a.Params.RespawnRand),
-		AreaRadius:      strconv.Itoa(a.Params.Radius),
-		AreaClearance:   strconv.Itoa(a.Params.Clearance),
+		AreaName:      a.Name,
+		AreaCount:     strconv.Itoa(a.Params.Count),
+		AreaRadius:    strconv.Itoa(a.Params.Radius),
+		AreaClearance: strconv.Itoa(a.Params.Clearance),
 	}
 	fresh := p.loaded != a.ID
 	p.loaded = a.ID
@@ -325,8 +301,8 @@ func (s *Shell) selectedArea(sel *AreaRow) []layout.FlexChild {
 	}
 	children = append(children,
 		layout.Rigid(field(AreaName, locale.Text(s.Language, "spawn.field.name"))),
-		pair(field(AreaNPC, locale.Text(s.Language, "spawn.field.npc")), field(AreaCount, locale.Text(s.Language, "spawn.field.count"))),
-		pair(field(AreaRespawn, locale.Text(s.Language, "spawn.field.respawn")), field(AreaRespawnRand, locale.Text(s.Language, "spawn.field.respawn_rand"))),
+		layout.Rigid(field(AreaCount, locale.Text(s.Language, "spawn.field.count"))),
+		layout.Rigid(s.dimLabel(locale.Text(s.Language, "spawn.field.respawn_fixed"))),
 		pair(field(AreaRadius, locale.Text(s.Language, "spawn.field.radius")), field(AreaClearance, locale.Text(s.Language, "spawn.field.clearance"))),
 		layout.Rigid(s.dimLabel(locale.Text(s.Language, "spawn.field.hint"))),
 	)
@@ -349,15 +325,6 @@ func (s *Shell) areaPoints() []layout.FlexChild {
 			s.button(&p.Regenerate, secondaryButton, icon.Redo2, locale.Text(s.Language, "spawn.points.regenerate")),
 		)),
 		layout.Rigid(s.spaced(s.toggleButton(&p.AddPoints, icon.Plus, locale.Text(s.Language, "spawn.points.add"), p.Adding))),
-	}
-	if p.confirmRegenerate != 0 {
-		children = append(children,
-			layout.Rigid(s.spaced(s.text(locale.Text(s.Language, "spawn.generate.confirm_warning"), smallSize, font.Normal, warnText, 0))),
-			layout.Rigid(buttonRow(
-				s.button(&p.ConfirmRegenerate, primaryButton, icon.Redo2, locale.Text(s.Language, "spawn.generate.confirm")),
-				s.button(&p.CancelRegenerate, secondaryButton, nil, locale.Text(s.Language, "spawn.generate.cancel")),
-			)),
-		)
 	}
 	for _, line := range p.PointStats {
 		children = append(children, layout.Rigid(s.dimLabel(line)))

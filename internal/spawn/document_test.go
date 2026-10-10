@@ -28,7 +28,7 @@ func generated(t *testing.T, name string) (*spawn.Document, spawn.AreaID) {
 	d := spawn.NewDocument()
 	id := d.NewAreaID()
 	params := spawn.DefaultParams(24)
-	params.NPCID, params.Count = 20001, 2
+	params.Count = 2
 	apply(t, d, spawn.CreateArea{ID: id, Name: name, Outline: square, ZMin: -3600, ZMax: -3200, Params: params})
 	a, _ := d.Area(id)
 	apply(t, d, spawn.SetPoints{
@@ -108,7 +108,6 @@ func TestInputChangeAfterSetPointsMarksAreaStale(t *testing.T) {
 		"removed point": spawn.RemovePoint{Area: 1, Index: 1},
 		"added point":   spawn.AddPoint{Area: 1, Point: spawn.Point{X: 83200, Y: 147800, Z: -3400, Heading: 9}},
 		"renamed":       spawn.Rename{Area: 1, Name: "giran_north"},
-		"NPC id":        spawn.SetParams{Area: 1, Params: spawn.Params{NPCID: 20002, Count: 2, Respawn: 120, RespawnRand: 30, Radius: 24, Clearance: 32}},
 	}
 	for name, edit := range edits {
 		t.Run(name, func(t *testing.T) {
@@ -146,8 +145,6 @@ func TestProblemsBlockAndWarningsDoNot(t *testing.T) {
 		want spawn.Rule
 		edit func(*spawn.Document, spawn.AreaID) spawn.Command
 	}{
-		{"respawn_rand above respawn", spawn.RespawnRandAboveRespawn, params(func(p *spawn.Params) { p.Respawn, p.RespawnRand = 60, 61 })},
-		{"npc id 0", spawn.InvalidNPC, params(func(p *spawn.Params) { p.NPCID = 0 })},
 		{"count 0", spawn.InvalidCount, params(func(p *spawn.Params) { p.Count = 0 })},
 		{"empty name", spawn.EmptyName, func(_ *spawn.Document, id spawn.AreaID) spawn.Command {
 			return spawn.Rename{Area: id, Name: " "}

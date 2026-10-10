@@ -8,12 +8,14 @@ import (
 	"zonebuilder/internal/ui/icon"
 )
 
-// CloseMenus closes the open popup menus, reporting whether there was one:
+// CloseMenus closes popup menus and the spawn compilation prompt:
 // Esc in the viewport closes them before it does anything else.
 func (s *Shell) CloseMenus() bool {
 	project := s.Project.popup.Close()
 	water := s.WaterMenu.Menu.Close()
-	return project || water
+	prompt := s.Mode == ModePopulate && !s.NPCIDs.Window.Closed
+	s.NPCIDs.Window.Closed = true
+	return project || water || prompt
 }
 
 // WaterMenu is the viewport's context menu over the water: Compilar zona

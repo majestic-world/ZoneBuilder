@@ -17,7 +17,7 @@ import (
 // can receive a late IME edit after play starts. Its visible buffer, caret
 // and pending submissions must remain unchanged across lock and resume.
 func TestLockedEditorsRejectInputAndDoNotReplayAfterResume(t *testing.T) {
-	for _, target := range []string{"spawn count", "spawn XML name", "height", "shape range", "zone name", "zone search", "zone rename", "property name", "property value"} {
+	for _, target := range []string{"spawn count", "spawn XML name", "compilation NPC IDs", "height", "shape range", "zone name", "zone search", "zone rename", "property name", "property value"} {
 		t.Run(target, func(t *testing.T) {
 			s := NewShell(NewTheme(), "", "22_22")
 			var e *widget.Editor
@@ -26,6 +26,8 @@ func TestLockedEditorsRejectInputAndDoNotReplayAfterResume(t *testing.T) {
 				e = &s.Spawn.fields[AreaCount].editor
 			case "spawn XML name":
 				e = &s.Spawn.XMLName
+			case "compilation NPC IDs":
+				e = &s.NPCIDs.IDs
 			case "height":
 				e = &s.Height.Height
 			case "shape range":

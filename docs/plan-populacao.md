@@ -1,8 +1,8 @@
 # Popular zona: plano do módulo
 
-Segundo modo de uso do Zone Builder: um assistente que cria spawns de monstros para zonas de farm. O usuário demarca uma área sobre o mapa e informa o NPC e a quantidade. O app distribui os monstros pelo chão livre da área, longe das static meshes, e mostra um monstro embutido em cada ponto, parado ou no modo jogo. Depois que o usuário aprova, ele compila o XML de spawn que o `SpawnParser` do servidor Java lê.
+Segundo modo de uso do Zone Builder: um assistente que cria spawns de monstros para zonas de farm. O usuário demarca uma área sobre o mapa e informa a quantidade. O app distribui os monstros pelo chão livre da área, longe das static meshes, e mostra um monstro embutido em cada ponto, parado ou no modo jogo. Depois que o usuário aprova, ele informa os IDs dos NPCs ao compilar o XML de spawn que o `SpawnParser` do servidor Java lê.
 
-As regras do [plano principal](plan.md) continuam valendo: o app só abre `.unr` e gera XML, não lê o datapack e não altera o servidor Java. O id do NPC, o respawn e o raio de colisão são digitados pelo usuário.
+As regras do [plano principal](plan.md) continuam valendo: o app só abre `.unr` e gera XML, não lê o datapack e não altera o servidor Java. O raio de colisão é digitado pelo usuário; os IDs são pedidos apenas na compilação e o respawn é fixo em 60 s.
 
 ## Fontes de verdade
 
@@ -38,7 +38,7 @@ O UE2-Studio é **só leitura**: nenhum arquivo dele é alterado, e nenhum códi
 
 ### Saída: um ponto fixo por monstro
 
-O que a prévia mostra é o que o servidor faz. Cada ponto aprovado vira um `<spawn>` com 1 `<npc count="1" pos="x y z h">`. Com `<mesh>` + `count`, o servidor sortearia pontos novos a cada respawn sem olhar as static meshes, e a distribuição aprovada seria descartada na primeira subida. O custo é que o monstro sempre renasce no mesmo ponto, como nas zonas `[Den_of_Evil_N]`. O app não oferece a saída `<mesh>`.
+O que a prévia mostra é o que o servidor faz. Cada área aprovada vira um `<spawn>` contendo 1 `<npc count="1" pos="x y z h">` por ponto. Com `<mesh>` + `count`, o servidor sortearia pontos novos a cada respawn sem olhar as static meshes, e a distribuição aprovada seria descartada na primeira subida. O custo é que o monstro sempre renasce no mesmo ponto, como nas zonas `[Den_of_Evil_N]`. O app não oferece a saída `<mesh>`.
 
 ### Modelo embutido: extrator Go que grava `UE2HUM01`
 
@@ -121,15 +121,15 @@ O app abre numa tela com 2 cartões: "Construir zonas" e "Popular zona". Cada ca
 
 ### P1. Área de spawn e documento
 
-- Modelo de área: nome, polígono (`zone.Shape` com `zmin zmax`), id do NPC, quantidade, `respawn` (padrão 60), `respawn_rand` (padrão 0), raio de colisão, afastamento das meshes, semente e pontos `{x y z heading}` em coordenadas do servidor.
+- Modelo de área: nome, polígono `x y`, faixa `zmin zmax`, quantidade, raio de colisão, afastamento das meshes, semente e pontos `{x y z heading}` em coordenadas do servidor. IDs pertencem à compilação; respawn é fixo em 60 s, sem `respawn_rand`.
 - Ferramentas: polígono, retângulo e círculo (convertido em polígono), reusando `zoneEditor` e a edição de vértices; desfazer e refazer.
 - Lista de áreas e painel de propriedades.
 - `.zbproj` versão 2.
-- Problemas que bloqueiam a compilação: polígono com menos de 3 vértices ou com auto-interseção, id ≤ 0, quantidade < 1, `respawn_rand > respawn`, nome vazio ou repetido, coordenadas fora do mundo e pontos desatualizados (polígono ou parâmetros mudaram depois da geração).
+- Problemas que bloqueiam a compilação: polígono com menos de 3 vértices ou com auto-interseção, quantidade < 1, nome vazio ou repetido, coordenadas fora do mundo, área sem pontos e pontos desatualizados (polígono ou parâmetros mudaram depois da geração). A pergunta de compilação só aceita IDs inteiros positivos.
 
 **Pronto quando:** 2 áreas são criadas só com o mouse e o teclado; salvar, fechar e reabrir devolve as 2 idênticas; e um `.zbproj` da versão 1 abre com as zonas intactas e sem áreas.
 
-**Resultado: entregue.** O contorno é um polígono `x y` próprio (não um `zone.Shape`), com `zmin zmax` na área; retângulo e círculo viram polígono ao criar. Padrões: raio 9 (o raio medido do monstro, 8,75, arredondado), afastamento 32, respawn 60, `respawn_rand` 0. O id do NPC e a quantidade começam em 0 e ficam como problema até serem digitados. Os avisos "cabem K de N" e "sem chão livre" ficam escondidos enquanto os pontos estão desatualizados.
+**Resultado: entregue.** O contorno é um polígono `x y` próprio (não um `zone.Shape`), com `zmin zmax` na área; retângulo e círculo viram polígono ao criar. Padrões: raio 9 (o raio medido do monstro, 8,75, arredondado) e afastamento 32. A quantidade começa em 0 e fica como problema até ser digitada. Os avisos "cabem K de N" e "sem chão livre" ficam escondidos enquanto os pontos estão desatualizados. Projetos anteriores ainda abrem; campos antigos de NPC/respawn são ignorados e não são gravados novamente.
 
 ### P2. Distribuição
 
@@ -141,15 +141,16 @@ O algoritmo da seção Distribuição. Em edição, cada ponto aparece como pino
 
 ### P3. Compilação do XML de spawn
 
-- Cabeçalho `<?xml version="1.0" encoding="utf-8"?>`, `<!DOCTYPE list SYSTEM "spawn.dtd">` e `<list>`, com indentação de tab.
-- Um `<spawn name="[<nome>_<i>]">` por ponto, com `<npc id count="1" respawn [respawn_rand] pos="x y z h" />`. `respawn_rand` só aparece quando é maior que 0. Tudo em inteiros.
+- Cabeçalho `<?xml version="1.0" encoding="utf-8"?>`, `<!DOCTYPE list SYSTEM "spawn.dtd">` e `<list>`, com indentação de 3 espaços por nível.
+- Um `<spawn name="[<nome>_0]">` por área, contendo 1 `<npc id="…" count="1" respawn="60" pos="x y z h" />` por ponto. `respawn_rand` não é emitido. Tudo em inteiros.
 - Sem `event_name`, `period_of_day` nem `<mesh>`.
 - Um arquivo por projeto com nome livre (padrão: nome do projeto), na mesma janela de XML com o botão de copiar.
+- Ao compilar, pedir IDs separados por espaço e distribuir igualmente entre os pontos de cada área, na ordem informada; diferença de no máximo 1 NPC por ID. Não há campo de ID no inspetor.
 - Compilar 2 vezes dá bytes idênticos.
 
 **Pronto quando:** o XML de um projeto com 3 áreas é carregado por um harness do `SpawnParser`, no mesmo molde de `zone-builder-notes/zoneparser-harness`, sem exceção; e, depois de reiniciar o servidor com o arquivo em `data/spawn/`, os monstros estão nos pontos da prévia (o `//pos` ao lado de 3 deles fica a menos de 16 unidades) e virados para o heading mostrado.
 
-**Resultado: entregue no harness; verificação em jogo pendente.** O harness do `SpawnParser` carregou o XML de 3 áreas compilado no app (10 pontos) sem problema. O heading foi conferido no código do servidor: mesma unidade, mesmo zero e mesmo sentido do yaw da prévia. O `//pos` e o lado para onde o monstro olha no cliente dependem do usuário: veja o [ADR 0007](adr/0007-ponto-fixo-em-vez-de-mesh.md).
+**Resultado: saída anterior entregue no harness; verificação em jogo pendente.** O harness do `SpawnParser` carregou o XML anterior de 3 áreas compilado no app (10 pontos) sem problema. O formato atual agrupado passou em testes e no smoke da interface com 2 áreas/55 pontos, IDs equilibrados e XML determinístico. O heading foi conferido no código do servidor: mesma unidade, mesmo zero e mesmo sentido do yaw da prévia. O `//pos` e o lado para onde o monstro olha no cliente dependem do usuário: veja o [ADR 0007](adr/0007-ponto-fixo-em-vez-de-mesh.md).
 
 ### P4. Monstro embutido e prévia
 

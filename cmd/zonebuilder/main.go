@@ -256,6 +256,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			if next, ok := shell.ModeRequested(gtx); ok && next != modes.active {
 				game.stop(ws)
 				modes.set(next)
+				shell.NPCIDs.Window.Closed = true
 				m = modes.current()
 				// Keys held when the mode changed send no release to it.
 				fly = ui.FlyControls{}

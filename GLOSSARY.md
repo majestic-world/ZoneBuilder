@@ -63,11 +63,11 @@ Exata: paredes verticais e topo e fundo horizontais, então o prisma do servidor
 ## População
 
 **Área de spawn**:
-Polígono `x y` do modo população, com faixa Z, id do NPC, quantidade, respawn, `respawn_rand`, raio, afastamento, semente e pontos. Não é uma zona: não tem tipo nem exclusões (o servidor não suporta exclusão em spawn) e compila para o XML de spawn, não para o de zona. No código, `spawn.Area`.
+Polígono `x y` com faixa Z, quantidade de monstros, raio, afastamento, semente e pontos de spawn. Não é uma zona: não tem tipo nem exclusões, e seus monstros formam um único grupo de spawn.
 _Evite_: zona de spawn, território.
 
 **Ponto de spawn**:
-Um monstro da área: `x y z heading` em coordenadas do servidor, com heading em 1..65535. Vira 1 `<spawn>` com 1 `<npc count="1" pos="x y z h">` (ADR 0007). Gerado pela distribuição ou movido, apagado e adicionado à mão.
+Posição fixa de um monstro da área: `x y z heading` em coordenadas do servidor, com heading em 1..65535. Pode ser gerado pela distribuição ou movido, apagado e adicionado à mão; o ID do NPC é escolhido na compilação.
 _Evite_: pino (é o desenho do ponto no viewport).
 
 **Raio**:
@@ -84,7 +84,7 @@ Célula de 16 unidades com o centro dentro da área e a pelo menos 1 raio da bor
 Número que determina o sorteio dos pontos e dos headings. A mesma semente, com as mesmas entradas, dá os mesmos pontos. **Gerar** usa a semente da área; **Regerar** troca a semente e descarta os ajustes manuais (1 passo de desfazer).
 
 **Pontos desatualizados**:
-O contorno, a faixa Z, a quantidade, o raio, o afastamento ou a semente mudaram depois da última geração. Bloqueia a compilação até gerar de novo. Nome, NPC, respawn e ajustes manuais dos pontos não desatualizam.
+O contorno, a faixa Z, a quantidade, o raio, o afastamento ou a semente mudaram depois da última geração. Bloqueia a compilação até gerar de novo; nome e ajustes manuais dos pontos não desatualizam.
 _Evite_: pontos velhos, sujos.
 
 **Monstro de prévia**:

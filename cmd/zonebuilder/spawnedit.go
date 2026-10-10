@@ -483,11 +483,7 @@ func (e *spawnEditor) rows(lang locale.Language) []ui.AreaRow {
 	areas := e.doc.Areas()
 	rows := make([]ui.AreaRow, len(areas))
 	for i, a := range areas {
-		npc := locale.Text(lang, "spawn.row.no_npc")
-		if a.Params.NPCID > 0 {
-			npc = locale.Format(lang, "spawn.row.npc", map[string]string{"id": strconv.Itoa(a.Params.NPCID)})
-		}
-		detail := locale.Format(lang, "spawn.row.detail", map[string]string{"npc": npc, "monsters": locale.Plural(lang, "spawn.count.monsters", a.Params.Count, nil)})
+		detail := locale.Plural(lang, "spawn.count.monsters", a.Params.Count, nil)
 		if e.drawing && a.ID == e.area {
 			detail = locale.Text(lang, "editor.row.drawing")
 		}
@@ -590,14 +586,8 @@ func (e *spawnEditor) deleteArea(id spawn.AreaID) locale.Message {
 // fieldMessage names field f in messages.
 func fieldMessage(f ui.AreaField) locale.Message {
 	switch f {
-	case ui.AreaNPC:
-		return locale.Message{Key: "spawn.field.npc"}
 	case ui.AreaCount:
 		return locale.Message{Key: "spawn.field.count"}
-	case ui.AreaRespawn:
-		return locale.Message{Key: "spawn.field.respawn"}
-	case ui.AreaRespawnRand:
-		return locale.Message{Key: "spawn.field.respawn_rand"}
 	case ui.AreaRadius:
 		return locale.Message{Key: "spawn.field.radius"}
 	case ui.AreaClearance:
@@ -631,14 +621,8 @@ func (e *spawnEditor) setField(id spawn.AreaID, f ui.AreaField, text string) loc
 	}
 	p := a.Params
 	switch f {
-	case ui.AreaNPC:
-		p.NPCID = n
 	case ui.AreaCount:
 		p.Count = n
-	case ui.AreaRespawn:
-		p.Respawn = n
-	case ui.AreaRespawnRand:
-		p.RespawnRand = n
 	case ui.AreaRadius:
 		p.Radius = n
 	case ui.AreaClearance:

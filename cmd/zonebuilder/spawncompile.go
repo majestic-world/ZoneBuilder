@@ -11,21 +11,28 @@ import (
 	"zonebuilder/internal/zonexml"
 )
 
-// compile compiles every area into one spawn file named name (fallback when
-// name is blank) for the XML window. Nothing comes out while the
-// compilation is blocked; the status then names the first blocking problem.
-func (e *spawnEditor) compile(name, fallback string) (locale.Message, []zonexml.File) {
+// compilationProblem checks whether the editor is ready to request NPC IDs.
+func (e *spawnEditor) compilationProblem(areaCount int) locale.Message {
+	switch {
+	case e.drawing:
+		return locale.Message{Key: "spawn.compile.drawing"}
+	case areaCount == 0:
+		return locale.Message{Key: "spawn.compile.empty"}
+	}
+	return locale.Message{}
+}
+
+// compile writes every area with the IDs chosen for this compilation.
+// Nothing comes out while compilation is blocked.
+func (e *spawnEditor) compile(name, fallback string, npcIDs []int) (locale.Message, []zonexml.File) {
 	if strings.TrimSpace(name) == "" {
 		name = fallback
 	}
 	areas := e.doc.Areas()
-	switch {
-	case e.drawing:
-		return locale.Message{Key: "spawn.compile.drawing"}, nil
-	case len(areas) == 0:
-		return locale.Message{Key: "spawn.compile.empty"}, nil
+	if msg := e.compilationProblem(len(areas)); msg.Key != "" {
+		return msg, nil
 	}
-	f, err := e.doc.Compile(name)
+	f, err := e.doc.Compile(name, npcIDs)
 	if b, ok := errors.AsType[*spawn.BlockedError](err); ok {
 		log.Printf("spawn: %v", b)
 		return locale.Message{Key: "spawn.compile.blocked", Count: len(b.Problems), Plural: true, Parts: map[string]locale.Message{"problem": b.Problems[0].Message()}}, nil
