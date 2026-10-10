@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: ready-for-human
 
 # Popular zona: assistente de spawn de monstros para zonas de farm
 
@@ -327,3 +327,13 @@ O projeto continua testado no seam que já existe, em `project`.
 | Ponto livre no cliente, bloqueado na geodata | Fora do escopo; o servidor nasce o monstro mesmo assim, e a verificação em jogo mostra se é frequente. |
 | O port do leitor de skeletal mesh diverge do UE2-Studio | A comparação visual com a captura do UE2-Studio e o teste do cliente real sobre as 2 skins. |
 | Prévia lenta com muitas instâncias | Skinning uma vez por frame + 1 chamada instanciada; critério de 500 instâncias a 60 fps. |
+
+## Comments
+
+Implementação e correções de revisão integradas na branch `popular-zona`. Os tickets 01–12 estão resolvidos com evidências nos respectivos comentários. README, glossário, procedência dos modelos, plano e ADR 0007 estão atualizados.
+
+Revisão em 2 eixos: 2 achados de Standards e 4 de Spec, corrigidos numa única branch `pz/review-fixes`. O smoke revelou e corrigiu também a entrada em buffers Gio durante o jogo. Gate final com `CGO_ENABLED=0` e cliente Fafurion real: build, vet e testes passaram; 17 pacotes aprovados. Smoke integrado: confirmação/cancelamento de regeneração, Undo atômico, medição persistida, editor bloqueado nos 2 modos, streaming com reconstrução de colisões, Esc e janela XML com cópia byte a byte.
+
+A spec não está totalmente resolvida: os tickets 13 e 14 estão `ready-for-human`. Falta reiniciar um servidor de teste com o XML e conferir `//pos` e heading de 3 monstros no cliente conectado; depois, registrar o resultado no ADR 0007 e no plano P3. O harness já carregou o XML de 3 áreas com 10 pontos sem exceção. Não houve alteração/reinício do servidor pelo agente.
+
+Roteiro e artefatos da conferência: `C:/Workspace/zone-builder-notes/popular-zona/13-verificacao-no-servidor.md` e `13-evidence/tres-areas.xml`. Correções e evidências de integração: `review-fixes.md` e `review-evidence/` na mesma pasta externa.

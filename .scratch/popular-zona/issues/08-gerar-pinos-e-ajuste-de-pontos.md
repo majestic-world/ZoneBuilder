@@ -4,11 +4,21 @@
 
 **Blocked by:** 06, 07
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Smoke no app: área de 50 numa clareira com árvores, pedra e cercas gera pontos visíveis como pinos com círculo, nenhum sobre mesh, água ou a menos de raio + afastamento de tronco, cerca ou pedra (conferido nos screenshots e por um dump dos pontos)
-- [ ] Smoke no app: gerar 2 vezes com a mesma semente dá os mesmos pontos; Regerar dá outros, avisa sobre ajustes manuais e é desfeito por 1 `Undo`
-- [ ] Smoke no app: arrastar, apagar e adicionar ponto, com desfazer; o ponto arrastado cai no chão sob o cursor
-- [ ] Smoke no app: mudar a quantidade depois de gerar deixa os pinos com o visual de desatualizado e o problema no painel
-- [ ] Smoke no app: área pequena mostra "cabem K de N"; área sobre água mostra "nenhuma célula livre"; o inspetor mostra os 3 números
-- [ ] A interface continua fluida durante a geração
+- [x] Smoke no app: área de 50 numa clareira com árvores, pedra e cercas gera pontos visíveis como pinos com círculo, nenhum sobre mesh, água ou a menos de raio + afastamento de tronco, cerca ou pedra (conferido nos screenshots e por um dump dos pontos)
+- [x] Smoke no app: gerar 2 vezes com a mesma semente dá os mesmos pontos; Regerar dá outros, avisa sobre ajustes manuais e é desfeito por 1 `Undo`
+- [x] Smoke no app: arrastar, apagar e adicionar ponto, com desfazer; o ponto arrastado cai no chão sob o cursor
+- [x] Smoke no app: mudar a quantidade depois de gerar deixa os pinos com o visual de desatualizado e o problema no painel
+- [x] Smoke no app: área pequena mostra "cabem K de N"; área sobre água mostra "nenhuma célula livre"; o inspetor mostra os 3 números
+- [x] A interface continua fluida durante a geração
+
+## Comments
+
+Integrado em `popular-zona`, a partir de `pz/08-gerar-pinos-e-ajuste-de-pontos` (`e75b02e`). Clareira do 22_22: 50 pontos, nenhum inválido pelo oráculo independente; mesh mais próxima a 41,5 para afastamento exigido de 41. Mesma semente produz projeto idêntico; edição manual, Undo/Redo, pontos desatualizados e avisos conferidos em pt-BR/en. A geração força meshes como obstáculos mesmo quando ocultas pelo toggle do viewport.
+
+Revisão integrada: Regerar mostra confirmação antes de alterar a semente/pontos; Cancelar preservou o projeto byte a byte e 1 Undo restaurou o baseline manual byte a byte. Chão livre de 369.920 u² persistiu após salvar, fechar e reabrir sem gerar novamente. Smoke e capturas em `review-evidence/`.
+
+Risco medido no smoke original: geração de 8.000 pontos em segundo plano manteve aproximadamente 97–105 fps, mas o recebimento desse resultado produziu 1 quadro de cerca de 340 ms. A geração com 50 pontos foi de poucos milissegundos.
+
+Evidências: `C:/Workspace/zone-builder-notes/popular-zona/08-gerar-pinos-e-ajuste-de-pontos.md`, `08-evidence/`, `review-fixes.md` e `review-evidence/`. Build, vet e suíte com `ZB_CLIENT` passaram no gate final.
