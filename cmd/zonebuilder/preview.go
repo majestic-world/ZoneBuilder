@@ -25,6 +25,18 @@ func headingYaw(h int) float32 {
 	return float32(float64(h) * (2 * math.Pi / 65536))
 }
 
+// previewPoints appends to dst the points the preview puts the monster
+// on: those with a pin (pins), where the pin is, a dragged one included.
+func (e *spawnEditor) previewPoints(dst []spawn.Point) []spawn.Point {
+	for _, a := range e.doc.Areas() {
+		if a.Hidden || (e.drawing && a.ID == e.area) {
+			continue
+		}
+		dst = append(dst, e.shownSpawnPoints(a)...)
+	}
+	return dst
+}
+
 // monsterPreview draws the embedded preview monster (model.Monster) on
 // spawn points: feet on the point, turned to its heading, every copy in
 // the one pose of its Wait clip at the frame's time.

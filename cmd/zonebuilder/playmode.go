@@ -170,6 +170,10 @@ func (p *playMode) stop(ws *workspace) {
 	}
 	p.gen++
 	p.starting = false
+	if p.s != nil {
+		f := p.s.Feet()
+		log.Printf("jogo: pés em %.0f %.0f %.0f (%s)", f.X, f.Y, f.Z, p.s.Motion())
+	}
 	p.s = nil
 	p.body = nil
 	ws.cam = p.saved

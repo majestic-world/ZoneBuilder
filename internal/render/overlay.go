@@ -38,6 +38,9 @@ type ZoneShape struct {
 	// Ground is the floor line along the prism's walls, as segments (pairs
 	// of points, server coordinates) drawn in the edge colour.
 	Ground []geom.Vec3
+	// NoHandles draws the shape's lines without vertex handles: the stem
+	// and the ground circle of a spawn point's pin.
+	NoHandles bool
 }
 
 // groundLift raises the ground line along the walls this many units over
@@ -268,7 +271,11 @@ func (o *zoneOverlay) set(shapes []ZoneShape) {
 				lines = append(lines, l[:]...)
 			}
 		}
-		for i, p := range client {
+		handles := client
+		if s.NoHandles {
+			handles = nil
+		}
+		for i, p := range handles {
 			pos := [3]float32{p.X, p.Y, p.Z}
 			size, outline := float32(handleSize), float32(handleOutline)
 			fill := [4]float32{1, 1, 1, 1}

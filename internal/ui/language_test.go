@@ -17,7 +17,7 @@ func TestLanguageSwitchKeepsEditorsAndViewport(t *testing.T) {
 	s.Zone.Name.SetText("unfinished zone")
 	s.Project.Unsaved = true
 	s.Height.Zone = "zone floor"
-	s.XML.Open([]zonexml.File{{Name: "peace_zone.xml", Data: []byte("<zone id=\"42\"/>")}})
+	s.XML.Open([]zonexml.File{{Name: "peace_zone.xml", Data: []byte("<zone id=\"42\"/>")}}, ZoneXML)
 	s.Language = locale.PtBR
 	for _, language := range []locale.Language{locale.PtBR, locale.En, locale.PtBR} {
 		s.Language = language

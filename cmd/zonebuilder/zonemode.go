@@ -12,6 +12,7 @@ import (
 	"zonebuilder/internal/locale"
 	"zonebuilder/internal/render"
 	"zonebuilder/internal/scene"
+	"zonebuilder/internal/ui"
 	"zonebuilder/internal/zonexml"
 )
 
@@ -110,7 +111,7 @@ func (z *zoneMode) compile(ws *workspace) {
 	msg, files := z.zones.compile()
 	ws.status = editorResult(msg, z.zones)
 	if len(files) > 0 {
-		ws.shell.XML.Open(files)
+		ws.shell.XML.Open(files, ui.ZoneXML)
 	}
 }
 
@@ -130,7 +131,7 @@ func (z *zoneMode) update(gtx layout.Context, ws *workspace) {
 		sel, live := z.waterSel.selected(w)
 		ws.status, files = zones.compileWater(sel, live)
 		if len(files) > 0 {
-			shell.XML.Open(files)
+			shell.XML.Open(files, ui.ZoneXML)
 		}
 	}
 	for _, req := range shell.Zones.Update(gtx) {
@@ -216,6 +217,9 @@ func (z *zoneMode) sync(r *render.Renderer, ws *workspace) {
 	}
 }
 
+// forget makes the next sync send everything, and refills the height
+// window's fields, which the population mode shares.
 func (z *zoneMode) forget() {
 	z.zonesShown, z.waterShown, z.groundShown = -1, -1, groundKey{version: -1}
+	z.zones.heightFilled = heightKey{version: -1}
 }

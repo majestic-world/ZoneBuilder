@@ -351,5 +351,21 @@ func TestTooSmallAreaGivesWhatFits(t *testing.T) {
 	}
 }
 
+// The inspector's spacing of an area's points after hand edits is the
+// mean and least X/Y distance from each point to its nearest neighbour,
+// worked out by hand for 3 points: nearest 30, 30 and 40. Catches the Z of
+// a point dragged up a slope counted as distance, or a point taken as its
+// own neighbour (least spacing 0).
+func TestSpacingOfHandPlacedPointsIsNearestNeighbourOnThePlane(t *testing.T) {
+	pts := []placement.Point{{X: 0, Y: 0, Z: 0}, {X: 30, Y: 0, Z: 500}, {X: 30, Y: 40, Z: 0}}
+	mean, least := placement.Spacing(pts)
+	if math.Abs(mean-100.0/3) > 1e-9 || least != 30 {
+		t.Errorf("spacing mean %v least %v, want 33.33 and 30", mean, least)
+	}
+	if mean, least := placement.Spacing(pts[:1]); mean != 0 || least != 0 {
+		t.Errorf("1 point: spacing %v %v, want 0 0", mean, least)
+	}
+}
+
 // CellSize is placement.CellSize as a float.
 const CellSize = float64(placement.CellSize)
