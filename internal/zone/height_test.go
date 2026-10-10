@@ -27,21 +27,21 @@ func heightZone(t *testing.T, d *zone.Document) zone.ZoneID {
 	return id
 }
 
-// Raising or lowering a zone moves every shape's Z range by the same
-// amount, the exclusion included, and leaves the restart points on the
-// ground they were clicked on. Catches an exclusion left at the old height,
-// which would stop cutting its hole out of the moved zone.
-func TestShiftingAZoneMovesEveryShapeTogether(t *testing.T) {
+// Moving a zone moves every shape by the same amount on every axis, the
+// exclusion included, and leaves the restart points on the ground they
+// were clicked on. Catches an exclusion left behind, which would stop
+// cutting its hole out of the moved zone.
+func TestMovingAZoneMovesEveryShapeTogether(t *testing.T) {
 	d := zone.NewDocument()
 	id := heightZone(t, d)
-	apply(t, d, zone.ShiftZoneZ{Zone: id, DZ: 500})
+	apply(t, d, zone.MoveZone{Zone: id, DX: 100, DY: -200, DZ: 500})
 	want := []string{
-		"83000 147000 -3200 -2600", "84000 147000 -3200 -2600", "84000 148000 -3200 -2600", "83000 148000 -3200 -2600",
-		"83400 147400 -3150 -2800", "83600 147400 -3150 -2800", "83600 147600 -3150 -2800", "83400 147600 -3150 -2800",
+		"83100 146800 -3200 -2600", "84100 146800 -3200 -2600", "84100 147800 -3200 -2600", "83100 147800 -3200 -2600",
+		"83500 147200 -3150 -2800", "83700 147200 -3150 -2800", "83700 147400 -3150 -2800", "83500 147400 -3150 -2800",
 		"83200 147200 -3404",
 	}
 	if got := coords(t, d); !reflect.DeepEqual(got, want) {
-		t.Errorf("coords after raising the zone by 500:\n%q\nwant\n%q", got, want)
+		t.Errorf("coords after moving the zone by 100 -200 500:\n%q\nwant\n%q", got, want)
 	}
 }
 

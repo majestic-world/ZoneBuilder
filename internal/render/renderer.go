@@ -120,6 +120,13 @@ func (r *Renderer) SetMeshesHidden(hidden bool) {
 	r.scene.hideMeshes = hidden
 }
 
+// SetHiddenActors leaves the static mesh actors in hidden out of the view,
+// one by one, whatever SetMeshesHidden says. The next frame cuts their
+// triangles out of the batches they share with the other actors.
+func (r *Renderer) SetHiddenActors(hidden *scene.HiddenActors) {
+	r.scene.hidden = hidden
+}
+
 // AddScene queues the scene p was prepared from for upload. Upload puts it
 // on the GPU a little per frame; it is drawn once it is all there.
 func (r *Renderer) AddScene(p *Prepared) {

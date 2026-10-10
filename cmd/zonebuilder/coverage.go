@@ -64,8 +64,8 @@ func (e *zoneEditor) zMargin() int        { return e.margin }
 func (e *zoneEditor) zFromVertices() bool { return e.fromVertices }
 
 // coverageKey is what a shape's floor profile is measured from: the
-// shape's outline as shown, the world's tiles and whether static meshes
-// are hidden. Any change of it measures the profile again.
+// shape's outline as shown, the world's tiles and which static meshes are
+// hidden. Any change of it measures the profile again.
 type coverageKey struct {
 	shape shapeRef
 	// outline hashes the shape's outline (outlineKey); bans the outlines
@@ -76,6 +76,7 @@ type coverageKey struct {
 	// scenes hashes the world's scenes, in order (scenesKey).
 	scenes     uint64
 	hideMeshes bool
+	hidden     *scene.HiddenActors
 }
 
 // keySeed seeds the hashes of coverageKey.
@@ -252,7 +253,7 @@ func (c *floorCoverage) report(src coverageSource, w *scene.World, ref shapeRef,
 // and the banned shapes it is measured with.
 func newCoverageKey(src coverageSource, ref shapeRef, pts []zone.Point, w *scene.World) (coverageKey, []coverage.Ban) {
 	bans, bansKey := src.coverageBans(ref)
-	return coverageKey{shape: ref, outline: outlineKey(pts), bans: bansKey, world: w, scenes: scenesKey(w), hideMeshes: w.HideMeshes}, bans
+	return coverageKey{shape: ref, outline: outlineKey(pts), bans: bansKey, world: w, scenes: scenesKey(w), hideMeshes: w.HideMeshes, hidden: w.Hidden}, bans
 }
 
 // profile is the floor profile of shape ref for outline pts over w: the
@@ -308,6 +309,7 @@ func (c *floorCoverage) start(key coverageKey, pts []zone.Point, bans []coverage
 		snap.Add(s)
 	}
 	snap.HideMeshes = w.HideMeshes
+	snap.Hidden = w.Hidden
 	o := coverageOutline(pts)
 	since := c.gen
 	c.running = true

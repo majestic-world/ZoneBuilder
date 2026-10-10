@@ -92,9 +92,9 @@ type Shell struct {
 	// Height raises, lowers and sizes the selected zone, or spawn area,
 	// from a window floating over the viewport.
 	Height HeightPanel
-	// Arrow is the viewport's handle that raises and lowers the selected
-	// zone.
-	Arrow ZArrow
+	// Gizmo is the viewport's handle that moves the selected zone along
+	// X, Y and Z.
+	Gizmo MoveGizmo
 	// Meshes is the command bar's switch that hides the static meshes
 	// while On.
 	Meshes Switch
@@ -119,6 +119,11 @@ type Shell struct {
 	NPCIDs NPCIDsWindow
 	// WaterMenu is the viewport's context menu over the water.
 	WaterMenu WaterMenu
+	// MeshMenu is the viewport's context menu over a static mesh.
+	MeshMenu MeshMenu
+	// HiddenMeshes lists, in the map section, the static meshes hidden
+	// one by one.
+	HiddenMeshes HiddenMeshes
 	// Message is the last outcome ("" for none), shown over the status
 	// pill with the armed tool's hints (Zone.Info).
 	Message string
@@ -199,9 +204,9 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	}
 	zones := s.Mode == ModeZones
 	if zones {
-		// The arrow only paints; every card takes the pointer input over
+		// The gizmo only paints; every card takes the pointer input over
 		// its bounds, so the viewport gets what lands between them.
-		s.Arrow.Layout(gtx)
+		s.Gizmo.Layout(gtx)
 		s.edgeLabels(gtx)
 		s.pinLabels(gtx)
 	}
@@ -251,6 +256,7 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	if zones {
 		s.editorControls(func(gtx layout.Context) layout.Dimensions { s.waterMenu(gtx); return layout.Dimensions{} })(gtx)
 	}
+	s.editorControls(func(gtx layout.Context) layout.Dimensions { s.meshMenu(gtx); return layout.Dimensions{} })(gtx)
 	return image.Rectangle{Max: s.Viewport.Size()}
 }
 
@@ -271,6 +277,7 @@ func (s *Shell) DiscardEditorInput(gtx layout.Context) {
 	s.NPCIDs.Discard(gtx)
 	s.Project.Requests(gtx)
 	s.WaterMenu.CompileRequested(gtx)
+	s.MeshMenu.HideRequested(gtx)
 }
 
 // place adds the recorded call at p.
@@ -365,6 +372,7 @@ func (s *Shell) mapSection() []layout.FlexChild {
 		layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.map.go_to"))),
 		layout.Rigid(s.fieldButton(&s.GoTo, "83400 147943 -3400", icon.Crosshair, s.button(&s.Go, secondaryButton, icon.Navigation, ""))),
 	)
+	children = append(children, s.hiddenMeshes()...)
 	for _, w := range s.Warnings {
 		children = append(children, layout.Rigid(s.dimLabel(w)))
 	}

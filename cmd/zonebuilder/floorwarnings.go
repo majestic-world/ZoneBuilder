@@ -27,6 +27,7 @@ type warningsKey struct {
 	world      *scene.World
 	scenes     uint64
 	hideMeshes bool
+	hidden     *scene.HiddenActors
 	received   int
 }
 
@@ -39,7 +40,7 @@ func (c *floorCoverage) warnings(e *zoneEditor, w *scene.World) ([]floorWarning,
 	c.receive(e)
 	k := warningsKey{version: e.version, world: w, received: c.received}
 	if w != nil {
-		k.scenes, k.hideMeshes = scenesKey(w), w.HideMeshes
+		k.scenes, k.hideMeshes, k.hidden = scenesKey(w), w.HideMeshes, w.Hidden
 	}
 	if k == c.warnedAt {
 		return c.warned, false

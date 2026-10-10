@@ -17,77 +17,140 @@ import (
 	"zonebuilder/internal/zone"
 )
 
-// arrowGrab is how close, in pixels, a press must land to the Z arrow to
-// grab it.
+// arrowGrab is how close, in pixels, a press must land to a gizmo arrow
+// to grab it.
 const arrowGrab = 9
 
-// arrowReach is the world height, in server units, whose projection gives
-// the arrow its screen direction and its pixels-per-unit scale.
+// arrowReach is the world length, in server units, whose projection gives
+// each arrow its screen direction and its pixels-per-unit scale.
 const arrowReach = 1000
 
-// zArrow is the selected zone's Z arrow as last laid out: from base (the
-// middle of the zone's top) to tip, in viewport pixels, with the unit
-// screen direction of world +Z and how many world units a pixel along it
-// is.
-type zArrow struct {
-	ok        bool
-	zone      zone.ZoneID
-	base, tip f32.Point
-	dir       f32.Point
-	perPixel  float32
+// minArrow is the shortest projection, in pixels, of arrowReach along X
+// or Y that still shows that axis's arrow: below it the axis points at
+// the camera and a drag along it would move the zone by leaps.
+const minArrow = 4
+
+// The gizmo's axes, in the order of ui.MoveGizmo.Arrows.
+const (
+	axisX = iota
+	axisY
+	axisZ
+)
+
+// axisArrow is one arrow of the gizmo as last laid out: its tip in
+// viewport pixels, the unit screen direction of its world axis and how
+// many world units a pixel along it is.
+type axisArrow struct {
+	ok       bool
+	tip      f32.Point
+	dir      f32.Point
+	perPixel float32
 }
 
-// zDrag is a drag of the Z arrow: dz is how far the zone moves when it is
-// released.
-type zDrag struct {
+// gizmo is the selected zone's move gizmo as last laid out: from base
+// (the middle of the zone's top), an arrow along world X, Y and Z.
+type gizmo struct {
+	ok     bool
+	zone   zone.ZoneID
+	base   f32.Point
+	arrows [3]axisArrow
+}
+
+// axisDrag is a drag of one gizmo arrow: delta is how far along axis the
+// zone moves when it is released.
+type axisDrag struct {
 	active bool
 	zone   zone.ZoneID
+	axis   int
 	press  f32.Point
 	dir    f32.Point
 	scale  float32
-	dz     int
+	delta  int
 }
 
-// layoutArrow computes the selected zone's Z arrow, length pixels long, for
-// the camera, and returns how the shell draws it. There is none while a
-// polygon is drawn or a tool is armed, when the zone is not ready, or when
-// its top is behind the camera.
-func (e *zoneEditor) layoutArrow(s *scene.World, cam *camera.Camera, vp image.Point, length int) ui.ZArrow {
-	e.arrow = zArrow{}
+// layoutGizmo computes the selected zone's move gizmo, arrows length
+// pixels long, for the camera, and returns how the shell draws it. There
+// is none while a polygon is drawn or a tool is armed, when the zone is
+// not ready, or when its top is behind the camera. An X or Y arrow that
+// points at the camera is left out; the Z arrow seen from straight above
+// points away from the other two, at the scale of a horizontal step.
+func (e *zoneEditor) layoutGizmo(s *scene.World, cam *camera.Camera, vp image.Point, length int) ui.MoveGizmo {
+	e.gizmo = gizmo{}
 	z, _, top, ok := e.zoneZ()
 	if !ok || s == nil || e.armed {
-		return ui.ZArrow{}
+		return ui.MoveGizmo{}
 	}
 	cx, cy, ok := zoneCenter(z)
 	if !ok {
-		return ui.ZArrow{}
+		return ui.MoveGizmo{}
 	}
-	top += e.zdrag.offset(z.ID)
+	dx, dy, dz := e.axisDrag.offset(z.ID)
+	center := zone.Point{X: cx + dx, Y: cy + dy, Z: top + dz}
 	project := func(p zone.Point) (f32.Point, bool) {
 		x, y, ok := cam.Project(renderPoint(s, p), vp.X, vp.Y)
 		return f32.Pt(x, y), ok
 	}
-	base, ok := project(zone.Point{X: cx, Y: cy, Z: top})
+	base, ok := project(center)
 	if !ok {
-		return ui.ZArrow{}
+		return ui.MoveGizmo{}
 	}
-	up, upOK := project(zone.Point{X: cx, Y: cy, Z: top + arrowReach})
-	d := up.Sub(base)
-	n := float32(math.Hypot(float64(d.X), float64(d.Y)))
-	dir, perPixel := d.Div(n), arrowReach/n
-	if !upOK || n < 4 {
-		// Looking straight down the Z axis: drag up the screen, at the
-		// scale of a horizontal step at the zone's top.
-		side, ok := project(zone.Point{X: cx + arrowReach, Y: cy, Z: top})
-		h := side.Sub(base)
-		hn := float32(math.Hypot(float64(h.X), float64(h.Y)))
-		if !ok || hn < 1 {
-			return ui.ZArrow{}
+	g := gizmo{ok: true, zone: z.ID, base: base}
+	along := func(axis int) (f32.Point, float32, bool) {
+		p := center
+		switch axis {
+		case axisX:
+			p.X += arrowReach
+		case axisY:
+			p.Y += arrowReach
+		case axisZ:
+			p.Z += arrowReach
 		}
-		dir, perPixel = f32.Pt(0, -1), arrowReach/hn
+		end, ok := project(p)
+		d := end.Sub(base)
+		n := float32(math.Hypot(float64(d.X), float64(d.Y)))
+		if !ok || n < minArrow {
+			return f32.Point{}, 0, false
+		}
+		return d.Div(n), arrowReach / n, true
 	}
-	e.arrow = zArrow{ok: true, zone: z.ID, base: base, tip: base.Add(dir.Mul(float32(length))), dir: dir, perPixel: perPixel}
-	return ui.ZArrow{Visible: true, Base: e.arrow.base, Tip: e.arrow.tip, Active: e.zdrag.active}
+	for axis := range 3 {
+		if dir, perPixel, ok := along(axis); ok {
+			g.arrows[axis] = axisArrow{ok: true, dir: dir, perPixel: perPixel}
+		}
+	}
+	if !g.arrows[axisZ].ok {
+		// Looking straight down the Z axis: drag away from the X and Y
+		// arrows, at the scale of a horizontal step at the zone's top.
+		var side f32.Point
+		perPixel := float32(0)
+		for _, a := range g.arrows[:axisZ] {
+			if a.ok {
+				side = side.Sub(a.dir)
+				perPixel = a.perPixel
+			}
+		}
+		n := float32(math.Hypot(float64(side.X), float64(side.Y)))
+		if perPixel > 0 {
+			dir := f32.Pt(0, -1)
+			if n > 0.1 {
+				dir = side.Div(n)
+			}
+			g.arrows[axisZ] = axisArrow{ok: true, dir: dir, perPixel: perPixel}
+		}
+	}
+	out := ui.MoveGizmo{Visible: true, Base: base, Active: -1}
+	if e.axisDrag.active {
+		out.Active = e.axisDrag.axis
+	}
+	for axis := range g.arrows {
+		a := &g.arrows[axis]
+		if a.ok {
+			a.tip = base.Add(a.dir.Mul(float32(length)))
+			out.Arrows[axis] = ui.GizmoArrow{Visible: true, Tip: a.tip}
+		}
+	}
+	e.gizmo = g
+	return out
 }
 
 // zoneCenter is the middle of the bounding box of z's included shapes.
@@ -109,64 +172,104 @@ func zoneCenter(z zone.Zone) (x, y int, ok bool) {
 	return (lo.X + hi.X) / 2, (lo.Y + hi.Y) / 2, ok
 }
 
-// onArrow reports whether viewport pixel p lies on the arrow.
-func (a zArrow) onArrow(p f32.Point) bool {
-	if !a.ok {
-		return false
+// arrowAt is the axis of the arrow viewport pixel p lies on, the nearest
+// when several are within reach.
+func (g gizmo) arrowAt(p f32.Point) (int, bool) {
+	if !g.ok {
+		return 0, false
 	}
-	d := a.tip.Sub(a.base)
-	t := ((p.X-a.base.X)*d.X + (p.Y-a.base.Y)*d.Y) / (d.X*d.X + d.Y*d.Y)
-	t = max(0, min(1, t))
-	return dist(p, a.base.Add(d.Mul(t))) <= arrowGrab
+	best, hit := float32(arrowGrab), -1
+	for axis, a := range g.arrows {
+		if !a.ok {
+			continue
+		}
+		d := a.tip.Sub(g.base)
+		t := ((p.X-g.base.X)*d.X + (p.Y-g.base.Y)*d.Y) / (d.X*d.X + d.Y*d.Y)
+		t = max(0, min(1, t))
+		// The shared base belongs to no arrow in particular.
+		if t < 0.15 {
+			continue
+		}
+		if dd := dist(p, g.base.Add(d.Mul(t))); dd <= best {
+			best, hit = dd, axis
+		}
+	}
+	return hit, hit >= 0
 }
 
-// offset is how far the drag in progress moves zone id.
-func (d zDrag) offset(id zone.ZoneID) int {
+// offset is how far the drag in progress moves zone id on each axis.
+func (d axisDrag) offset(id zone.ZoneID) (dx, dy, dz int) {
 	if !d.active || d.zone != id {
-		return 0
+		return 0, 0, 0
 	}
-	return d.dz
+	switch d.axis {
+	case axisX:
+		return d.delta, 0, 0
+	case axisY:
+		return 0, d.delta, 0
+	}
+	return 0, 0, d.delta
 }
 
-// arrowEvent follows a drag of the Z arrow: the zone shows moved while the
-// pointer moves, and the release applies the move as one command. Shift
-// snaps the move to the step.
-func (e *zoneEditor) arrowEvent(ev pointer.Event) string {
-	d := &e.zdrag
+// axisNames name the axes in the status messages.
+var axisNames = [3]string{"X", "Y", "Z"}
+
+// gizmoEvent follows a drag of a gizmo arrow: the zone shows moved while
+// the pointer moves, and the release applies the move as one command.
+// Shift snaps the move to the step.
+func (e *zoneEditor) gizmoEvent(ev pointer.Event) string {
+	d := &e.axisDrag
 	switch ev.Kind {
 	case pointer.Drag:
 		moved := ev.Position.Sub(d.press)
-		dz := int(math.Round(float64((moved.X*d.dir.X + moved.Y*d.dir.Y) * d.scale)))
+		delta := int(math.Round(float64((moved.X*d.dir.X + moved.Y*d.dir.Y) * d.scale)))
 		if ev.Modifiers.Contain(key.ModShift) && e.step > 0 {
-			dz = int(math.Round(float64(dz)/float64(e.step))) * e.step
+			delta = int(math.Round(float64(delta)/float64(e.step))) * e.step
 		}
-		if dz != d.dz {
-			d.dz = dz
+		if delta != d.delta {
+			d.delta = delta
 			e.version++
 		}
-		args := map[string]string{"delta": intArg(abs(dz)), "step": intArg(e.step)}
-		if dz < 0 {
+		args := map[string]string{"delta": intArg(abs(delta)), "step": intArg(e.step)}
+		if d.axis != axisZ {
+			args["delta"], args["axis"] = signedArg(delta), axisNames[d.axis]
+			return e.present(locale.Message{Key: "editor.arrow.moving", Args: args})
+		}
+		if delta < 0 {
 			return e.present(locale.Message{Key: "editor.arrow.lowering", Args: args})
 		}
 		return e.present(locale.Message{Key: "editor.arrow.raising", Args: args})
 	case pointer.Release:
-		dz := d.dz
-		*d = zDrag{}
+		dx, dy, dz := d.offset(d.zone)
+		*d = axisDrag{}
 		e.version++
-		return e.shiftZone(dz)
+		return e.moveZone(dx, dy, dz)
 	case pointer.Cancel:
-		*d = zDrag{}
+		*d = axisDrag{}
 		e.version++
 	}
 	return ""
 }
 
-// grabArrow starts a drag of the Z arrow when ev presses on it.
-func (e *zoneEditor) grabArrow(ev pointer.Event) bool {
-	if ev.Kind != pointer.Press || ev.Buttons != pointer.ButtonPrimary || !e.arrow.onArrow(ev.Position) {
+// signedArg formats v with its sign, "+0" for 0.
+func signedArg(v int) string {
+	if v < 0 {
+		return "−" + intArg(-v)
+	}
+	return "+" + intArg(v)
+}
+
+// grabGizmo starts a drag of the gizmo arrow ev presses on.
+func (e *zoneEditor) grabGizmo(ev pointer.Event) bool {
+	if ev.Kind != pointer.Press || ev.Buttons != pointer.ButtonPrimary {
 		return false
 	}
-	e.zdrag = zDrag{active: true, zone: e.arrow.zone, press: ev.Position, dir: e.arrow.dir, scale: e.arrow.perPixel}
+	axis, ok := e.gizmo.arrowAt(ev.Position)
+	if !ok {
+		return false
+	}
+	a := e.gizmo.arrows[axis]
+	e.axisDrag = axisDrag{active: true, zone: e.gizmo.zone, axis: axis, press: ev.Position, dir: a.dir, scale: a.perPixel}
 	e.version++
 	return true
 }
@@ -179,10 +282,10 @@ func (e *zoneEditor) heightPanel(gtx layout.Context, p *ui.HeightPanel, s *scene
 	p.ReopenRequested(gtx)
 	e.step = p.StepZ()
 	if p.Up.Clicked(gtx) {
-		msg = e.shiftZone(e.step)
+		msg = e.moveZone(0, 0, e.step)
 	}
 	if p.Down.Clicked(gtx) {
-		msg = e.shiftZone(-e.step)
+		msg = e.moveZone(0, 0, -e.step)
 	}
 	if p.BaseRequested(gtx) {
 		msg = e.setZoneBase(p.Base.Text())
@@ -202,7 +305,7 @@ func (e *zoneEditor) heightPanel(gtx layout.Context, p *ui.HeightPanel, s *scene
 		p.Zone = locale.Format(e.Language, "editor.height.zone", map[string]string{"name": z.Name, "min": intArg(base), "max": intArg(top), "height": intArg(top-base)})
 	}
 	k := heightKey{zone: z.ID, ok: ok, version: e.version}
-	if k != e.heightFilled && !e.zdrag.active {
+	if k != e.heightFilled && !e.axisDrag.active {
 		e.heightFilled = k
 		if ok {
 			p.Base.SetText(strconv.Itoa(base))

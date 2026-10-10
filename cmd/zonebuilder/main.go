@@ -246,6 +246,9 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 						logClick(ws.probe.click, ws.probe.clickHit)
 					}
 					m.click(ws, e, button)
+					if button == pointer.ButtonSecondary && modes.active != ui.ModeHome {
+						ws.meshes.rightClick(ws, e)
+					}
 				case key.Event:
 					if e.Name == key.NameEscape && e.State == key.Press && shell.CloseMenus() {
 						break
@@ -305,6 +308,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				}
 			}
 			m.update(gtx, ws)
+			ws.meshes.update(gtx, ws)
 			if name, ok := shell.XML.Copied(gtx); ok {
 				ws.status = actionArgs(locale.Message{Key: "actions.xml.copied"}, map[string]string{"name": name})
 			}
@@ -380,6 +384,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				// Hidden meshes are not picked either: a vertex never lands
 				// on geometry the user cannot see.
 				world.HideMeshes = shell.Meshes.On
+				world.Hidden = ws.meshes.hidden
 				ws.tiles.follow(worldPosition(world, ws.cam.Position))
 			}
 			if lang, ok := shell.LanguageRequested(gtx); ok {
@@ -422,6 +427,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 				continue
 			}
 			g.renderer.SetMeshesHidden(shell.Meshes.On)
+			g.renderer.SetHiddenActors(ws.meshes.hidden)
 			uploading := ws.tiles.sync(g.renderer, uploadBudget)
 			game.refresh(ws)
 			m.sync(g.renderer, ws)

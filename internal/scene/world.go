@@ -19,7 +19,10 @@ type World struct {
 	// leaves them out of the view: only the map's fixed geometry (terrain
 	// and BSP) is hit.
 	HideMeshes bool
-	scenes     []*Scene
+	// Hidden are the static mesh actors hidden one by one: like
+	// HideMeshes, left out of Pick and Geometry, but not of Collision.
+	Hidden *HiddenActors
+	scenes []*Scene
 }
 
 // NewWorld returns an empty world rebased on origin.
@@ -41,12 +44,28 @@ func (w *World) Remove(s *Scene) {
 // slice is the world's: read it, don't keep it across Add or Remove.
 func (w *World) Scenes() []*Scene { return w.scenes }
 
+// hide is what Pick and Geometry leave out.
+func (w *World) hide() meshFilter { return meshFilter{all: w.HideMeshes, hidden: w.Hidden} }
+
+// Actor is the loaded static mesh actor k, false when no scene of the
+// world has it.
+func (w *World) Actor(k ActorKey) (*MeshActor, bool) {
+	for _, s := range w.scenes {
+		for i := range s.Actors {
+			if a := &s.Actors[i]; a.Tile == k.Tile && a.Export == k.Export {
+				return a, true
+			}
+		}
+	}
+	return nil, false
+}
+
 // Pick returns the nearest point where r meets any scene of the world (see
 // Scene.Pick), or false when it meets nothing.
 func (w *World) Pick(r Ray) (Hit, bool) {
 	best, found := Hit{Distance: float32(math.Inf(1))}, false
 	for _, s := range w.scenes {
-		if h, ok := s.pick(r, w.HideMeshes); ok && h.Distance < best.Distance {
+		if h, ok := s.pick(r, w.hide()); ok && h.Distance < best.Distance {
 			best, found = h, true
 		}
 	}

@@ -35,6 +35,8 @@ type Hit struct {
 	// Water is set when the surface hit draws in the Water pass: a water
 	// sheet, BSP or mesh.
 	Water bool
+	// Actor is the static mesh actor hit, when Surface is SurfaceMesh.
+	Actor ActorKey
 }
 
 // Pick returns the nearest point where r meets the scene's geometry
@@ -42,10 +44,10 @@ type Hit struct {
 // triangles are hit: an invisible terrain quad is a hole, and BSP surfaces
 // and mesh sections Load skipped (invisible, portal, backdrop,
 // region-filtered, hidden actor) do not exist.
-func (s *Scene) Pick(r Ray) (Hit, bool) { return s.pick(r, false) }
+func (s *Scene) Pick(r Ray) (Hit, bool) { return s.pick(r, meshFilter{}) }
 
-// pick is Pick, leaving the static mesh actors out when noMeshes is set.
-func (s *Scene) pick(r Ray, noMeshes bool) (Hit, bool) {
+// pick is Pick, leaving out the static mesh actors hide skips.
+func (s *Scene) pick(r Ray, hide meshFilter) (Hit, bool) {
 	if r.Dir.Dot(r.Dir) == 0 {
 		return Hit{}, false
 	}
@@ -56,7 +58,7 @@ func (s *Scene) pick(r Ray, noMeshes bool) (Hit, bool) {
 			best = Hit{Pos: ToServer(r.Origin.Add(r.Dir.Scale(d))), Distance: d, Surface: SurfaceTerrain}
 		}
 	}
-	s.pickTriangles(r, &best, noMeshes)
+	s.pickTriangles(r, &best, hide)
 	return best, best.Surface != 0
 }
 

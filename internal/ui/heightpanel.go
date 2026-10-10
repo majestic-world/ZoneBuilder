@@ -131,60 +131,82 @@ func (s *Shell) heightWindow(gtx layout.Context) layout.Dimensions {
 	})
 }
 
-// ZArrow is the viewport's handle that raises and lowers the selected
-// zone: an arrow from Base to Tip, in viewport pixels, pointing up the
-// world's Z axis. The viewport receives the presses on it; ZArrow only
-// draws it.
-type ZArrow struct {
+// MoveGizmo is the viewport's handle that moves the selected zone: from
+// Base, in viewport pixels, an arrow along each of the world's X, Y and Z
+// axes, in that order. The viewport receives the presses on it; MoveGizmo
+// only draws it.
+type MoveGizmo struct {
 	Visible bool
 	Base    f32.Point
+	Arrows  [3]GizmoArrow
+	// Active is the index of the arrow being dragged, -1 for none.
+	Active int
+}
+
+// GizmoArrow is one arrow of a MoveGizmo, from its Base to Tip.
+type GizmoArrow struct {
+	Visible bool
 	Tip     f32.Point
-	// Active marks the arrow being dragged.
-	Active bool
 }
 
 var (
-	arrowColor  = color.NRGBA{R: 0x3C, G: 0x8C, B: 0xFF, A: 0xFF}
+	// axisColors are the X, Y and Z arrows' colours, red, green and blue
+	// as in UnrealEd.
+	axisColors = [3]color.NRGBA{
+		{R: 0xF0, G: 0x4A, B: 0x4A, A: 0xFF},
+		{R: 0x4C, G: 0xD0, B: 0x5A, A: 0xFF},
+		{R: 0x3C, G: 0x8C, B: 0xFF, A: 0xFF},
+	}
 	arrowActive = color.NRGBA{R: 0xFF, G: 0xD0, B: 0x30, A: 0xFF}
 )
 
-// Layout paints the arrow: a shaft, a head at Tip and a dot at Base.
-func (a ZArrow) Layout(gtx layout.Context) layout.Dimensions {
-	if !a.Visible {
+// Layout paints the arrows, each a shaft and a head at its Tip, and a dot
+// at Base; the dragged arrow is yellow.
+func (g MoveGizmo) Layout(gtx layout.Context) layout.Dimensions {
+	if !g.Visible {
 		return layout.Dimensions{}
 	}
-	c := arrowColor
-	if a.Active {
-		c = arrowActive
+	for i, a := range g.Arrows {
+		if !a.Visible {
+			continue
+		}
+		c := axisColors[i]
+		if g.Active == i {
+			c = arrowActive
+		}
+		drawArrow(gtx, g.Base, a.Tip, c)
 	}
-	d := a.Tip.Sub(a.Base)
+	r := float32(gtx.Dp(4))
+	dot := clip.Ellipse{Min: g.Base.Sub(f32.Pt(r, r)).Round(), Max: g.Base.Add(f32.Pt(r, r)).Round()}
+	paint.FillShape(gtx.Ops, white, dot.Op(gtx.Ops))
+	return layout.Dimensions{}
+}
+
+// drawArrow paints a shaft from base and a head at tip in colour c.
+func drawArrow(gtx layout.Context, base, tip f32.Point, c color.NRGBA) {
+	d := tip.Sub(base)
 	n := length(d)
 	if n < 1 {
-		return layout.Dimensions{}
+		return
 	}
 	u := d.Div(n)
 	side := f32.Pt(-u.Y, u.X)
 	head := float32(gtx.Dp(14))
-	neck := a.Tip.Sub(u.Mul(head))
+	neck := tip.Sub(u.Mul(head))
 
 	var shaft clip.Path
 	shaft.Begin(gtx.Ops)
-	shaft.MoveTo(a.Base)
+	shaft.MoveTo(base)
 	shaft.LineTo(neck)
 	paint.FillShape(gtx.Ops, c, clip.Stroke{Path: shaft.End(), Width: float32(gtx.Dp(3))}.Op())
 
-	var tip clip.Path
-	tip.Begin(gtx.Ops)
-	tip.MoveTo(a.Tip)
-	tip.LineTo(neck.Add(side.Mul(head * 0.45)))
-	tip.LineTo(neck.Sub(side.Mul(head * 0.45)))
-	tip.Close()
-	paint.FillShape(gtx.Ops, c, clip.Outline{Path: tip.End()}.Op())
-
-	r := float32(gtx.Dp(4))
-	dot := clip.Ellipse{Min: a.Base.Sub(f32.Pt(r, r)).Round(), Max: a.Base.Add(f32.Pt(r, r)).Round()}
-	paint.FillShape(gtx.Ops, c, dot.Op(gtx.Ops))
-	return layout.Dimensions{}
+	var cone clip.Path
+	cone.Begin(gtx.Ops)
+	cone.MoveTo(tip)
+	cone.LineTo(neck.Add(side.Mul(head * 0.45)))
+	cone.LineTo(neck.Sub(side.Mul(head * 0.45)))
+	cone.Close()
+	paint.FillShape(gtx.Ops, c, clip.Outline{Path: cone.End()}.Op())
 }
 
 func length(p f32.Point) float32 {

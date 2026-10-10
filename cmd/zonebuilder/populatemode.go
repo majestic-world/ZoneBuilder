@@ -25,8 +25,8 @@ type populateMode struct {
 	// the renderer's overlay was last built for.
 	sent, grid bool
 	shown      int
-	// pinless is set when that overlay left the pins out, the preview
-	// being on.
+	// pinless is set when that overlay kept only the selected point's
+	// pin, the preview being on.
 	pinless bool
 	// pressTaken is set when the editor used the last press (a handle
 	// grabbed), so its click adds no point.
@@ -174,8 +174,9 @@ func (p *populateMode) previewFailed(ws *workspace, err error) {
 	ws.status = actionError(locale.Message{Key: "spawn.preview.error"}, err, nil)
 }
 
-// sync sends the overlay: the areas, and the points' pins unless the
-// preview shows the monster on them instead.
+// sync sends the overlay: the areas, and the points' pins; while the
+// preview shows the monster on the points, only the selected point's pin,
+// to mark it.
 func (p *populateMode) sync(r *render.Renderer, ws *workspace) {
 	if on := ws.shell.Ground.On; !p.sent || p.grid != on {
 		r.SetGround(render.Ground{Grid: on})
@@ -183,11 +184,7 @@ func (p *populateMode) sync(r *render.Renderer, ws *workspace) {
 	}
 	preview := ws.shell.Preview.On
 	if p.shown != p.spawns.version || p.pinless != preview {
-		shapes := p.spawns.overlay()
-		if !preview {
-			shapes = append(shapes, p.spawns.pins()...)
-		}
-		r.SetZones(shapes)
+		r.SetZones(append(p.spawns.overlay(), p.spawns.pins(preview)...))
 		p.shown, p.pinless = p.spawns.version, preview
 	}
 	if preview {

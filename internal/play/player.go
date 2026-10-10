@@ -41,6 +41,15 @@ const (
 	groundAnimationClearance = 16
 )
 
+// floorRise is the rise per unit run of the steepest walkable slope: the
+// most the ground can drop under a sub-step's run without leaving the
+// walkable.
+var floorRise = float32(math.Sqrt(1-floorNormalZ*floorNormalZ) / floorNormalZ)
+
+// maxRest is the most the capsule's rounded bottom holds its feet above
+// the ground under them, on the steepest walkable slope.
+const maxRest = radius*(1/floorNormalZ-1) + skin
+
 // Motion is the capsule's state, which picks the body's animation.
 type Motion int
 
@@ -65,9 +74,12 @@ func (m Motion) String() string {
 	return "Motion(?)"
 }
 
-// player is the capsule: feet at the bottom of the capsule.
+// player is the capsule: feet at the bottom of the capsule. On a slope the
+// capsule's rounded bottom touches the ground uphill of its feet and holds
+// them rest above the ground under them.
 type player struct {
 	feet, velocity     geom.Vec3
+	rest               float32
 	flying, grounded   bool
 	jumpStarted        bool
 	unsupportedSeconds float32
@@ -88,8 +100,22 @@ func newPlayer(w *World, eye geom.Vec3) player {
 	}
 	w.resolve(&p.feet, &p.velocity)
 	p.spawn = p.feet
+	p.stand(w.floorBelow(p.feet.Add(geom.Vec3{Z: skin}), groundAnimationClearance+skin))
 	return p
 }
+
+// stand measures rest from floor, the height of the walkable ground found
+// under the feet, if any. A capsule off the ground, or held up by an edge
+// past which its feet hang over lower ground, stands on its feet.
+func (p *player) stand(floor float32, found bool) {
+	p.rest = 0
+	if gap := p.feet.Z - floor; p.grounded && found && gap > 0 && gap <= maxRest {
+		p.rest = gap
+	}
+}
+
+// ground is where the body stands: the ground under the feet.
+func (p *player) ground() geom.Vec3 { return p.feet.Sub(geom.Vec3{Z: p.rest}) }
 
 func (p *player) eye() geom.Vec3 { return p.feet.Add(geom.Vec3{Z: EyeHeight}) }
 
@@ -110,6 +136,7 @@ func (p *player) toggleFlight() {
 	p.velocity = geom.Vec3{}
 	p.grounded = false
 	p.jumpStarted = false
+	p.rest = 0
 	p.unsupportedSeconds = 0
 }
 
@@ -142,17 +169,22 @@ func (p *player) advance(w *World, seconds float32, wish geom.Vec3, fast bool) {
 	p.velocity.Z = max(p.velocity.Z-gravity*seconds, -terminalSpeed)
 	moveVelocity := geom.Vec3{X: wish.X * speed, Y: wish.Y * speed, Z: p.velocity.Z}
 	steps := max(1, int(math.Ceil(float64(moveVelocity.Length()*seconds/maxStep))))
+	supported := p.grounded
 	p.grounded = false
 	for range steps {
 		// Contacts constrain this sub-step, not the next walking command.
 		// Reapply horizontal input: retaining its previous projection while
 		// ascent is clamped would repeatedly erase uphill movement.
 		p.velocity.X, p.velocity.Y = moveVelocity.X, moveVelocity.Y
-		p.feet = p.feet.Add(p.velocity.Scale(seconds / float32(steps)))
+		move := p.velocity.Scale(seconds / float32(steps))
+		p.feet = p.feet.Add(move)
 		upwardLimit := max(p.velocity.Z, 0)
-		if w.resolve(&p.feet, &p.velocity) {
-			p.grounded = true
+		ground := w.resolve(&p.feet, &p.velocity)
+		if !ground && supported && p.velocity.Z <= 0 {
+			ground = p.snapDown(w, geom.Vec3{X: move.X, Y: move.Y}.Length())
 		}
+		supported = ground
+		p.grounded = p.grounded || ground
 		// Sliding against a step's rounded capsule contact can turn
 		// horizontal speed into an upward launch. The position correction
 		// already climbs the step; only a jump supplies ascent.
@@ -161,16 +193,33 @@ func (p *player) advance(w *World, seconds float32, wish geom.Vec3, fast bool) {
 	if p.grounded {
 		p.jumpStarted = false
 	}
-	_, nearFloor := w.floorBelow(p.feet.Add(geom.Vec3{Z: skin}), groundAnimationClearance+skin)
+	floor, nearFloor := w.floorBelow(p.feet.Add(geom.Vec3{Z: skin}), groundAnimationClearance+skin)
 	if p.grounded || nearFloor {
 		p.unsupportedSeconds = 0
 	} else {
 		p.unsupportedSeconds += seconds
 	}
+	p.stand(floor, nearFloor)
 	if p.feet.Z < p.spawn.Z-respawnDrop {
 		p.feet = p.spawn
 		p.velocity = geom.Vec3{}
+		p.rest = 0
 		p.jumpStarted = false
 		p.unsupportedSeconds = 0
 	}
+}
+
+// snapDown keeps a capsule that stood on the ground before a sub-step of
+// run units on it: walking down a walkable slope moves the capsule off it
+// faster than gravity brings it back, and it would bounce down the slope
+// off the ground. The capsule drops as far as the steepest walkable slope
+// falls under run; it stays where it is if no ground is there.
+func (p *player) snapDown(w *World, run float32) bool {
+	feet, velocity := p.feet, p.velocity
+	feet.Z -= run*floorRise + 2*skin
+	if !w.resolve(&feet, &velocity) {
+		return false
+	}
+	p.feet, p.velocity = feet, velocity
+	return true
 }

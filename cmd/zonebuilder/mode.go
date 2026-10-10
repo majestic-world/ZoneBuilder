@@ -19,13 +19,15 @@ import (
 
 // workspace is what every mode shares (spec D1): the shell, with the map
 // section, the viewport and the command bar; the open tiles; the camera;
-// the cursor probe of the status pill; and the status line. The project
-// file is the session's, and holds every mode's document.
+// the cursor probe of the status pill; the static meshes hidden one by
+// one; and the status line. The project file is the session's, and holds
+// every mode's document.
 type workspace struct {
 	shell  *ui.Shell
 	tiles  *tiles
 	cam    camera.Camera
 	probe  cursorProbe
+	meshes meshHiding
 	status actionStatus
 }
 

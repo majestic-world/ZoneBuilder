@@ -125,6 +125,10 @@ type gpuScene struct {
 	textures []textureKey
 	// ids are the GL textures of the keys acquired so far.
 	ids map[textureKey]uint32
+	// hidden is the set of hidden actors the mesh index sets were last
+	// cut for; cut are the index ranges each cut scene batch leaves out.
+	hidden *scene.HiddenActors
+	cut    map[int][]indexRange
 }
 
 // gpuSet is an index set on the GPU: its sectors, and the index ranges of
@@ -145,6 +149,8 @@ type gpuBatch struct {
 	vao, vbo      uint32
 	set           int
 	texture, mask uint32
+	// source is the batch's index in the scene's Batches.
+	source int
 }
 
 // DrawStats count what the last frame drew.
@@ -177,6 +183,8 @@ type sceneRenderer struct {
 	stats  DrawStats
 	// hideMeshes leaves the static mesh batches out of draw.
 	hideMeshes bool
+	// hidden are the static mesh actors cut out of their batches.
+	hidden *scene.HiddenActors
 	// ground marks the grid and the selected zone's footprint.
 	ground groundShader
 }
@@ -349,7 +357,7 @@ func (gs *gpuScene) uploadBatch(tc *textureCache, b *preparedBatch) gpuBatch {
 	if !ok {
 		mask = tc.acquire(b.mask)
 	}
-	g := gpuBatch{mode: b.mode, opaque: b.opaque, mesh: b.mesh, set: b.set, texture: texture, mask: mask}
+	g := gpuBatch{mode: b.mode, opaque: b.opaque, mesh: b.mesh, set: b.set, texture: texture, mask: mask, source: b.source}
 	stride := int(unsafe.Sizeof(scene.Vertex{}))
 	g.vao = gles.GenVertexArray()
 	gles.BindVertexArray(g.vao)
@@ -398,6 +406,55 @@ func (gs *gpuScene) releaseStep(tc *textureCache) bool {
 	return true
 }
 
+// cutHidden rebuilds the index set of every mesh batch whose triangles
+// the actors in hidden take out, or gave back, since the last cut: the
+// batch's scene indices minus the hidden actors' sections, sectorized
+// again. A batch no hidden actor touches keeps its set.
+func (gs *gpuScene) cutHidden(hidden *scene.HiddenActors) {
+	cut := map[int][]indexRange{}
+	if hidden.Len() > 0 {
+		for i := range gs.scene.Actors {
+			a := &gs.scene.Actors[i]
+			if !hidden.Has(a.Key()) {
+				continue
+			}
+			for _, sec := range a.Sections {
+				if sec.Batch >= 0 && sec.Count > 0 {
+					cut[sec.Batch] = append(cut[sec.Batch], indexRange{sec.First, sec.Count})
+				}
+			}
+		}
+	}
+	for _, ranges := range cut {
+		slices.SortFunc(ranges, func(x, y indexRange) int { return x.first - y.first })
+	}
+	for _, b := range gs.batches {
+		ranges, old := cut[b.source], gs.cut[b.source]
+		if !b.mesh || slices.Equal(ranges, old) {
+			continue
+		}
+		src := &gs.scene.Batches[b.source]
+		indices := src.Indices
+		if len(ranges) > 0 {
+			indices = make([]uint32, 0, len(src.Indices))
+			at := 0
+			for _, r := range ranges {
+				indices = append(indices, src.Indices[at:r.first]...)
+				at = r.first + r.count
+			}
+			indices = append(indices, src.Indices[at:]...)
+		}
+		set := &gs.sets[b.set]
+		next := sectorize(src.Vertices, indices)
+		gles.BindVertexArray(0)
+		gles.BindBuffer(gles.ELEMENT_ARRAY_BUFFER, set.ibo)
+		gles.BufferData(gles.ELEMENT_ARRAY_BUFFER, next.indices, gles.STATIC_DRAW)
+		gles.BindBuffer(gles.ELEMENT_ARRAY_BUFFER, 0)
+		set.sectors, set.visible = next.sectors, set.visible[:0]
+	}
+	gs.hidden, gs.cut = hidden, cut
+}
+
 // cull finds the sectors of every uploaded scene that the frustum of
 // viewProj (rebased Unreal basis to clip) can see.
 func (sr *sceneRenderer) cull(viewProj mat4) {
@@ -405,6 +462,9 @@ func (sr *sceneRenderer) cull(viewProj mat4) {
 	for _, gs := range sr.scenes {
 		if gs.prep != nil {
 			continue
+		}
+		if gs.hidden != sr.hidden {
+			gs.cutHidden(sr.hidden)
 		}
 		for i := range gs.sets {
 			set := &gs.sets[i]

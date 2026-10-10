@@ -39,10 +39,16 @@ Controles do viewport:
 | arrastar | olhar em volta |
 | roda do mouse | avançar e recuar |
 | PageUp, PageDown | subir e descer a zona selecionada |
+| arrastar uma seta do gizmo | mover a zona selecionada em X (vermelha), Y (verde) ou Z (azul); Shift arredonda ao passo |
+| botão direito num static mesh | menu **Ocultar** |
 | Enter | fechar o polígono em desenho |
 | Delete | apagar o vértice selecionado |
 | Esc | soltar a ferramenta |
 | Ctrl+Z, Ctrl+Y | desfazer e refazer |
+
+**Gizmo de mover.** Com uma zona pronta selecionada, saem do meio do topo dela 3 setas: vermelha ao longo de X, verde ao longo de Y e azul ao longo de Z. Arrastar uma seta mostra a zona deslocada só naquele eixo; soltar aplica o movimento como 1 passo de desfazer. Todos os shapes andam juntos, as exclusões inclusive; restart points ficam onde foram clicados. Uma seta de X ou Y que aponta para a câmera some até a câmera girar; olhando de cima, a seta Z aponta para longe das outras 2.
+
+**Ocultar static meshes.** Clique com o botão direito num static mesh e escolha **Ocultar**. O mesh some do viewport e deixa de ser chão para cliques, faixa Z sugerida e cobertura, como no botão **Static meshes**, mas só ele. A seção do mapa lista os ocultos em **Static meshes ocultos**, com **Mostrar** em cada um e **Mostrar todos**. A lista vale para a sessão, nos 2 modos, e não vai para o projeto. No modo jogo, os meshes ocultos continuam bloqueando o personagem, e a geração de pontos de spawn continua desviando deles.
 
 ## Cobertura vertical
 
@@ -58,7 +64,7 @@ O servidor só considera um personagem dentro da zona quando o `x y` dele está 
 | Buraco, sem tinta | chão dentro de uma exclusão |
 | Linha laranja no chão | onde o chão cruza o topo (`z = zmax`): fronteira exata da parte acima |
 | Linha azul no chão | onde o chão cruza o piso (`z = zmin`): fronteira exata da parte abaixo |
-| Linha na cor da aresta, em cada parede do prisma | o chão ao longo daquela aresta, do shape selecionado, só nas camadas que contam para a faixa (as outras camadas, como os andares de baixo de uma torre, ficam sem linha); segue a faixa ao arrastar a seta Z e some enquanto o shape é medido de novo |
+| Linha na cor da aresta, em cada parede do prisma | o chão ao longo daquela aresta, do shape selecionado, só nas camadas que contam para a faixa (as outras camadas, como os andares de baixo de uma torre, ficam sem linha); segue a faixa ao arrastar a seta azul do gizmo e some enquanto o shape é medido de novo |
 | Aresta ou linha sólida | parte visível |
 | Anéis horizontais nas paredes do prisma | o volume do shape: o prisma é oco, sem tampas nem preenchimento. Os anéis ficam a cada 64 de Z a partir do `zmin` e o passo dobra de longe, para nunca ficarem a menos de 6 px um do outro |
 | Aresta ou linha tracejada, anéis fracos | parte do prisma enterrada ou atrás da cena, vista através do terreno |
@@ -80,7 +86,7 @@ O inspetor mostra, para o shape selecionado:
 - a área de chão, em unidades² e em % do chão sob o contorno: **Dentro da faixa**, **Acima do topo**, **Abaixo do piso**, **Excluída** (dentro de uma exclusão da zona e na faixa Z dela), **Em outras camadas** e **Sem chão** (quad invisível, tile não carregado, fora do mapa);
 - **Outras camadas**, com o Z de cada uma: pisos de BSP ou mesh, ou o terreno, longe demais da faixa para contar (veja a regra das camadas abaixo).
 
-Enquanto um contorno é medido, os números anteriores ficam com a marca "medindo…". Arrastar a seta Z ou mudar a faixa atualiza números, cores e pinos no mesmo frame.
+Enquanto um contorno é medido, os números anteriores ficam com a marca "medindo…". Arrastar a seta azul do gizmo ou mudar a faixa atualiza números, cores e pinos no mesmo frame.
 
 ### Régua da janela de altura
 
@@ -159,8 +165,8 @@ Na tela inicial, clique em **Popular zona** (ou abra com `-mode populate`). A se
 
 1. **Área.** Escolha polígono, retângulo ou círculo na barra à esquerda e desenhe sobre o mapa, como nas zonas; o círculo vira polígono. A faixa Z sai do chão da área, e a janela de altura sobe, desce e ajusta o piso e o topo ao chão. A área nova se chama `area_<id>`, com raio 9 (o do monstro de prévia) e afastamento 32. Digite a **Quantidade**: enquanto for 0, a área tem problema e não gera nem compila. O respawn é fixo em 60 s, sem campo editável; os IDs dos NPCs só são pedidos ao compilar.
 2. **Gerar.** Em **Pontos**, **Gerar** distribui a quantidade pedida nas células livres da área, em segundo plano. Os pontos ficam a 2 × raio um do outro, e a raio + afastamento das meshes e paredes; todas as meshes contam, mesmo com o botão **Static meshes** desligado. A posição final de cada ponto precisa ter chão caminhável dentro da faixa Z; quando o deslocamento aleatório sai do chão, fica no centro seguro da célula. Se não couberem todos, o app gera os que cabem e avisa "cabem K de N", sem bloquear. **Gerar** e **Regerar** vão direto, sem confirmação; Regerar troca a semente e descarta os ajustes manuais, e Ctrl+Z restaura a distribuição anterior em 1 passo. A área de chão livre fica salva com a impressão das entradas da geração: reabrir o projeto recupera a estatística sem substituir os pontos, e entradas desatualizadas escondem a medição antiga.
-3. **Ajustar pontos.** Cada ponto é um pino com o círculo do raio no chão. Arraste o pino para mover o ponto (ele cai na superfície sob o cursor), Delete apaga o ponto selecionado e **Adicionar pontos** põe um ponto a cada clique, até Esc. Mudar o contorno, a faixa, a quantidade, o raio ou o afastamento depois de gerar deixa os pontos **desatualizados**, o que bloqueia a compilação até gerar de novo; mover, apagar ou adicionar pontos não.
-4. **Prévia.** O botão **Prévia**, no canto inferior direito do viewport, troca os pinos pelo monstro de prévia em cada ponto, em `Wait` e virado pelo heading. É sempre o mesmo modelo, seja qual for o id do NPC. Com a prévia ligada, os pontos continuam arrastáveis.
+3. **Ajustar pontos.** Cada ponto é um pino com o círculo do raio no chão. Clique no pino, ou no corpo do monstro com a prévia ligada, para selecionar o ponto; arraste para movê-lo (ele cai na superfície sob o cursor). Delete apaga o ponto selecionado, e **Adicionar pontos** põe um ponto a cada clique, até Esc. Mudar o contorno, a faixa, a quantidade, o raio ou o afastamento depois de gerar deixa os pontos **desatualizados**, o que bloqueia a compilação até gerar de novo; mover, apagar ou adicionar pontos não.
+4. **Prévia.** O botão **Prévia**, no canto inferior direito do viewport, troca os pinos pelo monstro de prévia em cada ponto, em `Wait` e virado pelo heading. É sempre o mesmo modelo, seja qual for o id do NPC. Com a prévia ligada, só o ponto selecionado mantém o pino, com a alça amarela; os monstros continuam clicáveis e arrastáveis, menos os escondidos atrás de uma parede ou mesh.
 5. **Modo jogo.** **Jogar**, ao lado da prévia, põe um personagem no chão para andar entre os monstros. Veja [Modo jogo](#modo-jogo).
 6. **Compilar.** **Compilar XML** pergunta os **IDs dos NPCs**, separados por espaço (por exemplo, `1 2 3 4`). Os IDs precisam ser inteiros positivos; repetições são ignoradas. Cada área reparte seus pontos em sequência entre os IDs informados: quando a divisão não é exata, a diferença é de no máximo 1 NPC por ID. Os IDs não alteram nem ficam gravados nas áreas. **Cancelar** fecha a pergunta sem compilar. Confirmar abre a janela de XML com 1 arquivo para o projeto inteiro: o nome digitado em **XML de spawn** ou, em branco, o nome do projeto. Copie e grave em `data/spawn/` do servidor, e reinicie o servidor (`//reload_spawn` não relê o XML).
 
@@ -191,3 +197,5 @@ No modo zonas, o contorno das zonas continua desenhado; no modo população, os 
 O personagem sobe rampas de terreno até uma inclinação de cerca de 49° (`n.z` 0,65) e degraus baixos; numa rampa mais íngreme, ele para ou escorrega. Isso difere do Play Map do UE2-Studio, que sobe rampas de 60°.
 
 O comando de caminhada é reaplicado em cada subpasso de colisão. A projeção de um contato não reduz novamente os subpassos seguintes do mesmo frame: uma queda de FPS não esgota a velocidade ao subir uma rampa caminhável. Paredes e rampas acima do limite continuam bloqueando; isso não ativa voo nem ignora meshes escondidas.
+
+Parado numa rampa caminhável, o personagem fica onde está: o contato com chão caminhável empurra o personagem só para cima, sem a parte morro abaixo que fazia ele deslizar até o plano ou para fora do mapa. Os pés do modelo ficam no chão sob o centro, e não na altura em que a base arredondada da cápsula toca a rampa. Descendo uma rampa caminhável, o personagem acompanha o chão em vez de sair do chão e tocar a animação de queda.

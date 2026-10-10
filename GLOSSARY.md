@@ -5,7 +5,7 @@ Termos do domínio do Zone Builder. Use estes nomes em código, issues, testes e
 ## Cobertura vertical
 
 **Chão**:
-Superfície onde um personagem pode ficar: todo quad visível do terreno, mais as faces de BSP e de static mesh voltadas para cima (`normal.z ≥ 0,5`). Meshes só contam com o botão Static meshes ligado. Medido em coordenadas do servidor (ADR 0003, ADR 0004).
+Superfície onde um personagem pode ficar: todo quad visível do terreno, mais as faces de BSP e de static mesh voltadas para cima (`normal.z ≥ 0,5`). Meshes só contam com o botão Static meshes ligado, e um mesh oculto pelo menu **Ocultar** nunca conta. Medido em coordenadas do servidor (ADR 0003, ADR 0004).
 _Evite_: terreno (é só uma parte do chão), piso (é o `zmin` da zona), solo.
 
 **Camada**:

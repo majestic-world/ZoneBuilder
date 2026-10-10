@@ -240,13 +240,18 @@ func (e *spawnEditor) shownSpawnPoints(a spawn.Area) []spawn.Point {
 // pins is every point of every shown area as a pin for the renderer's
 // overlay: the circle of the area's radius on the floor, the stem and the
 // handle on top, yellow for the selected point. Stale points are grey with
-// a red handle. The population mode appends them to overlay's shapes.
-func (e *spawnEditor) pins() []render.ZoneShape {
+// a red handle. The population mode appends them to overlay's shapes;
+// with only set, just the selected point's pin, which marks it while the
+// preview monster stands in for the others.
+func (e *spawnEditor) pins(only bool) []render.ZoneShape {
 	var shapes []render.ZoneShape
 	h := float32(pinHeight())
 	sel, selOK := e.selectedPoint()
+	if only && !selOK {
+		return nil
+	}
 	for _, a := range e.doc.Areas() {
-		if a.Hidden || (e.drawing && a.ID == e.area) || len(a.Points) == 0 {
+		if a.Hidden || (e.drawing && a.ID == e.area) || len(a.Points) == 0 || only && a.ID != e.area {
 			continue
 		}
 		c := linearColor(areaColor(a.ID))
@@ -256,6 +261,9 @@ func (e *spawnEditor) pins() []render.ZoneShape {
 		}
 		r := float64(a.Params.Radius)
 		for i, p := range e.shownSpawnPoints(a) {
+			if only && i != sel {
+				continue
+			}
 			foot := geom.Vec3{X: float32(p.X), Y: float32(p.Y), Z: float32(p.Z) + pinLift}
 			top := geom.Vec3{X: foot.X, Y: foot.Y, Z: float32(p.Z) + h}
 			circle := make([]geom.Vec3, pinSides+1)
@@ -279,8 +287,10 @@ func (e *spawnEditor) pins() []render.ZoneShape {
 	return shapes
 }
 
-// pressPoint grabs the pin under ev (its top handle or its foot) of any
-// shown area, selecting the point and its area.
+// pressPoint grabs the point under ev of any shown area, selecting the
+// point and its area: its pin's top handle or foot, else the body of the
+// monster standing there (a cylinder of the area's radius, at least the
+// monster's, as tall as the monster) that nothing hides.
 func (e *spawnEditor) pressPoint(w *scene.World, cam *camera.Camera, ev pointer.Event, vp image.Point) (locale.Message, bool) {
 	best := float32(grabSlop)
 	var hit spawn.AreaID
@@ -299,6 +309,9 @@ func (e *spawnEditor) pressPoint(w *scene.World, cam *camera.Camera, ev pointer.
 		}
 	}
 	if hit == 0 {
+		hit, index = e.bodyAt(w, rayAt(w, cam, ev.Position, vp))
+	}
+	if hit == 0 {
 		return locale.Message{}, false
 	}
 	e.area, e.sel, e.point = hit, -1, areaPoint{hit, index}
@@ -307,6 +320,69 @@ func (e *spawnEditor) pressPoint(w *scene.World, cam *camera.Camera, ev pointer.
 	p := a.Points[index]
 	e.pointDrag = pointDrag{active: true, index: index, press: ev.Position, from: p}
 	return locale.Message{Key: "spawn.point.grabbed", Args: map[string]string{"index": intArg(index + 1), "name": a.Name, "x": intArg(p.X), "y": intArg(p.Y), "z": intArg(p.Z)}}, true
+}
+
+// bodyOcclusion is how far, in world units, the scene may lie in front of
+// a monster's body along the ray and still not hide it: the floor under
+// its feet and a blade of grass are not walls.
+const bodyOcclusion = 8
+
+// bodyAt is the point of a shown area whose monster body r (client world,
+// unit Dir) meets first, unless the scene hides it; area 0 when none.
+func (e *spawnEditor) bodyAt(w *scene.World, r scene.Ray) (spawn.AreaID, int) {
+	o := scene.ToServer(r.Origin)
+	nearest := float32(math.Inf(1))
+	var hit spawn.AreaID
+	index := -1
+	h := float32(pinHeight())
+	for _, a := range e.doc.Areas() {
+		if a.Hidden {
+			continue
+		}
+		radius := max(float32(a.Params.Radius), model.MonsterRadius)
+		for i, p := range a.Points {
+			if t, ok := rayCylinder(o, r.Dir, float32(p.X), float32(p.Y), float32(p.Z), float32(p.Z)+h, radius); ok && t < nearest {
+				nearest, hit, index = t, a.ID, i
+			}
+		}
+	}
+	if hit == 0 {
+		return 0, -1
+	}
+	if s, ok := w.Pick(r); ok && s.Distance < nearest-bodyOcclusion {
+		return 0, -1
+	}
+	return hit, index
+}
+
+// rayCylinder is the distance along the ray from o in unit direction d at
+// which it enters the vertical cylinder of radius r around x y, from z0 to
+// z1; 0 when o is inside.
+func rayCylinder(o, d geom.Vec3, x, y, z0, z1, r float32) (float32, bool) {
+	enter, exit := float32(0), float32(math.Inf(1))
+	if d.Z != 0 {
+		t0, t1 := (z0-o.Z)/d.Z, (z1-o.Z)/d.Z
+		enter, exit = max(enter, min(t0, t1)), min(exit, max(t0, t1))
+	} else if o.Z < z0 || o.Z > z1 {
+		return 0, false
+	}
+	ox, oy := o.X-x, o.Y-y
+	a := d.X*d.X + d.Y*d.Y
+	c := ox*ox + oy*oy - r*r
+	if a == 0 {
+		if c > 0 {
+			return 0, false
+		}
+	} else {
+		b := ox*d.X + oy*d.Y
+		disc := b*b - a*c
+		if disc < 0 {
+			return 0, false
+		}
+		s := float32(math.Sqrt(float64(disc)))
+		enter, exit = max(enter, (-b-s)/a), min(exit, (-b+s)/a)
+	}
+	return enter, enter <= exit
 }
 
 // pointDragEvent follows a point drag: the point drops on the surface

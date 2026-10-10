@@ -27,7 +27,8 @@ type Triangle struct {
 // looked at), so a few triangles just outside box may come too: every
 // visible terrain quad, as its 2 triangles split on the EdgeTurn diagonal,
 // and nothing of an invisible quad; every BSP triangle; every static mesh
-// triangle, the meshes left out while HideMeshes is set. It then calls
+// triangle, the meshes left out while HideMeshes is set and the actors in
+// Hidden always. It then calls
 // water once with every water volume whose bounds meet the X/Y of box and
 // whose faces close a solid, moved to server coordinates (Faces, Planes
 // and Bounds). Either callback may be nil.
@@ -43,7 +44,7 @@ func (w *World) Geometry(box geom.Box, tri func(Triangle), water func(WaterVolum
 			for i := range s.Terrains {
 				s.Terrains[i].geometry(box, tri)
 			}
-			s.geometry(box, tri, w.HideMeshes)
+			s.geometry(box, tri, w.hide())
 		}
 	}
 	if water != nil {
@@ -72,7 +73,7 @@ func (w *World) Collision(box geom.Box, tri func(Triangle)) {
 			if t.Blocks && t.Surface != SurfaceBSP {
 				tri(t)
 			}
-		}, false)
+		}, meshFilter{})
 		for _, t := range s.hiddenCollision {
 			b := geom.EmptyBox()
 			b.Include(t.A)
@@ -86,11 +87,11 @@ func (w *World) Collision(box geom.Box, tri func(Triangle)) {
 }
 
 // geometry is World.Geometry over the scene's pickable sets whose box
-// meets box, the meshes' left out when noMeshes is set.
-func (s *Scene) geometry(box geom.Box, fn func(Triangle), noMeshes bool) {
+// meets box, the meshes hide skips left out.
+func (s *Scene) geometry(box geom.Box, fn func(Triangle), hide meshFilter) {
 	for i := range s.pickables {
 		set := &s.pickables[i]
-		if noMeshes && set.Surface == SurfaceMesh {
+		if hide.skips(set) {
 			continue
 		}
 		if set.Bounds.Empty() || !overlapsXY(set.Bounds, box) {

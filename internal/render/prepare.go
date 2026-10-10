@@ -47,6 +47,8 @@ type preparedBatch struct {
 	vertices      []scene.Vertex
 	set           int
 	texture, mask textureKey
+	// source is the batch's index in the scene's Batches.
+	source int
 }
 
 // textureKey names one GL texture of the cache: a texture export (its
@@ -100,7 +102,7 @@ func Prepare(s *scene.Scene) *Prepared {
 			sets[&b.Indices[0]] = set
 			p.sets = append(p.sets, sectorize(b.Vertices, b.Indices))
 		}
-		pb := preparedBatch{mode: b.Mode, opaque: b.OpaqueTexture, mesh: b.Mesh, vertices: b.Vertices, set: set}
+		pb := preparedBatch{mode: b.Mode, opaque: b.OpaqueTexture, mesh: b.Mesh, vertices: b.Vertices, set: set, source: i}
 		role := roleMaterial
 		if b.Mode == scene.Masked && !b.OpaqueTexture {
 			role = roleMasked

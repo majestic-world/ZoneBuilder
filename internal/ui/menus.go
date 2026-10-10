@@ -13,9 +13,10 @@ import (
 func (s *Shell) CloseMenus() bool {
 	project := s.Project.popup.Close()
 	water := s.WaterMenu.Menu.Close()
+	mesh := s.MeshMenu.Menu.Close()
 	prompt := s.Mode == ModePopulate && !s.NPCIDs.Window.Closed
 	s.NPCIDs.Window.Closed = true
-	return project || water || prompt
+	return project || water || mesh || prompt
 }
 
 // WaterMenu is the viewport's context menu over the water: Compilar zona

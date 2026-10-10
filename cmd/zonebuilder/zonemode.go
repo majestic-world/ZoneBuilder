@@ -193,7 +193,7 @@ func (z *zoneMode) present(gtx layout.Context, ws *workspace) {
 		ws.status = editorResult(msg, zones)
 	}
 	z.cover.heightWindow(zones, w, &shell.Height, shell.Language)
-	shell.Arrow = zones.layoutArrow(w, &ws.cam, vp, gtx.Dp(90))
+	shell.Gizmo = zones.layoutGizmo(w, &ws.cam, vp, gtx.Dp(90))
 	shell.EdgeLabels = nil
 	if shell.Ground.On && w != nil {
 		shell.EdgeLabels = zones.edgeLabels(w, &ws.cam, vp, shell.Language)

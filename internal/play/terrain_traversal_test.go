@@ -124,3 +124,90 @@ func TestWalkableTerrainTraversalDoesNotDependOnFrameSubdivision(t *testing.T) {
 		})
 	}
 }
+
+// ridge is 2 walkable planes meeting at a convex crease along the Y axis,
+// both falling 0.2 units per unit along +Y: standing on the crease, the
+// capsule touches its edge, not a face. surface is its height.
+func ridge(origin geom.Vec3) (tris []play.Triangle, surface func(x, y float32) float32) {
+	surface = func(x, y float32) float32 {
+		return origin.Z - 0.25*float32(math.Abs(float64(x-origin.X))) - 0.2*(y-origin.Y)
+	}
+	at := func(x, y float32) geom.Vec3 {
+		p := origin.Add(geom.Vec3{X: x, Y: y})
+		p.Z = surface(p.X, p.Y)
+		return p
+	}
+	tris = quad(at(-512, -512), at(0, -512), at(0, 512), at(-512, 512))
+	return append(tris, quad(at(0, -512), at(512, -512), at(512, 512), at(0, 512))...), surface
+}
+
+// A capsule standing still on walkable terrain stays where it is, on the
+// ground, its feet on the surface. Catches the push out along the slope's
+// normal, which every frame turned gravity into a downhill step: the
+// capsule slid down the slope until it reached flat ground or left the
+// map. Catches feet held above the slope by the capsule's rounded bottom.
+func TestStandingStillOnWalkableTerrainDoesNotSlide(t *testing.T) {
+	type terrain struct {
+		name    string
+		tris    []play.Triangle
+		surface func(x, y float32) float32
+		start   geom.Vec3
+	}
+	for _, origin := range []geom.Vec3{{}, {X: -114688, Y: -245760, Z: -18000}} {
+		var cases []terrain
+		for _, slope := range []float32{0.125, 0.5, float32(math.Tan(40 * math.Pi / 180))} {
+			surface := func(x, _ float32) float32 { return origin.Z + (x-origin.X)*slope }
+			cases = append(cases, terrain{fmtTerrainCase(origin, slope), terrainGrid(origin, slope), surface,
+				origin.Add(geom.Vec3{X: 300, Y: 37, Z: 1000})})
+		}
+		tris, surface := ridge(origin)
+		cases = append(cases, terrain{fmt.Sprintf("origin_%g_%g_%g/ridge", origin.X, origin.Y, origin.Z), tris, surface,
+			origin.Add(geom.Vec3{Z: 1000})})
+		for _, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				s := play.NewSession(play.NewWorld(c.tris), c.start, 0, 0)
+				start := s.Feet()
+				for i := range 300 {
+					s.Step(play.Input{Seconds: frame})
+					feet := s.Feet()
+					drift := math.Hypot(float64(feet.X-start.X), float64(feet.Y-start.Y))
+					floor := c.surface(feet.X, feet.Y)
+					if drift > 0.01 || math.Abs(float64(feet.Z-floor)) > 0.1 || s.Motion() != play.Grounded {
+						t.Fatalf("frame %d: feet %v drifted %v from %v, surface z %v, motion %v; want standing still on the surface", i, feet, drift, start, floor, s.Motion())
+					}
+				}
+			})
+		}
+	}
+}
+
+// Walking down walkable terrain keeps the capsule on the ground, its feet
+// on the surface, at 60 Hz and at the longest frame. Catches a capsule
+// that walked off the slope faster than gravity brought it back and
+// bounced down, airborne.
+func TestWalkingDownWalkableTerrainStaysOnTheGround(t *testing.T) {
+	for _, origin := range []geom.Vec3{{}, {X: -114688, Y: -245760, Z: -18000}} {
+		for _, slope := range []float32{0.125, 0.5, float32(math.Tan(40 * math.Pi / 180))} {
+			world := play.NewWorld(terrainGrid(origin, slope))
+			for _, seconds := range []float32{frame, 0.1} {
+				for _, fast := range []bool{false, true} {
+					t.Run(fmt.Sprintf("%s/frame_%g/fast_%v", fmtTerrainCase(origin, slope), seconds, fast), func(t *testing.T) {
+						s := play.NewSession(world, origin.Add(geom.Vec3{X: 1300, Y: 37, Z: 2000}), math.Pi, 0)
+						start := s.Feet()
+						for i := range int(math.Round(0.7 / float64(seconds))) {
+							s.Step(play.Input{Seconds: seconds, Forward: 1, Fast: fast})
+							feet := s.Feet()
+							floor := origin.Z + (feet.X-origin.X)*slope
+							if math.Abs(float64(feet.Z-floor)) > 0.1 || s.Motion() != play.Grounded {
+								t.Fatalf("frame %d: feet %v, surface z %v, motion %v; want walking on the surface", i, feet, floor, s.Motion())
+							}
+						}
+						if distance := start.X - s.Feet().X; distance < 150 {
+							t.Fatalf("walked %v units down the slope in 0.7 s; want at least 150", distance)
+						}
+					})
+				}
+			}
+		}
+	}
+}

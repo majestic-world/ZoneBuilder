@@ -42,9 +42,10 @@ type editState struct {
 	// step is how far Subir/Descer and PageUp/PageDown move the zone.
 	step int
 	drag drag
-	// zdrag is a drag of the Z arrow, arrow where it was last laid out.
-	zdrag zDrag
-	arrow zArrow
+	// axisDrag is a drag of a gizmo arrow, gizmo where it was last laid
+	// out.
+	axisDrag axisDrag
+	gizmo    gizmo
 	// heightFilled is what the height window's fields were last filled
 	// for.
 	heightFilled heightKey
@@ -122,7 +123,7 @@ func (e *zoneEditor) sync() {
 		e.armed, e.anchored, e.hovering = false, false, false
 	}
 	e.drag = drag{}
-	e.zdrag = zDrag{}
+	e.axisDrag = axisDrag{}
 }
 
 func (e *zoneEditor) undo() string {
@@ -163,21 +164,21 @@ func (e *zoneEditor) viewportEvent(s *scene.World, cam *camera.Camera, ev event.
 		case ev.Name == key.NameDeleteForward:
 			return e.removeVertex(), true
 		case ev.Name == key.NamePageUp:
-			return e.shiftZone(e.step), true
+			return e.moveZone(0, 0, e.step), true
 		case ev.Name == key.NamePageDown:
-			return e.shiftZone(-e.step), true
+			return e.moveZone(0, 0, -e.step), true
 		}
 	case pointer.Event:
 		if s == nil || e.drawing || e.armed {
 			return "", false
 		}
-		if e.zdrag.active {
-			return e.arrowEvent(ev), true
+		if e.axisDrag.active {
+			return e.gizmoEvent(ev), true
 		}
 		if e.drag.kind != dragNone {
 			return e.dragEvent(s, cam, ev, vp), true
 		}
-		if e.grabArrow(ev) {
+		if e.grabGizmo(ev) {
 			return e.present(locale.Message{Key: "editor.arrow.drag_hint"}), true
 		}
 		if ev.Kind == pointer.Press && ev.Buttons == pointer.ButtonPrimary {
@@ -267,9 +268,11 @@ func (e *zoneEditor) dragEvent(s *scene.World, cam *camera.Camera, ev pointer.Ev
 // shownPoints is pts, shape number shape of zone id, as the overlay draws
 // it: moved by the drag in progress.
 func (e *zoneEditor) shownPoints(id zone.ZoneID, shape int, pts []zone.Point) []zone.Point {
-	if dz := e.zdrag.offset(id); dz != 0 {
+	if dx, dy, dz := e.axisDrag.offset(id); dx != 0 || dy != 0 || dz != 0 {
 		out := append([]zone.Point(nil), pts...)
 		for i := range out {
+			out[i].X += dx
+			out[i].Y += dy
 			out[i].Z += dz
 		}
 		return out
@@ -298,7 +301,7 @@ func (e *zoneEditor) shownPoints(id zone.ZoneID, shape int, pts []zone.Point) []
 // shownZRange is the Z range of the current shape as the overlay draws it
 // while a shape drag moves it.
 func (e *zoneEditor) shownZRange(id zone.ZoneID, shape int, s zone.Shape) (int, int) {
-	if dz := e.zdrag.offset(id); dz != 0 {
+	if _, _, dz := e.axisDrag.offset(id); dz != 0 {
 		return s.ZMin + dz, s.ZMax + dz
 	}
 	d := e.drag
@@ -338,21 +341,23 @@ func (e *zoneEditor) zoneZ() (z zone.Zone, base, top int, ok bool) {
 	return z, base, top, true
 }
 
-// shiftZone raises (dz > 0) or lowers the selected zone, exclusions
-// included.
-func (e *zoneEditor) shiftZone(dz int) string {
+// moveZone moves the selected zone, exclusions included, by dx dy dz.
+func (e *zoneEditor) moveZone(dx, dy, dz int) string {
 	z, base, top, ok := e.zoneZ()
 	if !ok {
 		return e.present(locale.Message{Key: "editor.zone.move_select"})
 	}
-	if dz == 0 {
+	if dx == 0 && dy == 0 && dz == 0 {
 		return ""
 	}
-	if e.apply(zone.ShiftZoneZ{Zone: z.ID, DZ: dz}) != nil {
+	if e.apply(zone.MoveZone{Zone: z.ID, DX: dx, DY: dy, DZ: dz}) != nil {
 		return e.present(locale.Message{Key: "editor.zone.move_failed"})
 	}
-	log.Printf("zona: %s movida %+d em z, agora %d..%d", z.Name, dz, base+dz, top+dz)
-	args := map[string]string{"name": z.Name, "delta": intArg(abs(dz)), "min": intArg(base+dz), "max": intArg(top+dz)}
+	log.Printf("zona: %s movida por %+d %+d %+d, agora z %d..%d", z.Name, dx, dy, dz, base+dz, top+dz)
+	if dx != 0 || dy != 0 {
+		return e.present(locale.Message{Key: "editor.zone.moved", Args: map[string]string{"name": z.Name, "x": signedArg(dx), "y": signedArg(dy), "z": signedArg(dz), "min": intArg(base + dz), "max": intArg(top + dz)}})
+	}
+	args := map[string]string{"name": z.Name, "delta": intArg(abs(dz)), "min": intArg(base + dz), "max": intArg(top + dz)}
 	if dz < 0 {
 		return e.present(locale.Message{Key: "editor.zone.lowered", Args: args})
 	}
@@ -369,7 +374,7 @@ func (e *zoneEditor) setZoneBase(text string) string {
 	if !ok {
 		return e.present(locale.Message{Key: "editor.zone.base_select"})
 	}
-	return e.shiftZone(v[0] - base)
+	return e.moveZone(0, 0, v[0]-base)
 }
 
 // setZoneHeight makes every shape of the selected zone text's height

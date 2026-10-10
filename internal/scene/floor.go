@@ -19,7 +19,8 @@ type FloorTriangle struct {
 // is what is drawn and picked: every visible terrain quad, as its 2
 // triangles split on the EdgeTurn diagonal, and nothing of an invisible
 // quad; plus every BSP or static mesh triangle facing up (normal.z ≥
-// floorNormalZ), the meshes left out while HideMeshes is set. Floor only
+// floorNormalZ), the meshes left out while HideMeshes is set and the
+// actors in Hidden always. Floor only
 // reads the scenes: it may run off the event loop on a World that the
 // loop does not Add to or Remove from meanwhile.
 func (w *World) Floor(box geom.Box, fn func(FloorTriangle)) {

@@ -101,17 +101,17 @@ func (c MoveShape) apply(d *Document) error {
 	return nil
 }
 
-// ShiftZoneZ raises (DZ > 0) or lowers a whole zone: every shape, its
-// exclusions included, moves its vertices and Z range by DZ, so the
-// exclusions keep cutting the same part of the zone. Restart points stay
-// where they were clicked: they are spots on the ground, not part of the
-// zone's volume.
-type ShiftZoneZ struct {
-	Zone ZoneID
-	DZ   int
+// MoveZone translates a whole zone: every shape, its exclusions included,
+// moves its vertices by DX DY DZ and its Z range by DZ, so the exclusions
+// keep cutting the same part of the zone. Restart points stay where they
+// were clicked: they are spots on the ground, not part of the zone's
+// volume.
+type MoveZone struct {
+	Zone       ZoneID
+	DX, DY, DZ int
 }
 
-func (c ShiftZoneZ) apply(d *Document) error {
+func (c MoveZone) apply(d *Document) error {
 	z, err := d.zone(c.Zone)
 	if err != nil {
 		return err
@@ -120,7 +120,7 @@ func (c ShiftZoneZ) apply(d *Document) error {
 		s := &z.Shapes[i]
 		pts := make([]Point, len(s.Points))
 		for j, p := range s.Points {
-			pts[j] = Point{X: p.X, Y: p.Y, Z: p.Z + c.DZ}
+			pts[j] = Point{X: p.X + c.DX, Y: p.Y + c.DY, Z: p.Z + c.DZ}
 		}
 		s.Points = pts
 		s.ZMin += c.DZ

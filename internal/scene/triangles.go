@@ -25,6 +25,8 @@ type triangleSet struct {
 	// Blocks marks geometry a walking player collides with: a solid BSP
 	// surface (no PFNotSolid), a mesh whose actor blocks (Collision).
 	Blocks bool
+	// Actor is the mesh actor a SurfaceMesh set belongs to.
+	Actor ActorKey
 }
 
 // addPickable registers set, a run of indices of one batch, as pickable;
@@ -37,14 +39,14 @@ func (s *Scene) addPickable(set triangleSet) {
 }
 
 // pickTriangles improves best with the nearest triangle of every pickable
-// set r meets closer than best.Distance, the mesh actors' sets left out
-// when noMeshes is set. A set whose box the ray enters beyond the best hit
+// set r meets closer than best.Distance, the mesh actors' sets that hide
+// leaves out skipped. A set whose box the ray enters beyond the best hit
 // so far is skipped (UE2-Studio's ray_box_entry early-out). r.Dir must be
 // unit length.
-func (s *Scene) pickTriangles(r Ray, best *Hit, noMeshes bool) {
+func (s *Scene) pickTriangles(r Ray, best *Hit, hide meshFilter) {
 	for i := range s.pickables {
 		set := &s.pickables[i]
-		if noMeshes && set.Surface == SurfaceMesh {
+		if hide.skips(set) {
 			continue
 		}
 		if entry, ok := rayBoxEntry(r, set.Bounds); !ok || entry > best.Distance {
@@ -62,7 +64,7 @@ func (s *Scene) pickTriangles(r Ray, best *Hit, noMeshes bool) {
 				b.Vertices[idx[k+1]].Pos.Sub(base),
 				b.Vertices[idx[k+2]].Pos.Sub(base))
 			if ok && d < best.Distance {
-				*best = Hit{Pos: ToServer(r.Origin.Add(r.Dir.Scale(d))), Distance: d, Surface: set.Surface, Water: b.Mode == Water}
+				*best = Hit{Pos: ToServer(r.Origin.Add(r.Dir.Scale(d))), Distance: d, Surface: set.Surface, Water: b.Mode == Water, Actor: set.Actor}
 			}
 		}
 	}

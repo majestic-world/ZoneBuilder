@@ -13,6 +13,8 @@ import (
 
 // MeshActor is one placed static mesh actor of a map.
 type MeshActor struct {
+	// Tile is the tile whose map places the actor.
+	Tile Tile
 	// Export is the actor's 0-based export index in the map package.
 	Export int
 	Name   string
@@ -40,6 +42,9 @@ func (a *MeshActor) Triangles() int {
 	}
 	return n
 }
+
+// Key names the actor across loads of its tile.
+func (a *MeshActor) Key() ActorKey { return ActorKey{Tile: a.Tile, Export: a.Export} }
 
 // MeshActorSection is one kept mesh section of an actor.
 type MeshActorSection struct {
@@ -103,7 +108,7 @@ func (s *Scene) addMeshes(ld *loader, m *l2pkg.Package, t Tile, footprint *geom.
 				return fmt.Errorf("%s %s: %w", class, m.Exports[i].ObjectName, err)
 			}
 			ma := MeshActor{
-				Export: i, Name: m.Exports[i].ObjectName, Class: class,
+				Tile: t, Export: i, Name: m.Exports[i].ObjectName, Class: class,
 				Actor: *a, Hidden: a.Hidden || a.DeleteMe, Bounds: geom.EmptyBox(),
 			}
 			var def unreal.Collision
@@ -232,7 +237,7 @@ func (s *Scene) placeMesh(ld *loader, ma *MeshActor, m, owner *l2pkg.Package, me
 				b.Indices = append(b.Indices, uint32(remap[v]))
 			}
 			b.Bounds.Union(box)
-			s.addPickable(triangleSet{Surface: SurfaceMesh, Batch: kept.Batch, First: kept.First, Count: kept.Count, Bounds: box, Mirrored: xf.Scale.X*xf.Scale.Y*xf.Scale.Z < 0, Blocks: ma.Collision.Blocks()})
+			s.addPickable(triangleSet{Surface: SurfaceMesh, Batch: kept.Batch, First: kept.First, Count: kept.Count, Bounds: box, Mirrored: xf.Scale.X*xf.Scale.Y*xf.Scale.Z < 0, Blocks: ma.Collision.Blocks(), Actor: ma.Key()})
 		}
 		ma.Sections = append(ma.Sections, kept)
 	}

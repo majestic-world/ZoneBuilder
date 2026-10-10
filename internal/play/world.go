@@ -225,8 +225,12 @@ func (w *World) floorBelow(eye geom.Vec3, reach float32) (float32, bool) {
 // horizontally only. UE2-Studio pushes out along the contact normal there
 // too, whose upward share lets a run climb a 60° slope against gravity; the
 // horizontal push stops the climb and lets gravity slide the capsule down.
-// Edge contacts keep the normal push, so the rounded bottom still climbs
-// a low step's edge.
+// A walkable contact, on a face or on an edge, pushes out vertically only,
+// and stops the fall without a downhill share: pushed out along the contact
+// normal, every frame of gravity would move the capsule downhill, and a
+// capsule standing still would slide down a slope, or along a ridge, until
+// it reached flat ground. Other edge contacts keep the normal push, so the
+// rounded bottom still climbs a low step's edge.
 func (w *World) resolve(feet, velocity *geom.Vec3) bool {
 	grounded := false
 	const reach = radius + skin
@@ -262,10 +266,13 @@ func (w *World) resolve(feet, velocity *geom.Vec3) bool {
 		if !found {
 			break
 		}
-		if steep {
+		switch {
+		case steep:
 			horizontal := geom.Vec3{X: normal.X, Y: normal.Y}
 			l := horizontal.Length()
 			normal, depth = horizontal.Scale(1/l), depth/l
+		case normal.Z > floorNormalZ:
+			normal, depth = geom.Vec3{Z: 1}, depth/normal.Z
 		}
 		*feet = feet.Add(normal.Scale(depth))
 		if inward := velocity.Dot(normal); inward < 0 {

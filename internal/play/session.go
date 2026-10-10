@@ -103,10 +103,11 @@ func (s *Session) positionCamera() {
 	s.body = s.camera.Sub(eye).Length() > bodyClearance
 }
 
-// Feet is the bottom of the capsule.
-func (s *Session) Feet() geom.Vec3 { return s.player.feet }
+// Feet is where the body stands: the bottom of the capsule, lowered on a
+// walkable slope to the ground its rounded bottom holds it above.
+func (s *Session) Feet() geom.Vec3 { return s.player.ground() }
 
-// Eye is the point the camera orbits, 64 units above the feet.
+// Eye is the point the camera orbits, 64 units above the capsule's bottom.
 func (s *Session) Eye() geom.Vec3 { return s.player.eye() }
 
 // Velocity is in units per second; in flight it is zero (flight moves the
