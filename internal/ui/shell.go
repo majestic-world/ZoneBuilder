@@ -79,11 +79,14 @@ type Shell struct {
 	Props PropertiesPanel
 	// Edit holds the shape/vertex editing controls.
 	Edit EditPanel
+	// Spawn is the population mode's dock tools, area list, problems and
+	// selected area.
+	Spawn AreaPanel
 	// Undo, Redo and Compile are the command bar's buttons, for the
 	// active mode's history and output.
 	Undo, Redo, Compile widget.Clickable
-	// Height raises, lowers and sizes the selected zone from a window
-	// floating over the viewport.
+	// Height raises, lowers and sizes the selected zone, or spawn area,
+	// from a window floating over the viewport.
 	Height HeightPanel
 	// Arrow is the viewport's handle that raises and lowers the selected
 	// zone.
@@ -136,6 +139,7 @@ func NewShell(th *material.Theme, client, tile string) *Shell {
 	s.Props.init()
 	s.Edit.init()
 	s.Height.init()
+	s.Spawn.init()
 	s.list.Axis = layout.Vertical
 	return s
 }
@@ -194,8 +198,12 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	brand := at(gtx, image.Pt(m, m), s.brand)
 	language := at(gtx, image.Pt(m, m+brand.Y+gtx.Dp(8)), s.languageSelector)
 	var dock image.Point
-	if zones {
-		dock = at(gtx, image.Pt(m, m+brand.Y+gtx.Dp(8)+language.Y+gtx.Dp(12)), s.dock)
+	dockAt := image.Pt(m, m+brand.Y+gtx.Dp(8)+language.Y+gtx.Dp(12))
+	switch s.Mode {
+	case ModeZones:
+		dock = at(gtx, dockAt, s.dock)
+	case ModePopulate:
+		dock = at(gtx, dockAt, s.areaDock)
 	}
 
 	iw := gtx.Dp(InspectorWidth)
@@ -222,9 +230,7 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 		place(gtx, image.Pt(max(left, (ix-msg.X)/2), statusAt.Y-gtx.Dp(10)-msg.Y), call)
 	}
 
-	if zones {
-		s.heightWindow(gtx)
-	}
+	s.heightWindow(gtx)
 	s.xmlWindow(gtx)
 	s.projectMenu(gtx)
 	if zones {
@@ -287,7 +293,7 @@ func (s *Shell) inspectorCard(gtx layout.Context) layout.Dimensions {
 		case ModeZones:
 			children = append(children, s.zonePanel()...)
 			children = append(children, s.zoneList()...)
-			children = append(children, s.problemList()...)
+			children = append(children, s.problemList(&s.Problems)...)
 			children = append(children, s.selectedZone()...)
 			children = append(children, s.editPanel()...)
 		case ModePopulate:
@@ -368,12 +374,15 @@ func (s *Shell) statusPill(gtx layout.Context) layout.Dimensions {
 	})
 }
 
-// messageCard is the last outcome and, in the zone mode, the armed tool's
+// messageCard is the last outcome and the active mode's armed tool's
 // hints, over the status pill; nothing when there are neither.
 func (s *Shell) messageCard(gtx layout.Context) layout.Dimensions {
 	var hints []string
-	if s.Mode == ModeZones {
+	switch s.Mode {
+	case ModeZones:
 		hints = s.Zone.Info
+	case ModePopulate:
+		hints = s.Spawn.Info
 	}
 	if s.Message == "" && len(hints) == 0 {
 		return layout.Dimensions{}

@@ -23,11 +23,45 @@ import (
 // the event loop (spec D2: a whole tile); longer ones are logged.
 const profileBudget = 100 * time.Millisecond
 
-// shapeRef names one shape of one zone.
+// shapeRef names one shape of one zone, or, in the spawn editor's own
+// floorCoverage, one spawn area (areaRef: zone holds the area ID, shape is
+// 0).
 type shapeRef struct {
 	zone  zone.ZoneID
 	shape int
 }
+
+// coverageSource is the editor whose outlines a floorCoverage measures:
+// the zone editor, a profile per zone shape, or the spawn editor, a
+// profile per area.
+type coverageSource interface {
+	// coverageBans is the banned outlines shape ref is measured with, as
+	// shown (with any drag in progress), and the key of their outlines.
+	coverageBans(ref shapeRef) ([]coverage.Ban, uint64)
+	// keepsCoverage reports whether ref's profile is still worth keeping:
+	// its shape exists, or is the one being placed.
+	keepsCoverage(ref shapeRef) bool
+	// zMargin is the margin of suggested Z ranges; zFromVertices is set
+	// while new shapes take their range from the clicked points alone.
+	zMargin() int
+	zFromVertices() bool
+}
+
+func (e *zoneEditor) coverageBans(ref shapeRef) ([]coverage.Ban, uint64) {
+	z, _ := e.doc.Zone(ref.zone)
+	return zoneBans(e, z, ref.shape)
+}
+
+// keepsCoverage keeps the profiles of the zone's shapes and of the slot
+// one past its last shape, which holds the shape being placed
+// (floorCoverage.suggest).
+func (e *zoneEditor) keepsCoverage(ref shapeRef) bool {
+	z, ok := e.doc.Zone(ref.zone)
+	return ok && ref.shape <= len(z.Shapes)
+}
+
+func (e *zoneEditor) zMargin() int        { return e.margin }
+func (e *zoneEditor) zFromVertices() bool { return e.fromVertices }
 
 // coverageKey is what a shape's floor profile is measured from: the
 // shape's outline as shown, the world's tiles and whether static meshes
@@ -185,12 +219,20 @@ func (c *floorCoverage) zone(e *zoneEditor, w *scene.World) (r coverage.Report, 
 // gives it, measuring it in the background when its profile is stale and
 // nothing else is being measured.
 func (c *floorCoverage) shape(e *zoneEditor, w *scene.World, id zone.ZoneID, i int, sh zone.Shape) (r coverage.Report, measuring, ok bool) {
-	pts := outline(sh.Kind, e.shownPoints(id, i, sh.Points))
+	zmin, zmax := e.shownZRange(id, i, sh)
+	return c.report(e, w, shapeRef{id, i}, outline(sh.Kind, e.shownPoints(id, i, sh.Points)), zmin, zmax)
+}
+
+// report is the floor coverage of src's shape ref, of outline pts and
+// range zmin…zmax, over w, measuring it in the background when its
+// profile is stale and nothing else is being measured; measuring reports
+// a profile of an earlier outline or scene. ok is false for fewer than 3
+// points, and until ref's first profile over w is in.
+func (c *floorCoverage) report(src coverageSource, w *scene.World, ref shapeRef, pts []zone.Point, zmin, zmax int) (r coverage.Report, measuring, ok bool) {
 	if len(pts) < 3 {
 		return coverage.Report{}, false, false
 	}
-	ref := shapeRef{id, i}
-	key, bans := newCoverageKey(e, ref, pts, w)
+	key, bans := newCoverageKey(src, ref, pts, w)
 	s := c.shapes[ref]
 	if (s == nil || key != s.done) && !c.running {
 		c.start(key, pts, bans, w)
@@ -198,7 +240,6 @@ func (c *floorCoverage) shape(e *zoneEditor, w *scene.World, id zone.ZoneID, i i
 	if s == nil || s.done.world != w {
 		return coverage.Report{}, true, false
 	}
-	zmin, zmax := e.shownZRange(id, i, sh)
 	if s.classified != s.profile || zmin != s.zmin || zmax != s.zmax || !sameBanRanges(bans, s.bans) {
 		s.report = s.profile.WithBanRanges(bans).Classify(float64(zmin), float64(zmax))
 		s.classified, s.zmin, s.zmax, s.bans = s.profile, zmin, zmax, bans
@@ -208,10 +249,9 @@ func (c *floorCoverage) shape(e *zoneEditor, w *scene.World, id zone.ZoneID, i i
 }
 
 // newCoverageKey is the key of shape ref's profile for outline pts over w,
-// and the zone's other banned shapes it is measured with.
-func newCoverageKey(e *zoneEditor, ref shapeRef, pts []zone.Point, w *scene.World) (coverageKey, []coverage.Ban) {
-	z, _ := e.doc.Zone(ref.zone)
-	bans, bansKey := zoneBans(e, z, ref.shape)
+// and the banned shapes it is measured with.
+func newCoverageKey(src coverageSource, ref shapeRef, pts []zone.Point, w *scene.World) (coverageKey, []coverage.Ban) {
+	bans, bansKey := src.coverageBans(ref)
 	return coverageKey{shape: ref, outline: outlineKey(pts), bans: bansKey, world: w, scenes: scenesKey(w), hideMeshes: w.HideMeshes}, bans
 }
 
@@ -222,12 +262,12 @@ func newCoverageKey(e *zoneEditor, ref shapeRef, pts []zone.Point, w *scene.Worl
 // in the background once nothing else is. A shape being added is kept as
 // the index it gets once added, so it needs no measuring again. nil for an
 // outline of fewer than 3 points.
-func (c *floorCoverage) profile(e *zoneEditor, w *scene.World, ref shapeRef, pts []zone.Point, now bool) *coverage.Profile {
-	c.receive(e)
+func (c *floorCoverage) profile(src coverageSource, w *scene.World, ref shapeRef, pts []zone.Point, now bool) *coverage.Profile {
+	c.receive(src)
 	if len(pts) < 3 {
 		return nil
 	}
-	key, bans := newCoverageKey(e, ref, pts, w)
+	key, bans := newCoverageKey(src, ref, pts, w)
 	if s := c.shapes[ref]; s != nil && s.done == key {
 		return s.profile
 	}
@@ -285,10 +325,9 @@ func (c *floorCoverage) start(key coverageKey, pts []zone.Point, bans []coverage
 
 // receive takes the profile measured in the background, if it is in,
 // unless its shape's profile was stored after it started (measured on the
-// spot, for a newer outline), and then forgets the profiles of shapes no
-// longer in e's document. The slot one past a zone's last shape stays: it
-// holds the profile of the shape being placed (floorCoverage.suggest).
-func (c *floorCoverage) receive(e *zoneEditor) {
+// spot, for a newer outline), and then forgets the profiles src no longer
+// keeps (coverageSource.keepsCoverage).
+func (c *floorCoverage) receive(src coverageSource) {
 	select {
 	case r := <-c.results:
 		c.running = false
@@ -300,7 +339,7 @@ func (c *floorCoverage) receive(e *zoneEditor) {
 		return
 	}
 	for ref := range c.shapes {
-		if z, ok := e.doc.Zone(ref.zone); !ok || ref.shape > len(z.Shapes) {
+		if !src.keepsCoverage(ref) {
 			delete(c.shapes, ref)
 		}
 	}
@@ -431,29 +470,54 @@ func clearance(lang locale.Language, v float64) string {
 // Only the split depends on the range, so a Z drag redraws it every frame.
 func (c *floorCoverage) ruler(e *zoneEditor, w *scene.World, r coverage.Report, lang locale.Language) ui.Ruler {
 	z, _ := e.doc.Zone(e.zone)
-	type part struct {
-		hist       coverage.Histogram
-		zmin, zmax float64
-		terrain    bool
-	}
-	var parts []part
-	zmin, zmax := math.Inf(1), math.Inf(-1)
+	var parts []rulerPart
 	for i, sh := range z.Shapes {
-		s := c.shapes[shapeRef{z.ID, i}]
-		if sh.Banned || s == nil || s.done.world != w {
+		if sh.Banned {
 			continue
 		}
 		lo, hi := e.shownZRange(z.ID, i, sh)
-		parts = append(parts, part{s.hist, float64(lo), float64(hi), s.report.Terrain})
-		zmin, zmax = min(zmin, float64(lo)), max(zmax, float64(hi))
+		if p, ok := c.rulerPart(shapeRef{z.ID, i}, w, lo, hi); ok {
+			parts = append(parts, p)
+		}
 	}
+	zc := z.DisplayColor()
+	return rulerOf(parts, r, color.NRGBA{R: zc[0], G: zc[1], B: zc[2], A: 0xFF}, lang)
+}
+
+// rulerPart is one shape's floor histogram on the height window's ruler,
+// split by the shape's own range.
+type rulerPart struct {
+	hist       coverage.Histogram
+	zmin, zmax float64
+	terrain    bool
+}
+
+// rulerPart is shape ref's part of the ruler over w, with range zmin…zmax;
+// false until its profile over w is in.
+func (c *floorCoverage) rulerPart(ref shapeRef, w *scene.World, zmin, zmax int) (rulerPart, bool) {
+	s := c.shapes[ref]
+	if s == nil || s.done.world != w {
+		return rulerPart{}, false
+	}
+	return rulerPart{s.hist, float64(zmin), float64(zmax), s.report.Terrain}, true
+}
+
+// rulerOf is the height window's ruler for parts, whose summed report is
+// r: Z from the lowest of the ranges and the floor to the highest, padded;
+// the range bar from the lowest zmin to the highest zmax, in colour col;
+// each row's floor by state, every part's histogram split by its own
+// range; and marks at the lowest and highest floor with their clearances.
+func rulerOf(parts []rulerPart, r coverage.Report, col color.NRGBA, lang locale.Language) ui.Ruler {
 	if len(parts) == 0 {
 		return ui.Ruler{}
 	}
+	zmin, zmax := math.Inf(1), math.Inf(-1)
+	for _, p := range parts {
+		zmin, zmax = min(zmin, p.zmin), max(zmax, p.zmax)
+	}
 	lo, hi := min(zmin, r.GroundMin.Z), max(zmax, r.GroundMax.Z)
 	pad := max(32, 0.06*(hi-lo))
-	zc := z.DisplayColor()
-	u := ui.Ruler{Lo: lo - pad, Hi: hi + pad, ZMin: zmin, ZMax: zmax, Color: color.NRGBA{R: zc[0], G: zc[1], B: zc[2], A: 0xFF}}
+	u := ui.Ruler{Lo: lo - pad, Hi: hi + pad, ZMin: zmin, ZMax: zmax, Color: col}
 	u.Bars = make([]ui.RulerBar, rulerRows)
 	step := (u.Hi - u.Lo) / rulerRows
 	for i := range u.Bars {
