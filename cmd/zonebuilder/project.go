@@ -18,16 +18,17 @@ import (
 )
 
 // session is the window's project file and the user config: which file
-// Save writes, whether the zones changed since, and the folders and maps
-// the app pre-fills on its next start.
+// Save writes, whether the zones or the spawn areas changed since, and the
+// folders and maps the app pre-fills on its next start.
 type session struct {
 	cfgPath string
 	cfgErr error
 	cfg     project.Config
 	// path is the project file; "" until the first save or open.
 	path string
-	// saved is the zoneEditor.version at the last save or open.
-	saved int
+	// saved is the zoneEditor.version, savedSpawns the spawnEditor.edits,
+	// at the last save or open.
+	saved, savedSpawns int
 	// picks delivers the file chosen in a project dialog.
 	picks chan projectPick
 	// languageWarning retains the most recent preference write failure.
@@ -103,12 +104,12 @@ func (s *session) mapOpened(client string, tiles []scene.Tile) {
 // and the file chosen is saved or opened on a later frame. Opening is
 // refused while busy (a map is loading). It returns the status line ("" for
 // no news) and, after opening a project, its tiles to load.
-func (s *session) update(gtx layout.Context, w *app.Window, shell *ui.Shell, zones *zoneEditor, tiles []scene.Tile, busy bool) (status actionStatus, load []scene.Tile) {
+func (s *session) update(gtx layout.Context, w *app.Window, shell *ui.Shell, zones *zoneEditor, spawns *spawnEditor, tiles []scene.Tile, busy bool) (status actionStatus, load []scene.Tile) {
 	p := &shell.Project
 	open, save, saveAs := p.Requests(gtx)
 	if save {
 		if s.path != "" {
-			status = s.save(w, shell, zones, tiles, s.path)
+			status = s.save(w, shell, zones, spawns, tiles, s.path)
 		} else {
 			s.pick(w, true, shell.Language)
 		}
@@ -123,15 +124,15 @@ func (s *session) update(gtx layout.Context, w *app.Window, shell *ui.Shell, zon
 	case pk := <-s.picks:
 		switch {
 		case pk.save:
-			status = s.save(w, shell, zones, tiles, pk.path)
+			status = s.save(w, shell, zones, spawns, tiles, pk.path)
 		case busy:
 			status = action(locale.Message{Key: "actions.project.wait"})
 		default:
-			status, load = s.open(w, shell, zones, pk.path)
+			status, load = s.open(w, shell, zones, spawns, pk.path)
 		}
 	default:
 	}
-	p.Name, p.Unsaved = s.name(shell.Language), zones.version != s.saved
+	p.Name, p.Unsaved = s.name(shell.Language), zones.version != s.saved || spawns.edits != s.savedSpawns
 	return status, load
 }
 
@@ -157,30 +158,31 @@ func (s *session) pick(w *app.Window, save bool, lang locale.Language) {
 	}()
 }
 
-// save writes the window's project to path, which becomes the project file.
-// It returns the status line.
-func (s *session) save(w *app.Window, shell *ui.Shell, zones *zoneEditor, tiles []scene.Tile, path string) actionStatus {
+// save writes the window's project, zones and spawn areas, to path, which
+// becomes the project file. It returns the status line.
+func (s *session) save(w *app.Window, shell *ui.Shell, zones *zoneEditor, spawns *spawnEditor, tiles []scene.Tile, path string) actionStatus {
 	p := project.Project{
 		Client:   strings.TrimSpace(shell.Client.Text()),
 		Tiles:    tileNames(tiles),
 		Document: zones.doc,
+		Spawns:   spawns.doc,
 	}
 	if err := project.Save(path, p); err != nil {
 		log.Print(err)
 		return actionError(locale.Message{Key: "actions.error.save_project"}, err, map[string]string{"path": path})
 	}
-	s.path, s.saved = path, zones.version
+	s.path, s.saved, s.savedSpawns = path, zones.version, spawns.edits
 	s.cfg.Project = path
 	s.saveConfig()
 	w.Option(app.Title(windowTitle(path)))
-	log.Printf("projeto: salvo em %s: %s, tiles %q", path, inflect.Count(len(p.Document.Zones()), "zona", "zonas"), p.Tiles)
+	log.Printf("projeto: salvo em %s: %s, %s, tiles %q", path, inflect.Count(len(p.Document.Zones()), "zona", "zonas"), inflect.Count(len(p.Spawns.Areas()), "área de spawn", "áreas de spawn"), p.Tiles)
 	return actionArgs(locale.Message{Key: "actions.project.saved"}, map[string]string{"path": path})
 }
 
 // open reads the project file at path into the window, which then edits
-// its zones; path becomes the project file. It returns the status line and
-// the project's tiles to load.
-func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, path string) (actionStatus, []scene.Tile) {
+// its zones and spawn areas; path becomes the project file. It returns
+// the status line and the project's tiles to load.
+func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, spawns *spawnEditor, path string) (actionStatus, []scene.Tile) {
 	p, err := project.Load(path)
 	var tiles []scene.Tile
 	if err == nil {
@@ -196,11 +198,13 @@ func (s *session) open(w *app.Window, shell *ui.Shell, zones *zoneEditor, path s
 	}
 	zones.replace(p.Document)
 	shell.Zones.Reset()
-	s.path, s.saved = path, zones.version
+	spawns.replace(p.Spawns)
+	shell.Spawn.Reset()
+	s.path, s.saved, s.savedSpawns = path, zones.version, spawns.edits
 	s.cfg.Project = path
 	s.saveConfig()
 	w.Option(app.Title(windowTitle(path)))
-	log.Printf("projeto: aberto %s: %s, tiles %q", path, inflect.Count(len(p.Document.Zones()), "zona", "zonas"), p.Tiles)
+	log.Printf("projeto: aberto %s: %s, %s, tiles %q", path, inflect.Count(len(p.Document.Zones()), "zona", "zonas"), inflect.Count(len(p.Spawns.Areas()), "área de spawn", "áreas de spawn"), p.Tiles)
 	return actionArgs(locale.Message{Key: "actions.project.opened"}, map[string]string{"path": path}), tiles
 }
 

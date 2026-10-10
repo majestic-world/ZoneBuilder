@@ -78,7 +78,7 @@ type modes struct {
 }
 
 func newModes(w *app.Window, active ui.Mode) *modes {
-	return &modes{active: active, zones: newZoneMode(w), populate: &populateMode{}}
+	return &modes{active: active, zones: newZoneMode(w), populate: newPopulateMode(w)}
 }
 
 // current is the active mode.
