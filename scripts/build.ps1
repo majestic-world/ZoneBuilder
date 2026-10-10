@@ -13,6 +13,10 @@ ones.
 The version in the window title is APP_VERSION from .env at the repository
 root, linked into main.version.
 
+The executable is linked with -H windowsgui, so Windows opens no console
+window with it; started from a terminal, the app attaches to that terminal
+and logs there (cmd/zonebuilder/console_windows.go).
+
 .EXAMPLE
 ./scripts/build.ps1
 & './bin/Zone Builder.exe'
@@ -47,7 +51,7 @@ New-Item -ItemType Directory -Force -Path $bin | Out-Null
 $env:CGO_ENABLED = '0'
 Push-Location $root
 try {
-    go build -ldflags "-X main.version=$version" -o (Join-Path $bin 'Zone Builder.exe') ./cmd/zonebuilder
+    go build -ldflags "-H windowsgui -X main.version=$version" -o (Join-Path $bin 'Zone Builder.exe') ./cmd/zonebuilder
     if ($LASTEXITCODE -ne 0) { throw "go build failed ($LASTEXITCODE)" }
 } finally {
     Pop-Location

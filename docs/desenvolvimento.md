@@ -19,6 +19,8 @@ make run ARGS="-project giran.zbproj"
 
 A versão exibida no título da janela vem de `APP_VERSION`, no arquivo `.env`.
 
+O executável é um app de interface do Windows (`-H windowsgui`): aberto pelo Explorer ou por atalho, não abre janela de terminal. Iniciado de um terminal (inclusive por `make run`), o log aparece nesse terminal.
+
 Opções de linha de comando:
 
 | Opção | Uso |
