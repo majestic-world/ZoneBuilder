@@ -177,7 +177,7 @@ func (e *zoneEditor) wholeTile(c *floorCoverage, w *scene.World, t scene.Tile, s
 	vmax := int(math.Ceil(float64(s.Bounds.Max.Z+scene.ServerZOffset))) + e.margin
 	floor := vmin + e.margin
 	pts := []zone.Point{{X: x0, Y: y0, Z: floor}, {X: x1, Y: y0, Z: floor}, {X: x1, Y: y1, Z: floor}, {X: x0, Y: y1, Z: floor}}
-	fit := c.suggest(e, w, len(z.Shapes), pts, vmin, vmax, true, true)
+	fit := c.suggest(e, w, shapeRef{e.zone, len(z.Shapes)}, pts, vmin, vmax, true, true)
 	if e.apply(zone.AddShape{Zone: e.zone, Banned: banned, Points: pts, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
 		return e.present(locale.Message{Key: "editor.tile.failed"})
 	}
@@ -279,23 +279,28 @@ func radius(c, v zone.Point) int {
 // the vertex range until it is in; a click (now) measures it on the spot
 // when it is not in yet.
 func (e *zoneEditor) placed(s *scene.World, c *floorCoverage, v zone.Point, now bool) ([]zone.Point, zSuggestion) {
-	a := e.anchor
-	var pts, vertices []zone.Point
-	if e.tool == ui.ToolCircle {
+	pts, vertices := shapeOutline(s, e.tool, e.anchor, v)
+	vmin, vmax := zone.SuggestZRange(vertices, e.margin)
+	return pts, c.suggest(e, s, shapeRef{e.zone, e.nextShape()}, pts, vmin, vmax, false, now)
+}
+
+// shapeOutline is the outline the rectangle (any other tool) or circle
+// tool places from anchor a to v over s: a rectangle's 4 corners, a
+// circle's polygon of zone.CircleSides vertices, the generated vertices
+// dropped onto the ground (groundZ); and the points whose Z suggests its
+// range (zone.SuggestZRange): the outline, and a circle's center.
+func shapeOutline(s *scene.World, tool ui.Tool, a, v zone.Point) (pts, vertices []zone.Point) {
+	if tool == ui.ToolCircle {
 		pts = zone.CirclePoints(a, max(radius(a, v), 1), zone.CircleSides)
 		for i := range pts {
 			pts[i].Z = groundZ(s, pts[i].X, pts[i].Y, a.Z)
 		}
-		vertices = append(slices.Clone(pts), a)
-	} else {
-		r := zone.RectangleCorners(a, v)
-		r[1].Z = groundZ(s, r[1].X, r[1].Y, r[1].Z)
-		r[3].Z = groundZ(s, r[3].X, r[3].Y, r[3].Z)
-		pts = r[:]
-		vertices = pts
+		return pts, append(slices.Clone(pts), a)
 	}
-	vmin, vmax := zone.SuggestZRange(vertices, e.margin)
-	return pts, c.suggest(e, s, e.nextShape(), pts, vmin, vmax, false, now)
+	r := zone.RectangleCorners(a, v)
+	r[1].Z = groundZ(s, r[1].X, r[1].Y, r[1].Z)
+	r[3].Z = groundZ(s, r[3].X, r[3].Y, r[3].Z)
+	return r[:], r[:]
 }
 
 // nextShape is the index the next shape added to the selected zone gets.
@@ -330,7 +335,7 @@ func (e *zoneEditor) hoverAt(s *scene.World, c *floorCoverage, h scene.Hit, ok b
 	if moved {
 		e.ghost, fit = e.placed(s, c, p, false)
 	} else {
-		fit = c.suggest(e, s, e.nextShape(), e.ghost, fit.vmin, fit.vmax, false, false)
+		fit = c.suggest(e, s, shapeRef{e.zone, e.nextShape()}, e.ghost, fit.vmin, fit.vmax, false, false)
 	}
 	if !moved && fit == e.ghostZ {
 		return ""

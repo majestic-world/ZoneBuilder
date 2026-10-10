@@ -42,8 +42,9 @@ func (l *ProblemList) Clicked(gtx layout.Context) (int, bool) {
 	return picked, ok
 }
 
-func (s *Shell) problemList() []layout.FlexChild {
-	l := &s.Problems
+// problemList is the problem section of list l: the zone mode's Problems,
+// or the population mode's Spawn.Problems.
+func (s *Shell) problemList(l *ProblemList) []layout.FlexChild {
 	if len(l.picks) < len(l.Rows) {
 		l.picks = append(l.picks, make([]widget.Clickable, len(l.Rows)-len(l.picks))...)
 	}

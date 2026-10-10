@@ -106,15 +106,7 @@ func (t Tool) icon() *icon.Icon {
 // work on the selected zone.
 func (s *Shell) dock(gtx layout.Context) layout.Dimensions {
 	p := &s.Zone.Tools
-	tool := func(t Tool) layout.FlexChild {
-		c := &p.buttons[t]
-		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return c.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return s.dockButton(gtx, t.icon(), t.label(s.Language), p.Active && p.Armed == t, false, c.Hovered())
-			})
-		})
-	}
-	children := []layout.FlexChild{tool(ToolPolygon), tool(ToolRectangle), tool(ToolCircle),
+	children := []layout.FlexChild{s.toolTile(p, ToolPolygon), s.toolTile(p, ToolRectangle), s.toolTile(p, ToolCircle),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.WholeTile.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return s.dockButton(gtx, icon.Grid2x2, locale.Text(s.Language, "ui.tool.whole_tile"), false, false, p.WholeTile.Hovered())
@@ -127,10 +119,29 @@ func (s *Shell) dock(gtx layout.Context) layout.Dimensions {
 			})
 		}),
 		layout.Rigid(dockDivider),
-		tool(ToolRestart), tool(ToolPKRestart),
+		s.toolTile(p, ToolRestart), s.toolTile(p, ToolPKRestart),
 	}
 	return card(gtx, &s.dockSink, layout.UniformInset(unit.Dp(6)), func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+	})
+}
+
+// areaDock is the population mode's tool card: the shape tools, each
+// drawing a new spawn area.
+func (s *Shell) areaDock(gtx layout.Context) layout.Dimensions {
+	p := &s.Spawn.Tools
+	return card(gtx, &s.dockSink, layout.UniformInset(unit.Dp(6)), func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, s.toolTile(p, ToolPolygon), s.toolTile(p, ToolRectangle), s.toolTile(p, ToolCircle))
+	})
+}
+
+// toolTile is tool t's dock tile in p, highlighted while armed.
+func (s *Shell) toolTile(p *ToolPanel, t Tool) layout.FlexChild {
+	c := &p.buttons[t]
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return c.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return s.dockButton(gtx, t.icon(), t.label(s.Language), p.Active && p.Armed == t, false, c.Hovered())
+		})
 	})
 }
 

@@ -218,7 +218,7 @@ func (e *zoneEditor) close(s *scene.World, c *floorCoverage) string {
 		return e.present(locale.Message{Key: "editor.polygon.too_few", Count: len(pts), Plural: true, Args: nil})
 	}
 	vmin, vmax := zone.SuggestZRange(pts, e.margin)
-	fit := c.suggest(e, s, e.shape, pts, vmin, vmax, false, true)
+	fit := c.suggest(e, s, shapeRef{e.zone, e.shape}, pts, vmin, vmax, false, true)
 	if e.apply(zone.SetZRange{Zone: e.zone, Shape: e.shape, ZMin: fit.zmin, ZMax: fit.zmax}) != nil {
 		return e.present(locale.Message{Key: "editor.polygon.close_failed"})
 	}

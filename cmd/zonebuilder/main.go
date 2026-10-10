@@ -177,16 +177,17 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 		folders = make(chan string, 1)
 		ws      = &workspace{shell: shell, tiles: newTiles(w), cam: camera.ForBounds(geom.EmptyBox())}
 		modes   = newModes(w, startMode)
-		// zones is the zone editor, which the project file saves and
-		// opens whatever the active mode.
-		zones = modes.zones.zones
+		// zones and spawns are the zone and spawn area editors, which the
+		// project file saves and opens whatever the active mode.
+		zones  = modes.zones.zones
+		spawns = modes.populate.spawns
 	)
 	zones.Language = shell.Language
 	log.Printf("modo: %s", modeName(modes.active))
 	defer func() { g.release() }()
 	if proj != "" {
 		var load []scene.Tile
-		ws.status, load = sess.open(w, shell, zones, proj)
+		ws.status, load = sess.open(w, shell, zones, spawns, proj)
 		if len(load) > 0 {
 			ws.status = openTiles(ws.tiles, shell, load)
 		}
@@ -280,7 +281,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			if name, ok := shell.XML.Copied(gtx); ok {
 				ws.status = actionArgs(locale.Message{Key: "actions.xml.copied"}, map[string]string{"name": name})
 			}
-			if msg, load := sess.update(gtx, w, shell, zones, ws.tiles.openTiles(), ws.tiles.opening()); msg.render(shell.Language) != "" || len(load) > 0 {
+			if msg, load := sess.update(gtx, w, shell, zones, spawns, ws.tiles.openTiles(), ws.tiles.opening()); msg.render(shell.Language) != "" || len(load) > 0 {
 				ws.status = msg
 				if len(load) > 0 {
 					ws.status = openTiles(ws.tiles, shell, load)
