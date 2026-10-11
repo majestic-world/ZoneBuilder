@@ -164,6 +164,7 @@ func NewShell(th *material.Theme, client, tile string) *Shell {
 	s.Spawn.init()
 	s.NPCIDs.Window.Closed = true
 	s.Water.Window.Closed = true
+	s.HiddenMeshes.Window.Closed = true
 	s.Preview.On = true
 	s.list.Axis = layout.Vertical
 	return s
@@ -268,6 +269,7 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	if s.Mode == ModePopulate {
 		s.editorControls(s.npcIDsWindow)(gtx)
 	}
+	s.editorControls(s.hiddenMeshesWindow)(gtx)
 	s.editorControls(func(gtx layout.Context) layout.Dimensions { s.projectMenu(gtx); return layout.Dimensions{} })(gtx)
 	if zones {
 		s.editorControls(func(gtx layout.Context) layout.Dimensions { s.waterMenu(gtx); return layout.Dimensions{} })(gtx)
@@ -292,6 +294,7 @@ func (s *Shell) DiscardEditorInput(gtx layout.Context) {
 	discardEditorEvents(gtx, &s.Zone.Name, &s.Spawn.XMLName, &s.Edit.Margin, &s.Edit.ZRange, &s.Edit.Offset, &s.Edit.BoxCenter, &s.Edit.BoxSize, &s.Edit.BoxBase, &s.Edit.BoxYaw, &s.Edit.Coords, &s.Height.Step, &s.Height.Base, &s.Height.Height)
 	s.NPCIDs.Discard(gtx)
 	s.Water.Discard(gtx)
+	s.HiddenMeshes.Discard(gtx)
 	s.Project.Requests(gtx)
 	s.WaterMenu.CompileRequested(gtx)
 	s.MeshMenu.HideRequested(gtx)
