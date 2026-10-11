@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image"
+	"slices"
 	"testing"
 
 	"gioui.org/f32"
@@ -110,5 +111,23 @@ func TestLockedEditorsRejectInputAndDoNotReplayAfterResume(t *testing.T) {
 				t.Fatalf("editing did not resume: %q", e.Text())
 			}
 		})
+	}
+}
+
+// While the editor is locked, clicks on the hidden meshes window's
+// Mostrar and Mostrar todos are dropped and not replayed after resume;
+// once resumed the same clicks report again.
+func TestLockedHiddenMeshesWindowDropsClicksWithoutReplay(t *testing.T) {
+	h, x, y0, y1 := openHiddenMeshesWindow(t)
+	h.shell.EditorLocked = true
+	if got := h.sweep(x, y0, y1); len(got) != 0 {
+		t.Fatalf("locked window reported %v", got)
+	}
+	h.shell.EditorLocked = false
+	if got := h.frame(); len(got) != 0 {
+		t.Fatalf("locked clicks replayed after resume: %v", got)
+	}
+	if got, want := h.sweep(x, y0, y1), append(shows(12), "show all"); !slices.Equal(got, want) {
+		t.Fatalf("resumed window clicks reported %v, want %v", got, want)
 	}
 }

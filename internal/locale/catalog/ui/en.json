@@ -22,6 +22,7 @@
   "ui.meshes.hidden_hint": "Right-click a static mesh to hide it.",
   "ui.meshes.show": "Show",
   "ui.meshes.show_all": "Show all",
+  "ui.meshes.view_all": {"one": "View the {count}", "other": "View all {count}"},
   "ui.zone.name_hint": "[zone_name]",
   "ui.zone.new": "New zone",
   "ui.zone.name": "Name",
