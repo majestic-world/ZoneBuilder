@@ -68,13 +68,17 @@ func (p *Profile) span(pc *piece) (lo, hi Spot) {
 }
 
 // stack counts the layers of the measured floor and the outline's area
-// with floor on any of them (floored). Terrain never overlaps itself, so
-// both only need looking at the columns of the other surfaces: one column
+// with floor on any of them (floored), and records each BSP or mesh
+// piece's cover (piece.cover). Terrain never overlaps itself, so all
+// only need looking at the columns of the other surfaces: one column
 // per BSP or mesh piece, at a point inside it, where every piece over the
 // column is a floor at its Z. The piece counts in floored when no terrain
 // lies under that point and it is the lowest floor there; its area is
 // then taken whole, so the error stays within 1 triangle along a terrain
-// hole's border, as for exclusions (ADR 0004).
+// hole's border, as for exclusions (ADR 0004). Its cover is the BSP and
+// mesh floors of the column more than LayerGap over it, judged at that
+// point alike: terrain covers nothing, so a zone on the ground keeps the
+// floor under the terrain it always had.
 func (p *Profile) stack(o Outline) {
 	var terrain float64
 	type column struct {
@@ -197,9 +201,21 @@ func (p *Profile) stack(o Outline) {
 			onTerrain = onTerrain || p.pieces[h.piece].surface == scene.SurfaceTerrain
 		}
 		p.layers = max(p.layers, layers)
-		if !onTerrain && over[0].piece == cols[c].piece {
-			p.floored += p.pieces[cols[c].piece].area
+		own := cols[c].piece
+		if !onTerrain && over[0].piece == own {
+			p.floored += p.pieces[own].area
 		}
+		k := slices.IndexFunc(over, func(h hit) bool { return h.piece == own })
+		if k < 0 {
+			continue
+		}
+		first := len(p.coverZ)
+		for _, h := range over[k+1:] {
+			if h.z-over[k].z > LayerGap && p.pieces[h.piece].surface != scene.SurfaceTerrain {
+				p.coverZ = append(p.coverZ, h.z)
+			}
+		}
+		p.pieces[own].cover, p.pieces[own].ncover = int32(first), int32(len(p.coverZ)-first)
 	}
 }
 

@@ -13,7 +13,7 @@ Cada superfície de chão empilhada numa mesma coluna `x y`: terreno, piso de pr
 _Evite_: andar, nível.
 
 **Outras camadas**:
-Camadas que não cruzam a faixa Z do shape nem ficam a até 1024 unidades dela. Ficam fora dos extremos, das folgas, e da cobertura, e não puxam a faixa nos ajustes. Inclui o terreno, julgado como um bloco só (todo o terreno sob o contorno): ele é outra camada quando nenhuma parte dele alcança a faixa e alguma peça de BSP ou mesh alcança; se nenhuma alcança, o terreno conta (ADR 0006).
+Camadas que não cruzam a faixa Z do shape nem ficam a até 1024 unidades dela, ou pisos de BSP ou mesh enterrados: inteiros abaixo do chão onde a faixa se apoia, com um piso de BSP ou mesh dentro da faixa acima deles na mesma coluna, como os salões sob o pátio de um castelo (ADR 0012). Ficam fora dos extremos, das folgas, e da cobertura, e não puxam a faixa nos ajustes. Inclui o terreno, julgado como um bloco só (todo o terreno sob o contorno): ele é outra camada quando nenhuma parte dele alcança a faixa e alguma peça de BSP ou mesh alcança; se nenhuma alcança, o terreno conta (ADR 0006). O terreno nunca enterra outro piso.
 
 **Origem da faixa nova**:
 De onde um polígono, retângulo ou círculo novo tira `zmin zmax`: **chão da área** (padrão, pelo perfil do chão sob o contorno) ou **pontos clicados** (`menorZ − folga … maiorZ + folga` dos vértices, sem medir o chão). O tile inteiro sempre usa o chão da área. Escolhida no seletor "Faixa nova" do inspetor e guardada só na sessão.

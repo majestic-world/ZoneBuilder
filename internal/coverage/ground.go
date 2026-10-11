@@ -25,14 +25,31 @@ func reaches(pc *piece, zmin, zmax float64) bool {
 }
 
 // counts is the layer rule for any piece: reaches for a BSP or mesh
-// piece; a terrain piece counts when terrain, terrainCounts for the range,
-// since the terrain is judged as a block, once per range. Fit fits a range
-// by it and Classify reports by it.
-func counts(pc *piece, zmin, zmax float64, terrain bool) bool {
+// piece, unless buried under the level under; a terrain piece counts when
+// terrain, terrainCounts for the range, since the terrain is judged as a
+// block, once per range. Fit fits a range by it and Classify reports by
+// it.
+func (p *Profile) counts(pc *piece, zmin, zmax, under float64, terrain bool) bool {
 	if pc.surface == scene.SurfaceTerrain {
 		return terrain
 	}
-	return reaches(pc, zmin, zmax)
+	return reaches(pc, zmin, zmax) && !p.buried(pc, zmin, zmax, under)
+}
+
+// buried reports a BSP or mesh piece wholly under the level under (zmin
+// for Classify, the floor the range stands on for Fit) whose column has
+// floor inside the Z range [zmin, zmax] more than LayerGap over it: a
+// storey or a room under the floor the zone is drawn on, such as the halls
+// under a castle's courtyard, is another layer. Floor under the range with
+// nothing of the range over it, such as a ramp down to an open yard,
+// still counts.
+func (p *Profile) buried(pc *piece, zmin, zmax, under float64) bool {
+	if pc.ncover == 0 || pc.zhi >= under {
+		return false
+	}
+	zs := p.coverZ[pc.cover : pc.cover+pc.ncover]
+	k, _ := slices.BinarySearch(zs, zmin)
+	return k < len(zs) && zs[k] <= zmax
 }
 
 // floorLine is the floor along the outline's edges that counts for the
@@ -41,7 +58,7 @@ func counts(pc *piece, zmin, zmax float64, terrain bool) bool {
 func (p *Profile) floorLine(zmin, zmax float64, terrain bool) [][]Span {
 	for _, spans := range p.edges {
 		for _, s := range spans {
-			if !counts(&p.pieces[s.piece], zmin, zmax, terrain) {
+			if !p.counts(&p.pieces[s.piece], zmin, zmax, zmin, terrain) {
 				return p.countedSpans(zmin, zmax, terrain)
 			}
 		}
@@ -55,7 +72,7 @@ func (p *Profile) countedSpans(zmin, zmax float64, terrain bool) [][]Span {
 	out := make([][]Span, len(p.edges))
 	for i, spans := range p.edges {
 		for _, s := range spans {
-			if counts(&p.pieces[s.piece], zmin, zmax, terrain) {
+			if p.counts(&p.pieces[s.piece], zmin, zmax, zmin, terrain) {
 				out[i] = append(out[i], s)
 			}
 		}
@@ -149,7 +166,11 @@ const (
 // rounded outwards to whole units so the clearance is never under margin.
 // Which floor counts is judged once, from [zmin, zmax], so a tower's
 // floors within GroundReach pull the range but not the roof above them,
-// nor the terrain under a zone drawn on its top. Classify judges from the
+// nor the terrain under a zone drawn on its top. The range is taken to
+// stand on floor margin units over zmin, as a range from the clicked
+// points or from a fit does: floor buried more than LayerGap under that
+// (buried) does not count, so the vault of a hall just under a courtyard
+// does not pull a range drawn on the courtyard. Classify judges from the
 // fitted range, so a layer beyond reach of [zmin, zmax] but within reach
 // of the fitted range is reported above or below it right after the fit;
 // fitting again takes it in. That is ADR 0004's rule: the user decides.
@@ -158,7 +179,8 @@ const (
 // unchanged when no floor counts (g.Measured false).
 func (p *Profile) Fit(zmin, zmax, margin int, sides Side) (lo, hi int, g Ground) {
 	lo, hi = zmin, zmax
-	g = p.ground(float64(zmin), float64(zmax))
+	under := float64(zmin + max(margin-LayerGap, 0))
+	g = p.ground(float64(zmin), float64(zmax), under)
 	if !g.Measured {
 		return lo, hi, g
 	}
@@ -171,14 +193,15 @@ func (p *Profile) Fit(zmin, zmax, margin int, sides Side) (lo, hi int, g Ground)
 	return lo, hi, g
 }
 
-// ground is the floor of the Z range [zmin, zmax] by the layer rule, the
-// excluded floor left out.
-func (p *Profile) ground(zmin, zmax float64) Ground {
+// ground is the floor of the Z range [zmin, zmax] by the layer rule, with
+// floor buried under the level under left out (buried), and the excluded
+// floor left out.
+func (p *Profile) ground(zmin, zmax, under float64) Ground {
 	var g Ground
 	terrain := p.terrainCounts(zmin, zmax)
 	for i := range p.pieces {
 		pc := &p.pieces[i]
-		if (pc.nbans > 0 && p.excluded(pc)) || !counts(pc, zmin, zmax, terrain) {
+		if (pc.nbans > 0 && p.excluded(pc)) || !p.counts(pc, zmin, zmax, under, terrain) {
 			continue
 		}
 		if g.Measured && pc.zlo >= g.Min.Z && pc.zhi <= g.Max.Z {
@@ -196,35 +219,54 @@ func (p *Profile) ground(zmin, zmax float64) Ground {
 			g.Max = hi
 		}
 	}
-	g.Others = p.others(zmin, zmax, terrain)
+	g.Others = p.others(zmin, zmax, under, terrain)
 	return g
 }
 
 // others are the floors the layer rule leaves out of the Z range [zmin,
-// zmax], as layers, lowest first; excluded floor is not among them.
-// terrain is terrainCounts for the range: when false, the terrain is one
-// more layer, its whole span. The BSP and mesh layers are read off byLow,
-// the pieces sorted by their lowest floor: the pieces under the range's
-// reach are a prefix of it and those over it a suffix, so a drag of the
-// range skips the floor between.
-func (p *Profile) others(zmin, zmax float64, terrain bool) []Layer {
-	under, _ := slices.BinarySearchFunc(p.byLow, zmin-GroundReach, func(l lowPiece, z float64) int {
+// zmax], floor buried under the level under among them, as layers,
+// lowest first; excluded floor is not among them. terrain is
+// terrainCounts for the range: when false, the terrain is one more
+// layer, its whole span. The BSP and mesh layers are read off byLow, the
+// pieces sorted by their lowest floor: the pieces under the range's reach
+// are a prefix of it and those over it a suffix, so a drag of the range
+// skips the floor between, but for the buried pieces, which lie in that
+// run under under and are read off coveredLow, the covered pieces alone.
+func (p *Profile) others(zmin, zmax, under float64, terrain bool) []Layer {
+	reachLo := zmin - GroundReach
+	below, _ := slices.BinarySearchFunc(p.byLow, reachLo, func(l lowPiece, z float64) int {
 		return cmp.Compare(l.zlo, z)
 	})
+	firstCovered := func(z float64) int {
+		k, _ := slices.BinarySearchFunc(p.coveredLow, z, func(c coveredPiece, z float64) int {
+			return cmp.Compare(c.zlo, z)
+		})
+		return k
+	}
 	over := p.overReach(zmax)
 	var out []Layer
-	add := func(l lowPiece) {
-		pc := &p.pieces[l.piece]
-		if reaches(pc, zmin, zmax) || (pc.nbans > 0 && p.excluded(pc)) {
+	// add adds l when it is left out; covered is whether it may be buried.
+	add := func(l lowPiece, covered bool) {
+		if l.banned && p.excluded(&p.pieces[l.piece]) {
 			return
 		}
-		out = appendLayer(out, Layer{pc.zlo, pc.zhi})
+		reaches := l.zhi >= reachLo && l.zlo <= zmax+GroundReach
+		if reaches && !(covered && p.buried(&p.pieces[l.piece], zmin, zmax, under)) {
+			return
+		}
+		out = appendLayer(out, Layer{l.zlo, l.zhi})
 	}
-	for _, l := range p.byLow[:under] {
-		add(l)
+	for _, l := range p.byLow[:below] {
+		// One reaching the range from under its reach may be covered.
+		add(l, l.zhi >= reachLo)
 	}
-	for _, l := range p.byLow[max(over, under):] {
-		add(l)
+	for _, c := range p.coveredLow[firstCovered(reachLo):firstCovered(under)] {
+		if c.zhi < under && c.coverLo <= zmax && c.coverHi >= zmin {
+			add(c.lowPiece, true)
+		}
+	}
+	for _, l := range p.byLow[max(over, below):] {
+		add(l, false)
 	}
 	if !terrain && p.terrainLeftOut() {
 		out = withLayer(out, Layer{p.terrainLo, p.terrainHi})
@@ -270,10 +312,10 @@ func appendLayer(out []Layer, l Layer) []Layer {
 	return append(out, l)
 }
 
-// indexReach fills what terrainCounts reads, after sortByLow: the
-// terrain's span (Measure starts it empty), whether some terrain lies
-// under no ban, the BSP and mesh pieces under a ban, and reachHi along
-// byLow.
+// indexReach fills what terrainCounts and others read, after sortByLow:
+// the terrain's span (Measure starts it empty), whether some terrain lies
+// under no ban, the BSP and mesh pieces under a ban, reachHi along byLow
+// and coveredLow.
 func (p *Profile) indexReach() {
 	for i, pc := range p.pieces {
 		switch {
@@ -287,17 +329,31 @@ func (p *Profile) indexReach() {
 	p.reachHi = make([]float64, len(p.byLow))
 	hi := math.Inf(-1)
 	for k, l := range p.byLow {
-		if pc := &p.pieces[l.piece]; pc.nbans == 0 {
-			hi = max(hi, pc.zhi)
+		if !l.banned {
+			hi = max(hi, l.zhi)
 		}
 		p.reachHi[k] = hi
+		if pc := &p.pieces[l.piece]; pc.ncover > 0 {
+			p.coveredLow = append(p.coveredLow, coveredPiece{l, p.coverZ[pc.cover], p.coverZ[pc.cover+pc.ncover-1]})
+		}
 	}
 }
 
-// lowPiece is a piece of Profile.byLow and its lowest floor.
+// lowPiece is a piece of Profile.byLow with what the layer rule reads of
+// it, so others passes over the pieces without reading them: its lowest
+// and highest floor and whether a ban holds it.
 type lowPiece struct {
-	zlo   float64
-	piece int32
+	zlo, zhi float64
+	piece    int32
+	banned   bool
+}
+
+// coveredPiece is a piece of Profile.coveredLow and the lowest and
+// highest floor of its cover, so others passes over the covered pieces no
+// range buries without reading them.
+type coveredPiece struct {
+	lowPiece
+	coverLo, coverHi float64
 }
 
 // sortByLow fills byLow with the BSP and mesh pieces, lowest floor first.
@@ -306,7 +362,7 @@ type lowPiece struct {
 func (p *Profile) sortByLow() {
 	for i, pc := range p.pieces {
 		if pc.surface != scene.SurfaceTerrain {
-			p.byLow = append(p.byLow, lowPiece{pc.zlo, int32(i)})
+			p.byLow = append(p.byLow, lowPiece{pc.zlo, pc.zhi, int32(i), pc.nbans > 0})
 		}
 	}
 	byZ := func(a, b lowPiece) int { return cmp.Compare(a.zlo, b.zlo) }

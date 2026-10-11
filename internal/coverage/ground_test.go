@@ -148,6 +148,48 @@ func TestTerrainOverACaveDoesNotLiftTheTop(t *testing.T) {
 	}
 }
 
+// A courtyard's floor at 1000 over y 0..200 of a 300 square covers a
+// vault at 850 and a hall at 400 under it; y 200..300 is an open yard at
+// 600. Fitted from the courtyard's range [744, 1256], the
+// floor is 344, under the yard: floor under the range with nothing of the
+// range over it still counts. Without the yard it stays 744, classified
+// by it with nothing below and the hall another layer, and "Piso ao chão"
+// keeps it. Catches the halls under a castle's courtyard pulling a zone
+// drawn on it down to their floor (1990 for a courtyard at 3494 in 22_22),
+// the vault within the margin pulling it, or an open lower yard left out.
+func TestFloorBuriedUnderTheCourtyardDoesNotPullIt(t *testing.T) {
+	courtyard := append(bspQuad(0, 0, 300, 200, 1000), bspQuad(0, 0, 300, 200, 850)...)
+	courtyard = append(courtyard, bspQuad(0, 0, 300, 200, 400)...)
+	withYard := append(bspQuad(0, 200, 300, 300, 600), courtyard...)
+	o := square(0, 0, 300, 300)
+	if zmin, _, g := coverage.Measure(withYard, o, nil).Fit(744, 1256, 256, coverage.BothSides); zmin != 344 || g.Min.Z != 600 {
+		t.Errorf("with the yard: floor %d over ground from %v, want 344 over the yard at 600", zmin, g.Min.Z)
+	}
+	p := coverage.Measure(courtyard, o, nil)
+	zmin, zmax, _ := p.Fit(744, 1256, 256, coverage.BothSides)
+	if zmin != 744 || zmax != 1256 {
+		t.Fatalf("without the yard: fitted %d … %d, want 744 … 1256", zmin, zmax)
+	}
+	r := p.Classify(float64(zmin), float64(zmax))
+	if r.Below != 0 || r.GroundMin.Z != 850 || len(r.Others) != 1 || r.Others[0].Low != 400 {
+		t.Errorf("classified: below %v, lowest floor %v, other layers %v; want 0, the vault at 850, the hall at 400", r.Below, r.GroundMin.Z, r.Others)
+	}
+	if again, _, _ := p.Fit(zmin, zmax, 256, coverage.FloorSide); again != 744 {
+		t.Errorf("piso ao chão: %d, want 744 kept", again)
+	}
+}
+
+// A BSP ground floor at 0 under an upper storey at 200 over half of it,
+// fitted from the ground floor's range [-256, 256], keeps its floor at
+// -256 and tops at 456 over the storey. Catches the floor the range stands
+// on taken as buried under the storey within the range.
+func TestFloorTheRangeStandsOnIsNotBuried(t *testing.T) {
+	f := append(bspQuad(0, 0, 300, 300, 0), bspQuad(0, 0, 300, 150, 200)...)
+	if zmin, zmax, _ := coverage.Measure(f, square(0, 0, 300, 300), nil).Fit(-256, 256, 256, coverage.BothSides); zmin != -256 || zmax != 456 {
+		t.Errorf("fitted %d … %d, want -256 … 456", zmin, zmax)
+	}
+}
+
 // Under a square whose corners lie on terrain at 0, a terrain pyramid
 // climbs through a ring at 1500 to a peak at 3000, with a BSP slab at 100
 // in a corner. Fitted from [−256, 256], the top is 3256, over the peak:

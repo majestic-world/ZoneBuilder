@@ -1,6 +1,6 @@
 # Terreno como camada, julgado em bloco, com fallback
 
-Substitui o parágrafo **Camadas** do [ADR 0004](0004-chao-medido-e-avisos-sem-bloqueio.md).
+Substitui o parágrafo **Camadas** do [ADR 0004](0004-chao-medido-e-avisos-sem-bloqueio.md). O [ADR 0012](0012-chao-enterrado-sob-a-faixa.md) acrescenta o chão enterrado para BSP e mesh e resolve a primeira consequência abaixo.
 
 No 23_18, um polígono fechado com os 16 vértices no alto da Tower of Insolence (BSP, z ≈ 10.197) nascia com `z −5376 … 10453` "pelo chão da área". A regra do ADR 0004 dizia que o terreno sempre conta, e só BSP e mesh precisavam ficar a até `GroundReach = 1024` da faixa. O terreno a −5120 sob a torre puxava o piso até o chão do mapa. A mesma regra valia no `Classify`, nos avisos, na régua e em "Piso ao chão" e "Topo ao chão": uma zona correta no topo da torre acusava "chão abaixo do piso" por causa do terreno.
 

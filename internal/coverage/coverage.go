@@ -61,6 +61,13 @@ type Profile struct {
 	// terrainFree is whether some of it lies under no ban.
 	terrainLo, terrainHi float64
 	terrainFree          bool
+	// coverZ holds, piece by piece (piece.cover), the Z of the floors
+	// over the piece's column more than LayerGap above it, lowest first:
+	// what the layer rule reads to leave out a floor buried under the
+	// range's (buried). coveredLow is the pieces of byLow with some cover,
+	// in its order: the only ones that may be buried.
+	coverZ     []float64
+	coveredLow []coveredPiece
 	// verts are the pieces' vertices, piece by piece.
 	verts []Spot
 	// clipped are the triangles that pieces cut by the outline come from,
@@ -116,6 +123,9 @@ type piece struct {
 	// bans+nbans].
 	cz          float64
 	bans, nbans int32
+	// cover indexes coverZ[cover : cover+ncover]; none for terrain and
+	// for a piece with no column (Profile.inner).
+	cover, ncover int32
 }
 
 // clipped is the floor triangle a piece was cut from, counter-clockwise,
@@ -524,7 +534,7 @@ func (p *Profile) Classify(zmin, zmax float64) Report {
 		case pc.nbans > 0 && p.excluded(pc):
 			r.Excluded += pc.area
 			continue
-		case !counts(pc, zmin, zmax, r.Terrain):
+		case !p.counts(pc, zmin, zmax, zmin, r.Terrain):
 			r.Other += pc.area
 			continue
 		}
@@ -562,7 +572,7 @@ func (p *Profile) Classify(zmin, zmax float64) Report {
 		r.FloorClearance, r.TopClearance = r.GroundMin.Z-zmin, zmax-r.GroundMax.Z
 	}
 	if r.Other > 0 {
-		r.Others = p.others(zmin, zmax, r.Terrain)
+		r.Others = p.others(zmin, zmax, zmin, r.Terrain)
 	}
 	r.NoGround = max(0, p.area-p.floored)
 	if r.NoGround <= 1e-9*p.area {
