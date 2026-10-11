@@ -26,6 +26,7 @@
   "actions.mesh.shown": "{name} visível de novo",
   "actions.mesh.all_shown": {"one": "{count} static mesh visível de novo", "other": "{count} static meshes visíveis de novo"},
   "actions.xml.copied": "{name} copiado para a área de transferência",
+  "actions.xml.body_copied": "Conteúdo de {name}, sem o cabeçalho e o <list>, copiado para a área de transferência",
   "actions.cursor.no_map": "Abra um mapa para ver as coordenadas sob o cursor",
   "actions.cursor.outside": "Cursor fora do viewport",
   "actions.cursor.empty": "nada sob o cursor",

@@ -105,6 +105,7 @@
   "ui.xml.hint": "Paste each file into the server's data/zone/ directory using the indicated name.",
   "ui.xml.hint_spawn": "Paste the file into the server's data/spawn/ directory using the indicated name.",
   "ui.xml.copy": "Copy",
+  "ui.xml.copy_body": "Copy contents",
   "ui.water.compile": "Compile water zone",
   "ui.tool.polygon": "Polygon",
   "ui.tool.rectangle": "Rectangle",

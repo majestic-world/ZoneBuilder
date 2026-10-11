@@ -23,7 +23,8 @@ var codeSurface = color.NRGBA{R: 0x0B, G: 0x0B, B: 0x0E, A: 0xFF}
 
 // XMLWindow shows the last compilation in a window floating over the
 // viewport: each file's suggested name, its XML in a read-only field the
-// text can be selected from, and a button that copies the whole file.
+// text can be selected from, a button that copies the whole file and one
+// that copies only what lies inside its <list>.
 type XMLWindow struct {
 	Window FloatWindow
 	files  []xmlFile
@@ -36,6 +37,7 @@ type xmlFile struct {
 	text   string
 	editor widget.Editor
 	copy   widget.Clickable
+	body   widget.Clickable
 }
 
 // XMLKind is what a compilation produced, which tells the server
@@ -67,18 +69,39 @@ func (x *XMLWindow) Open(files []zonexml.File, kind XMLKind) {
 	x.Window.Center()
 }
 
-// Copied reports the file whose Copiar button was clicked since the last
-// call; its XML is put on the clipboard.
-func (x *XMLWindow) Copied(gtx layout.Context) (string, bool) {
-	name, ok := "", false
+// Copied reports the file whose Copiar or Copiar conteúdo button was
+// clicked since the last call, and whether it was Copiar conteúdo; the
+// whole XML, or its listBody, is put on the clipboard.
+func (x *XMLWindow) Copied(gtx layout.Context) (name string, body, ok bool) {
 	for i := range x.files {
 		f := &x.files[i]
 		for f.copy.Clicked(gtx) {
 			gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(f.text))})
-			name, ok = f.name, true
+			name, body, ok = f.name, false, true
+		}
+		for f.body.Clicked(gtx) {
+			gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(listBody(f.text)))})
+			name, body, ok = f.name, true, true
 		}
 	}
-	return name, ok
+	return name, body, ok
+}
+
+// listBody is the lines of xml between the line that opens <list> and the
+// one that closes it, as they are, indentation included: what goes into
+// an existing file's list. Without a <list>, it is the whole of xml.
+func listBody(xml string) string {
+	open := strings.Index(xml, "<list>")
+	end := strings.LastIndex(xml, "</list>")
+	if open < 0 || end < open {
+		return xml
+	}
+	start := strings.IndexByte(xml[open:], '\n')
+	if start < 0 || open+start+1 > end {
+		return ""
+	}
+	start += open + 1
+	return xml[start : strings.LastIndexByte(xml[:end], '\n')+1]
 }
 
 // xmlWindow lays the window out over the viewport, while it holds files.
@@ -105,6 +128,8 @@ func (s *Shell) xmlWindow(gtx layout.Context) layout.Dimensions {
 							layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
 							layout.Flexed(1, s.text(f.name, bodySize, font.Medium, textColor, 1)),
 							layout.Rigid(s.button(&f.copy, secondaryButton, icon.Copy, locale.Text(s.Language, "ui.xml.copy"))),
+							layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
+							layout.Rigid(s.button(&f.body, secondaryButton, icon.Copy, locale.Text(s.Language, "ui.xml.copy_body"))),
 						)
 					})
 				}),

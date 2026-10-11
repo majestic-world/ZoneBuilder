@@ -26,6 +26,7 @@
   "actions.mesh.shown": "{name} visible again",
   "actions.mesh.all_shown": {"one": "{count} static mesh visible again", "other": "{count} static meshes visible again"},
   "actions.xml.copied": "{name} copied to clipboard",
+  "actions.xml.body_copied": "Contents of {name}, without the header and <list>, copied to clipboard",
   "actions.cursor.no_map": "Open a map to see the coordinates under the cursor",
   "actions.cursor.outside": "Cursor outside viewport",
   "actions.cursor.empty": "nothing under cursor",

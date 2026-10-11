@@ -319,8 +319,12 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			}
 			m.update(gtx, ws)
 			ws.meshes.update(gtx, ws)
-			if name, ok := shell.XML.Copied(gtx); ok {
-				ws.status = actionArgs(locale.Message{Key: "actions.xml.copied"}, map[string]string{"name": name})
+			if name, body, ok := shell.XML.Copied(gtx); ok {
+				msg := locale.Message{Key: "actions.xml.copied"}
+				if body {
+					msg = locale.Message{Key: "actions.xml.body_copied"}
+				}
+				ws.status = actionArgs(msg, map[string]string{"name": name})
 			}
 			if !shell.EditorLocked {
 				if msg, load := sess.update(gtx, w, shell, zones, spawns, ws.tiles.openTiles(), ws.tiles.opening()); msg.render(shell.Language) != "" || len(load) > 0 {

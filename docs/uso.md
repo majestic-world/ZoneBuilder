@@ -12,7 +12,7 @@
 - Mostra, sem precisar ligar nada, se a faixa Z da zona selecionada cobre o chão dentro do contorno: cores no chão, a linha do chão nas paredes, pinos no pior ponto, números no inspetor, e uma régua na janela de altura. Veja [Cobertura vertical](#cobertura-vertical).
 - Gera a zona `water` direto do `WaterVolume` do cliente: clique na água, botão direito, **Compilar zona de água**. Veja [Zona de água](#zona-de-água).
 - Mostra os problemas de cada zona enquanto você edita, como polígono que se cruza, nome repetido ou faixa Z invertida, e bloqueia a compilação até corrigir.
-- Compila as zonas selecionadas em um arquivo por tipo (`zonebuilder_<tipo>.xml`) e mostra o XML numa janela com botão de copiar.
+- Compila as zonas selecionadas em um arquivo por tipo (`zonebuilder_<tipo>.xml`) e mostra o XML numa janela com 2 botões: **Copiar** copia o arquivo inteiro, e **Copiar conteúdo** copia só o que fica dentro de `<list>`, sem o cabeçalho `<?xml …?>`, o `<!DOCTYPE …>` e as linhas `<list>` e `</list>`, para colar num arquivo que já existe.
 - Guarda o trabalho em projetos `.zbproj`, inclusive zonas ainda incompletas.
 - Popula áreas com monstros: distribui os pontos de spawn longe das static meshes, mostra o monstro de prévia em cada ponto e compila 1 `<spawn>` por área, com 1 `<npc pos>` por ponto. Veja [Popular zona](#popular-zona).
 - Anda pelo mapa com um personagem, com gravidade e colisão, nos 2 modos. Veja [Modo jogo](#modo-jogo).

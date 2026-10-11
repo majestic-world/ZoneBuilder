@@ -105,6 +105,7 @@
   "ui.xml.hint": "Cole cada arquivo em data/zone/ do servidor, com o nome indicado.",
   "ui.xml.hint_spawn": "Cole o arquivo em data/spawn/ do servidor, com o nome indicado.",
   "ui.xml.copy": "Copiar",
+  "ui.xml.copy_body": "Copiar conteúdo",
   "ui.water.compile": "Compilar zona de água",
   "ui.tool.polygon": "Polígono",
   "ui.tool.rectangle": "Retângulo",
