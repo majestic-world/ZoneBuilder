@@ -56,6 +56,16 @@ type FloatWindow struct {
 // else the size it was left at.
 func (w *FloatWindow) Center() { w.center = true }
 
+// Open shows the window expanded and centred, at width×height dp the
+// first time and at the size it was left at after that.
+func (w *FloatWindow) Open(width, height unit.Dp) {
+	if w.Width == 0 {
+		w.Width, w.Height = width, height
+	}
+	w.Closed, w.Collapsed = false, false
+	w.Center()
+}
+
 // Layout draws the window titled title, with ic before the title and body
 // inside, in the area of gtx.Constraints.Max, and handles its moving,
 // resizing, collapsing and closing.

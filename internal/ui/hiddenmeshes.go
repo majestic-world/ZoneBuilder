@@ -50,13 +50,7 @@ type HiddenMeshes struct {
 }
 
 // Open shows the window, centred, at the size it was left at.
-func (h *HiddenMeshes) Open() {
-	if h.Window.Width == 0 {
-		h.Window.Width, h.Window.Height = 380, 440
-	}
-	h.Window.Closed, h.Window.Collapsed = false, false
-	h.Window.Center()
-}
+func (h *HiddenMeshes) Open() { h.Window.Open(380, 440) }
 
 // ShowRequested returns the row whose Mostrar, in the map section or in
 // the window, was clicked since the last call.
