@@ -181,6 +181,8 @@ func (e *zoneEditor) click(s *scene.World, c *floorCoverage, cam *camera.Camera,
 		return e.rectangleClick(s, c, v)
 	case ui.ToolCircle:
 		return e.circleClick(s, c, v)
+	case ui.ToolBox:
+		return e.boxClick(v)
 	case ui.ToolRestart, ui.ToolPKRestart:
 		return e.restartClick(v)
 	}
@@ -333,9 +335,10 @@ func (e *zoneEditor) overlay(ground []geom.Vec3) []render.ZoneShape {
 					rs.BadVertices[k] = 2 * v // stored corner 1 is outline corner 2 (RectangleCorners)
 				}
 			}
-			// A rectangle's edges have no midpoint handles: it stays 2
-			// corners, so no vertex can be inserted into it.
-			rs.Midpoints = current && !rect
+			// A rectangle's or a box's edges have no midpoint handles: a
+			// rectangle stays 2 corners, and a box keeps its 4 so its
+			// Frame holds (a vertex edit still turns it into a polygon).
+			rs.Midpoints = current && s.Kind != zone.Rectangle && s.Frame == nil
 			if current {
 				rs.Ground = ground
 			}

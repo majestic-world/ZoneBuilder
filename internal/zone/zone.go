@@ -63,12 +63,15 @@ type Point struct{ X, Y, Z int }
 // last back to the first is implied); a rectangle's are 2 opposite corners.
 // Each point keeps the Z it was picked at, which the Z range is suggested
 // from; the XML carries only the range. A banned shape is an exclusion: it
-// cuts its area out of the zone's included shapes.
+// cuts its area out of the zone's included shapes. A turned box (see Box)
+// is a polygon of its 4 corners with its Frame; editing a vertex drops the
+// Frame, and the polygon stays as edited.
 type Shape struct {
 	Kind       ShapeKind
 	Banned     bool
 	Points     []Point
 	ZMin, ZMax int
+	Frame      *Frame `json:",omitempty"`
 }
 
 // Zone is a named, typed set of shapes, included and banned, and the points

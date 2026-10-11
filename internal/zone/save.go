@@ -44,6 +44,9 @@ func (d *Document) UnmarshalJSON(data []byte) error {
 			if !sh.Kind.Valid() {
 				return fmt.Errorf("zona: %s: a forma %d tem o tipo desconhecido %d", z.Name, i, sh.Kind)
 			}
+			if sh.Frame != nil && (sh.Kind != Polygon || len(sh.Points) != 4) {
+				return fmt.Errorf("zona: %s: a forma %d tem caixa mas não é um polígono de 4 cantos", z.Name, i)
+			}
 		}
 		seen[z.ID] = true
 		loaded.lastID = max(loaded.lastID, z.ID)

@@ -23,6 +23,7 @@ func (c MoveVertex) apply(d *Document) error {
 		return fmt.Errorf("zona: a forma %d não tem o vértice %d", c.Shape, c.Index)
 	}
 	s.Points[c.Index] = c.Point
+	s.Frame = nil
 	return nil
 }
 
@@ -51,6 +52,7 @@ func (c InsertVertex) apply(d *Document) error {
 	pts := make([]Point, 0, len(s.Points)+1)
 	pts = append(append(append(pts, s.Points[:c.Index]...), c.Point), s.Points[c.Index:]...)
 	s.Points = pts
+	s.Frame = nil
 	return nil
 }
 
@@ -75,6 +77,7 @@ func (c RemoveVertex) apply(d *Document) error {
 	}
 	pts := make([]Point, 0, len(s.Points)-1)
 	s.Points = append(append(pts, s.Points[:c.Index]...), s.Points[c.Index+1:]...)
+	s.Frame = nil
 	return nil
 }
 
@@ -96,6 +99,7 @@ func (c MoveShape) apply(d *Document) error {
 		pts[i] = Point{X: p.X + c.DX, Y: p.Y + c.DY, Z: p.Z + c.DZ}
 	}
 	s.Points = pts
+	s.Frame = s.Frame.moved(c.DX, c.DY)
 	s.ZMin += c.DZ
 	s.ZMax += c.DZ
 	return nil
@@ -123,6 +127,7 @@ func (c MoveZone) apply(d *Document) error {
 			pts[j] = Point{X: p.X + c.DX, Y: p.Y + c.DY, Z: p.Z + c.DZ}
 		}
 		s.Points = pts
+		s.Frame = s.Frame.moved(c.DX, c.DY)
 		s.ZMin += c.DZ
 		s.ZMax += c.DZ
 	}

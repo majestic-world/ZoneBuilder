@@ -46,6 +46,10 @@ type editState struct {
 	// out.
 	axisDrag axisDrag
 	gizmo    gizmo
+	// boxDrag is a drag of a box face handle, boxFaces where they were
+	// last laid out.
+	boxDrag  boxDrag
+	boxFaces boxFaces
 	// heightFilled is what the height window's fields were last filled
 	// for.
 	heightFilled heightKey
@@ -124,6 +128,7 @@ func (e *zoneEditor) sync() {
 	}
 	e.drag = drag{}
 	e.axisDrag = axisDrag{}
+	e.boxDrag = boxDrag{}
 }
 
 func (e *zoneEditor) undo() string {
@@ -175,8 +180,14 @@ func (e *zoneEditor) viewportEvent(s *scene.World, cam *camera.Camera, ev event.
 		if e.axisDrag.active {
 			return e.gizmoEvent(ev), true
 		}
+		if e.boxDrag.active {
+			return e.boxDragEvent(s, cam, ev, vp), true
+		}
 		if e.drag.kind != dragNone {
 			return e.dragEvent(s, cam, ev, vp), true
+		}
+		if e.grabBoxFace(s, cam, ev, vp) {
+			return e.boxGrabMessage(), true
 		}
 		if e.grabGizmo(ev) {
 			return e.present(locale.Message{Key: "editor.arrow.drag_hint"}), true
@@ -214,7 +225,7 @@ func (e *zoneEditor) press(s *scene.World, cam *camera.Camera, ev pointer.Event,
 		}
 		return e.present(locale.Message{Key: "editor.drag.vertex", Args: map[string]string{"index": intArg(hit.index+1), "name": z.Name, "x": intArg(p.X), "y": intArg(p.Y), "z": intArg(p.Z)}}), true
 	}
-	if _, sh, ok := e.currentShape(); ok && sh.Kind != zone.Rectangle && len(sh.Points) >= 2 {
+	if _, sh, ok := e.currentShape(); ok && sh.Kind != zone.Rectangle && sh.Frame == nil && len(sh.Points) >= 2 {
 		for i := range sh.Points {
 			if d, ok := screenDist(s, cam, midpoint(sh.Points, i), ev.Position, vp); ok && d <= grabSlop {
 				msg := e.insertAfter(i)
@@ -268,6 +279,9 @@ func (e *zoneEditor) dragEvent(s *scene.World, cam *camera.Camera, ev pointer.Ev
 // shownPoints is pts, shape number shape of zone id, as the overlay draws
 // it: moved by the drag in progress.
 func (e *zoneEditor) shownPoints(id zone.ZoneID, shape int, pts []zone.Point) []zone.Point {
+	if b, ok := e.boxDrag.shown(id, shape); ok {
+		return b.Corners()
+	}
 	if dx, dy, dz := e.axisDrag.offset(id); dx != 0 || dy != 0 || dz != 0 {
 		out := append([]zone.Point(nil), pts...)
 		for i := range out {
@@ -301,6 +315,9 @@ func (e *zoneEditor) shownPoints(id zone.ZoneID, shape int, pts []zone.Point) []
 // shownZRange is the Z range of the current shape as the overlay draws it
 // while a shape drag moves it.
 func (e *zoneEditor) shownZRange(id zone.ZoneID, shape int, s zone.Shape) (int, int) {
+	if b, ok := e.boxDrag.shown(id, shape); ok {
+		return b.ZMin, b.ZMax
+	}
 	if _, _, dz := e.axisDrag.offset(id); dz != 0 {
 		return s.ZMin + dz, s.ZMax + dz
 	}
@@ -549,6 +566,9 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World, 
 			msg = e.moveShape(d[0], d[1], d[2])
 		}
 	}
+	if p.BoxRequested(gtx) {
+		msg = e.setBox(p.BoxCenter.Text(), p.BoxSize.Text(), p.BoxBase.Text(), p.BoxYaw.Text())
+	}
 	if p.CoordsRequested(gtx) {
 		msg = e.setCoords(p.Coords.Text())
 	}
@@ -567,9 +587,11 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World, 
 	ok = ok && !e.drawing
 	v, vok := e.selected()
 	p.Shape, p.Measure, p.Vertex = "", "", ""
+	_, box := zone.BoxOf(sh)
+	p.Box = ok && box
 	if ok {
 		kind := shapeKind(sh, e.Language)
-		if sh.Kind != zone.Rectangle {
+		if sh.Kind != zone.Rectangle && !box {
 			kind = locale.Format(e.Language, "editor.shape.with_vertices", map[string]string{"kind": kind, "vertices": e.vertexCount(len(sh.Points))})
 		}
 		p.Shape = locale.Format(e.Language, "editor.shape.description", map[string]string{"index": intArg(e.shape+1), "name": z.Name, "kind": kind, "min": intArg(sh.ZMin), "max": intArg(sh.ZMax)})
@@ -586,6 +608,13 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World, 
 		e.filled = k
 		if ok {
 			p.ZRange.SetText(fmt.Sprintf("%d %d", sh.ZMin, sh.ZMax))
+		}
+		if b, bok := e.shownBox(e.zone, e.shape); p.Box && bok {
+			w, l, h := b.Size()
+			p.BoxCenter.SetText(fmt.Sprintf("%d %d", b.CX, b.CY))
+			p.BoxSize.SetText(fmt.Sprintf("%d %d %d", w, l, h))
+			p.BoxBase.SetText(fmt.Sprintf("%d", b.ZMin))
+			p.BoxYaw.SetText(yawArg(b.Yaw))
 		}
 		if vok {
 			pt := e.shownPoints(e.zone, e.shape, sh.Points)[v]
@@ -666,16 +695,22 @@ func screenDist(s *scene.World, cam *camera.Camera, p zone.Point, at f32.Point, 
 	return dist(at, f32.Pt(x, y)), true
 }
 
-// shapeKind names shape s's kind in the panels: "polígono" or "retângulo",
-// "exclusão, " first for an exclusion.
+// shapeKind names shape s's kind in the panels: "polígono", "retângulo" or
+// "caixa girada", "exclusão, " first for an exclusion.
 func shapeKind(s zone.Shape, lang locale.Language) string {
+	_, box := zone.BoxOf(s)
+	turned := box && s.Kind == zone.Polygon
 	switch {
 	case s.Banned && s.Kind == zone.Rectangle:
 		return locale.Text(lang, "editor.shape.exclusion_rectangle")
+	case s.Banned && turned:
+		return locale.Text(lang, "editor.shape.exclusion_turned_box")
 	case s.Banned:
 		return locale.Text(lang, "editor.shape.exclusion_polygon")
 	case s.Kind == zone.Rectangle:
 		return locale.Text(lang, "editor.shape.rectangle")
+	case turned:
+		return locale.Text(lang, "editor.shape.turned_box")
 	default:
 		return locale.Text(lang, "editor.shape.polygon")
 	}

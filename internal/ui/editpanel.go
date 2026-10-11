@@ -38,6 +38,13 @@ type EditPanel struct {
 	GroundZ      widget.Clickable
 	Offset       widget.Editor // "dx dy dz" for MoveShape
 	MoveShape    widget.Clickable
+	// Box shows the box controls: the current shape is a box (a rectangle,
+	// or a turned box). BoxCenter is "x y", BoxSize "width length height",
+	// BoxBase the floor z and BoxYaw the turn in degrees; SetBox (or Enter
+	// in any of them) applies all 4 at once.
+	Box                                 bool
+	BoxCenter, BoxSize, BoxBase, BoxYaw widget.Editor
+	SetBox                              widget.Clickable
 	Vertex       string        // titles the vertex controls; empty hides them
 	Coords       widget.Editor // "x y z" of the selected vertex
 	SetCoords    widget.Clickable
@@ -46,7 +53,7 @@ type EditPanel struct {
 }
 
 func (p *EditPanel) init() {
-	for _, e := range []*widget.Editor{&p.Margin, &p.ZRange, &p.Offset, &p.Coords} {
+	for _, e := range []*widget.Editor{&p.Margin, &p.ZRange, &p.Offset, &p.Coords, &p.BoxCenter, &p.BoxSize, &p.BoxBase, &p.BoxYaw} {
 		e.SingleLine, e.Submit = true, true
 	}
 	p.Margin.SetText(strconv.Itoa(zone.DefaultZMargin))
@@ -65,6 +72,17 @@ func (p *EditPanel) MoveShapeRequested(gtx layout.Context) bool {
 // CoordsRequested reports a click on SetCoords or Enter in Coords.
 func (p *EditPanel) CoordsRequested(gtx layout.Context) bool {
 	return requested(gtx, &p.Coords, &p.SetCoords)
+}
+
+// BoxRequested reports a click on SetBox or Enter in a box field.
+func (p *EditPanel) BoxRequested(gtx layout.Context) bool {
+	ok := false
+	for _, e := range []*widget.Editor{&p.BoxCenter, &p.BoxSize, &p.BoxBase, &p.BoxYaw} {
+		if requested(gtx, e, &p.SetBox) {
+			ok = true
+		}
+	}
+	return ok
 }
 
 // ApplyFrom applies clicks on the new range source's arrows since the
@@ -118,8 +136,8 @@ func discardEditorEvents(gtx layout.Context, editors ...*widget.Editor) {
 }
 
 // editPanel is the inspector's last section: the Z margin and the new
-// range source, then the current shape's Z range and move, then the
-// selected vertex.
+// range source, then the current shape's box (a rectangle's), Z range and
+// move, then the selected vertex.
 func (s *Shell) editPanel() []layout.FlexChild {
 	p := &s.Edit
 	from := locale.Text(s.Language, "ui.edit.new_range.ground")
@@ -138,6 +156,20 @@ func (s *Shell) editPanel() []layout.FlexChild {
 			layout.Rigid(s.dimLabel(p.Shape)),
 			layout.Rigid(s.dimLabel(p.Measure)),
 			layout.Rigid(s.dimLabel(p.Coverage)),
+		)
+		if p.Box {
+			children = append(children,
+				layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.edit.box_center"))),
+				layout.Rigid(s.field(&p.BoxCenter, "x y", nil)),
+				layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.edit.box_size"))),
+				layout.Rigid(s.field(&p.BoxSize, locale.Text(s.Language, "ui.edit.box_size_placeholder"), nil)),
+				layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.edit.box_base"))),
+				layout.Rigid(s.field(&p.BoxBase, "z", nil)),
+				layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.edit.box_yaw"))),
+				layout.Rigid(s.fieldButton(&p.BoxYaw, locale.Text(s.Language, "ui.edit.box_yaw_placeholder"), nil, s.button(&p.SetBox, secondaryButton, icon.Box, locale.Text(s.Language, "ui.edit.box_apply")))),
+			)
+		}
+		children = append(children,
 			layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.edit.z_range"))),
 			layout.Rigid(s.fieldButton(&p.ZRange, "zmin zmax", nil, s.button(&p.SetZRange, secondaryButton, nil, locale.Text(s.Language, "ui.edit.apply")))),
 			layout.Rigid(s.spaced(s.fullButton(&p.GroundZ, secondaryButton, icon.Mountain, locale.Text(s.Language, "ui.edit.ground")))),

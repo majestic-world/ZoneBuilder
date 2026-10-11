@@ -305,7 +305,7 @@ func (e *zoneEditor) heightPanel(gtx layout.Context, p *ui.HeightPanel, s *scene
 		p.Zone = locale.Format(e.Language, "editor.height.zone", map[string]string{"name": z.Name, "min": intArg(base), "max": intArg(top), "height": intArg(top-base)})
 	}
 	k := heightKey{zone: z.ID, ok: ok, version: e.version}
-	if k != e.heightFilled && !e.axisDrag.active {
+	if k != e.heightFilled && !e.axisDrag.active && !e.boxDrag.active {
 		e.heightFilled = k
 		if ok {
 			p.Base.SetText(strconv.Itoa(base))

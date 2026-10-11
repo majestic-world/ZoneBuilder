@@ -2,9 +2,9 @@ package zone
 
 import "slices"
 
-// clone is a deep copy of z: none of its slices is shared with z. Nil
-// slices stay nil, so a clone is reflect.DeepEqual to its source. A slice
-// field added to Zone or Shape must be copied here too.
+// clone is a deep copy of z: none of its slices or frames is shared with
+// z. Nil slices stay nil, so a clone is reflect.DeepEqual to its source. A
+// slice or pointer field added to Zone or Shape must be copied here too.
 func (z Zone) clone() Zone {
 	z.Params = slices.Clone(z.Params)
 	z.RestartPoints = slices.Clone(z.RestartPoints)
@@ -13,6 +13,7 @@ func (z Zone) clone() Zone {
 		shapes := make([]Shape, len(z.Shapes))
 		for i, s := range z.Shapes {
 			s.Points = slices.Clone(s.Points)
+			s.Frame = s.Frame.moved(0, 0)
 			shapes[i] = s
 		}
 		z.Shapes = shapes

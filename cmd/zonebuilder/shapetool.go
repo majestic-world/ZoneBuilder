@@ -89,6 +89,12 @@ func (e *zoneEditor) hintMessage() locale.Message {
 			return locale.Message{Key: "editor.hint.circle_radius"}
 		}
 		return locale.Message{Key: "editor.hint.circle_center"}
+	case ui.ToolBox:
+		args := map[string]string{"width": intArg(boxSide), "length": intArg(boxSide), "height": intArg(boxHeight)}
+		if e.banned {
+			return locale.Message{Key: "editor.hint.exclusion_box", Args: args}
+		}
+		return locale.Message{Key: "editor.hint.box", Args: args}
 	case ui.ToolRestart:
 		return locale.Message{Key: "editor.hint.restart"}
 	case ui.ToolPKRestart:

@@ -140,6 +140,7 @@ func (c AddVertex) apply(d *Document) error {
 		return fmt.Errorf("zona: a forma %d é um retângulo; seus 2 cantos são fixos", c.Shape)
 	}
 	s.Points = append(s.Points, c.Point)
+	s.Frame = nil
 	return nil
 }
 

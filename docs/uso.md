@@ -5,7 +5,7 @@
 ## O que ele faz
 
 - Abre os tiles do cliente (`Maps/X_Y.unr`) com terreno, BSP e static meshes texturizados, sozinhos ou com os vizinhos (até 3×3).
-- Cria zonas por polígono, retângulo, círculo ou o tile inteiro, inclusive exclusões (`banned_polygon`), e adiciona restart points e PK restart points.
+- Cria zonas por polígono, retângulo, círculo, caixa ou o tile inteiro, inclusive exclusões (`banned_polygon`), e adiciona restart points e PK restart points.
 - Cada clique cai no ponto visível sob o cursor, em coordenadas do servidor.
 - Edita vértices, shapes, faixa Z, altura da zona, tipo e parâmetros `<set>`, com desfazer e refazer.
 - Com o botão **Chão** ligado, desenha a grade das células do terreno, com uma linha forte a cada 8 células. O comprimento de cada aresta aparece no viewport, e o tamanho, a área e o perímetro do shape aparecem no inspetor.
@@ -44,6 +44,8 @@ Controles do viewport:
 | roda do mouse | avançar e recuar |
 | PageUp, PageDown | subir e descer a zona selecionada |
 | arrastar uma seta do gizmo | mover a zona selecionada em X (vermelha), Y (verde) ou Z (azul); Shift arredonda ao passo |
+| arrastar um quadrado de face da caixa | mover só aquela face da caixa, esticando ou encolhendo a caixa; Shift arredonda ao passo |
+| arrastar a bolinha roxa do canto da caixa | girar a caixa em volta do centro; Shift arredonda a 15° |
 | botão direito num static mesh | menu **Ocultar** |
 | Enter | fechar o polígono em desenho |
 | Delete | apagar o vértice selecionado |
@@ -51,6 +53,14 @@ Controles do viewport:
 | Ctrl+Z, Ctrl+Y | desfazer e refazer |
 
 **Gizmo de mover.** Com uma zona pronta selecionada, saem do meio do topo dela 3 setas: vermelha ao longo de X, verde ao longo de Y e azul ao longo de Z. Arrastar uma seta mostra a zona deslocada só naquele eixo; soltar aplica o movimento como 1 passo de desfazer. Todos os shapes andam juntos, as exclusões inclusive; restart points ficam onde foram clicados. Uma seta de X ou Y que aponta para a câmera some até a câmera girar; olhando de cima, a seta Z aponta para longe das outras 2.
+
+**Caixa.** Para cobrir uma estrutura grande, como uma nave flutuando, sem marcar vértices, escolha **Caixa** na barra à esquerda e clique sobre ela. Nasce uma caixa de 2048 × 2048 × 1024, centrada no ponto clicado, com o Z do clique no meio da altura; a faixa não vem do chão nem do seletor **Faixa nova**. Sem rotação, a caixa é um retângulo com faixa Z e compila como `<rectangle>`; girada, vira o polígono dos 4 cantos e compila como `<polygon>`. Exclusões saem como `banned_polygon`. Todo retângulo, inclusive os antigos, se edita como caixa. Para ajustar:
+
+- No inspetor, em **Edição**: **Centro da caixa** (`x y`), **Largura (X), comprimento (Y) e altura**, **Base da caixa** (`z` do piso) e **Rotação da caixa** (graus no sentido anti-horário, a partir do X do mapa; aceita décimos, com vírgula ou ponto). Enter em qualquer um dos 4 campos, ou **Aplicar caixa**, aplica os 4 de uma vez, como 1 passo de desfazer. O tamanho muda em volta do centro e a altura sobe a partir da base. Largura e comprimento são medidos nos eixos da própria caixa, que giram com ela.
+- No viewport, cada face da caixa tem um quadrado na cor do eixo dela: vermelho nas faces da largura, verde nas do comprimento, azul no topo e no piso. Arrastar um quadrado move só aquela face, e os campos acompanham; soltar aplica como 1 passo de desfazer. A caixa nunca fica com menos de 1 de largura ou comprimento, nem com altura negativa. Uma face voltada para a câmera fica sem quadrado até a câmera girar; olhando de cima, use os campos para o topo e o piso.
+- A bolinha roxa num canto do topo gira a caixa em volta do centro: arraste-a em volta da caixa, e a rotação segue o ponto do plano do topo sob o cursor. Shift arredonda a 15°; soltar aplica como 1 passo de desfazer.
+- Arrastar um canto (vértice) de uma caixa girada a transforma num polígono comum, que deixa de ter os campos e as alças da caixa; Ctrl+Z devolve a caixa.
+- Para mover a zona inteira, continuam valendo o gizmo, PageUp/PageDown e a janela de altura. O quadrado do topo fica sobre a base do gizmo e tem prioridade nela.
 
 **Ocultar static meshes.** Clique com o botão direito num static mesh e escolha **Ocultar**. O mesh some do viewport e deixa de ser chão para cliques, faixa Z sugerida e cobertura, como no botão **Static meshes**, mas só ele. A seção do mapa lista os ocultos em **Static meshes ocultos**, com **Mostrar** em cada um e **Mostrar todos**. A lista vale para a sessão, nos 2 modos, e não vai para o projeto. No modo jogo, os meshes ocultos continuam bloqueando o personagem, e a geração de pontos de spawn continua desviando deles.
 

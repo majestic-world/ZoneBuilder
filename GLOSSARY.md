@@ -19,6 +19,10 @@ Camadas que não cruzam a faixa Z do shape nem ficam a até 1024 unidades dela. 
 De onde um polígono, retângulo ou círculo novo tira `zmin zmax`: **chão da área** (padrão, pelo perfil do chão sob o contorno) ou **pontos clicados** (`menorZ − folga … maiorZ + folga` dos vértices, sem medir o chão). O tile inteiro sempre usa o chão da área. Escolhida no seletor "Faixa nova" do inspetor e guardada só na sessão.
 _Evite_: modo de sugestão.
 
+**Caixa**:
+Uma caixa de base retangular, que pode estar girada no plano do mapa: centro `x y`, largura e comprimento nos eixos da própria caixa, base (`zmin`), altura e rotação em graus. Sem rotação, é um retângulo e compila como `<rectangle>`; girada, é o polígono dos 4 cantos, que guarda o centro, o tamanho e a rotação (`zone.Frame`), e compila como `<polygon>`. A ferramenta Caixa cria uma de 2048 × 2048 × 1024 centrada no clique, com a faixa tirada do Z do clique e não do chão. Todo retângulo, inclusive os antigos, ganha os campos e as alças. Editar um vértice de uma caixa girada a transforma num polígono comum. No código, `zone.Box`.
+_Evite_: cubo, volume (é o da água).
+
 **Anel**:
 Linha horizontal desenhada na parede do prisma de um shape a cada passo de Z, contado a partir do `zmin` dele. O passo-base é 64 e dobra até os anéis ficarem a pelo menos 6 px um do outro na tela. O prisma não tem tampas nem preenchimento: são só anéis, arestas e contornos.
 _Evite_: listra, hachura (é a marca do chão fora da faixa).

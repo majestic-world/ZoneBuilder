@@ -26,6 +26,8 @@ const (
 	ToolRectangle
 	// ToolCircle takes the center, then a point on the circle.
 	ToolCircle
+	// ToolBox places a box of default size centred on the click.
+	ToolBox
 	// ToolRestart adds a restart_point per click.
 	ToolRestart
 	// ToolPKRestart adds a PKrestart_point per click.
@@ -33,10 +35,10 @@ const (
 )
 
 // shapeTools are the tools that draw a shape, in button order.
-var shapeTools = []Tool{ToolPolygon, ToolRectangle, ToolCircle}
+var shapeTools = []Tool{ToolPolygon, ToolRectangle, ToolCircle, ToolBox}
 
 // IsShape reports whether t draws a shape (rather than placing points).
-func (t Tool) IsShape() bool { return t <= ToolCircle }
+func (t Tool) IsShape() bool { return t <= ToolBox }
 
 func (t Tool) label(language locale.Language) string {
 	switch t {
@@ -46,6 +48,8 @@ func (t Tool) label(language locale.Language) string {
 		return locale.Text(language, "ui.tool.rectangle")
 	case ToolCircle:
 		return locale.Text(language, "ui.tool.circle")
+	case ToolBox:
+		return locale.Text(language, "ui.tool.box")
 	case ToolRestart:
 		return locale.Text(language, "ui.tool.restart")
 	case ToolPKRestart:
@@ -106,6 +110,8 @@ func (t Tool) icon() *icon.Icon {
 		return icon.Square
 	case ToolCircle:
 		return icon.Circle
+	case ToolBox:
+		return icon.Box
 	case ToolRestart:
 		return icon.MapPin
 	}
@@ -117,7 +123,7 @@ func (t Tool) icon() *icon.Icon {
 // work on the selected zone.
 func (s *Shell) dock(gtx layout.Context) layout.Dimensions {
 	p := &s.Zone.Tools
-	children := []layout.FlexChild{s.toolTile(p, ToolPolygon), s.toolTile(p, ToolRectangle), s.toolTile(p, ToolCircle),
+	children := []layout.FlexChild{s.toolTile(p, ToolPolygon), s.toolTile(p, ToolRectangle), s.toolTile(p, ToolCircle), s.toolTile(p, ToolBox),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.WholeTile.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return s.dockButton(gtx, icon.Grid2x2, locale.Text(s.Language, "ui.tool.whole_tile"), false, false, p.WholeTile.Hovered())

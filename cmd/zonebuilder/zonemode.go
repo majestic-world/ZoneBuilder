@@ -194,6 +194,7 @@ func (z *zoneMode) present(gtx layout.Context, ws *workspace) {
 	}
 	z.cover.heightWindow(zones, w, &shell.Height, shell.Language)
 	shell.Gizmo = zones.layoutGizmo(w, &ws.cam, vp, gtx.Dp(90))
+	shell.BoxHandles = zones.layoutBoxHandles(w, &ws.cam, vp)
 	shell.EdgeLabels = nil
 	if shell.Ground.On && w != nil {
 		shell.EdgeLabels = zones.edgeLabels(w, &ws.cam, vp, shell.Language)

@@ -97,6 +97,8 @@ type Shell struct {
 	// Gizmo is the viewport's handle that moves the selected zone along
 	// X, Y and Z.
 	Gizmo MoveGizmo
+	// BoxHandles resize the current box face by face.
+	BoxHandles BoxHandles
 	// Meshes is the command bar's switch that hides the static meshes
 	// while On.
 	Meshes Switch
@@ -212,6 +214,7 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 		// The gizmo only paints; every card takes the pointer input over
 		// its bounds, so the viewport gets what lands between them.
 		s.Gizmo.Layout(gtx)
+		s.BoxHandles.Layout(gtx)
 		s.edgeLabels(gtx)
 		s.pinLabels(gtx)
 	}
@@ -277,8 +280,8 @@ func (s *Shell) editorControls(w layout.Widget) layout.Widget {
 // DiscardEditorInput consumes requests even while locked; none may replay
 // after Esc. The editor's document, selection and history are not consulted.
 func (s *Shell) DiscardEditorInput(gtx layout.Context) {
-	discardClicks(gtx, &s.Undo, &s.Redo, &s.Compile, &s.Zone.PrevType, &s.Zone.NextType, &s.Zone.Create, &s.Edit.PrevFrom, &s.Edit.NextFrom, &s.Edit.GroundZ, &s.Edit.InsertAfter, &s.Edit.RemoveVertex, &s.Edit.SetZRange, &s.Edit.MoveShape, &s.Edit.SetCoords, &s.Height.Up, &s.Height.Down, &s.Height.SetBase, &s.Height.SetHeight, &s.Height.FloorToGround, &s.Height.TopToGround, &s.Height.Reopen, &s.Project.OpenProject, &s.Project.Save, &s.Project.SaveAs)
-	discardEditorEvents(gtx, &s.Zone.Name, &s.Spawn.XMLName, &s.Edit.Margin, &s.Edit.ZRange, &s.Edit.Offset, &s.Edit.Coords, &s.Height.Step, &s.Height.Base, &s.Height.Height)
+	discardClicks(gtx, &s.Undo, &s.Redo, &s.Compile, &s.Zone.PrevType, &s.Zone.NextType, &s.Zone.Create, &s.Edit.PrevFrom, &s.Edit.NextFrom, &s.Edit.GroundZ, &s.Edit.InsertAfter, &s.Edit.RemoveVertex, &s.Edit.SetZRange, &s.Edit.MoveShape, &s.Edit.SetBox, &s.Edit.SetCoords, &s.Height.Up, &s.Height.Down, &s.Height.SetBase, &s.Height.SetHeight, &s.Height.FloorToGround, &s.Height.TopToGround, &s.Height.Reopen, &s.Project.OpenProject, &s.Project.Save, &s.Project.SaveAs)
+	discardEditorEvents(gtx, &s.Zone.Name, &s.Spawn.XMLName, &s.Edit.Margin, &s.Edit.ZRange, &s.Edit.Offset, &s.Edit.BoxCenter, &s.Edit.BoxSize, &s.Edit.BoxBase, &s.Edit.BoxYaw, &s.Edit.Coords, &s.Height.Step, &s.Height.Base, &s.Height.Height)
 	s.NPCIDs.Discard(gtx)
 	s.Project.Requests(gtx)
 	s.WaterMenu.CompileRequested(gtx)
