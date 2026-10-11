@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"log"
 	"slices"
 	"strconv"
@@ -27,11 +26,9 @@ type waterList struct {
 	lang    locale.Language
 }
 
-// refresh rebuilds the rows from the scenes of w, checking the volumes
-// sel holds, when the scenes, the selection or the language changed since
-// the last build, and reports whether it did. Rows are grouped by tile,
-// then sorted by name in natural order (WaterVolume2 before
-// WaterVolume10).
+// refresh rebuilds the rows from the volumes of w (worldWaterVolumes),
+// checking the ones sel holds, when the scenes, the selection or the
+// language changed since the last build, and reports whether it did.
 func (l *waterList) refresh(w *scene.World, sel *waterSelection, lang locale.Language) bool {
 	var scenes []*scene.Scene
 	if w != nil {
@@ -42,15 +39,7 @@ func (l *waterList) refresh(w *scene.World, sel *waterSelection, lang locale.Lan
 	}
 	l.built, l.version, l.lang = true, sel.version, lang
 	l.scenes = append(l.scenes[:0], scenes...)
-	var vols []*scene.WaterVolume
-	for _, s := range scenes {
-		for i := range s.WaterVolumes {
-			vols = append(vols, &s.WaterVolumes[i])
-		}
-	}
-	slices.SortFunc(vols, func(a, b *scene.WaterVolume) int {
-		return cmp.Or(water.NaturalCompare(a.Tile.Name(), b.Tile.Name()), water.NaturalCompare(a.Name, b.Name), cmp.Compare(a.Export, b.Export))
-	})
+	vols := worldWaterVolumes(w)
 	l.rows, l.ids = l.rows[:0], l.ids[:0]
 	for _, v := range vols {
 		id, tile := v.ID(), v.Tile.Name()
