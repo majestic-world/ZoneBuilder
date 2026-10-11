@@ -82,7 +82,7 @@ Lacunas conhecidas: a cintilação dos anéis numa parede vista quase de lado s�
 
 1. 22_22: oculte 12 static meshes. A seção do mapa mostra 5 linhas e **Ver todos os 12**; o link abre a janela com as 12, **Mostrar** numa linha devolve só aquele mesh e **Mostrar todos** devolve todos. Esc fecha a janela. Repita no modo **Popular zona**.
 2. Botão direito num static mesh: ele fica tingido de amarelo-escuro enquanto o menu está aberto (compare com uma captura de referência, com `-fps` sem queda perceptível). Esc ou clique fora fecha o menu e tira o destaque.
-3. Com o menu aberto, descarregue o tile do mesh (troque o tile ou desligue os vizinhos): o menu e o destaque somem, sem erro.
+3. Com o menu aberto, troque o tile ou desligue os vizinhos no inspetor: o clique fora fecha o menu e tira o destaque antes de o tile descarregar. Depois, botão direito num static mesh do tile carregado o destaca, sem erro.
 
 ### Água
 
