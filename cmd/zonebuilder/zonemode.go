@@ -117,6 +117,19 @@ func (z *zoneMode) compile(ws *workspace) {
 	}
 }
 
+// compileWater compiles the selected water into water zones, for the
+// water context menu and the water window alike: the zone editor turns
+// copies of the selected and live volumes into zones, the status line
+// tells the outcome, and the XML window opens on the files.
+func (z *zoneMode) compileWater(ws *workspace) {
+	var files []zonexml.File
+	sel, live := z.waterSel.selected(ws.world())
+	ws.status, files = z.zones.compileWater(sel, live)
+	if len(files) > 0 {
+		ws.shell.XML.Open(files, ui.ZoneXML)
+	}
+}
+
 func (z *zoneMode) update(gtx layout.Context, ws *workspace) {
 	shell, zones, w := ws.shell, z.zones, ws.world()
 	if shell.EditorLocked {
@@ -145,15 +158,12 @@ func (z *zoneMode) update(gtx layout.Context, ws *workspace) {
 		ws.status = editorResult(wholeTile(zones, z.cover, ws.tiles, &ws.cam, ws.viewport(), shell.Zone.Tools.Banned.Value), zones)
 	}
 	if shell.WaterMenu.CompileRequested(gtx) {
-		var files []zonexml.File
-		sel, live := z.waterSel.selected(w)
-		ws.status, files = zones.compileWater(sel, live)
-		if len(files) > 0 {
-			shell.XML.Open(files, ui.ZoneXML)
-		}
+		z.compileWater(ws)
 	}
 	for _, req := range shell.Water.Update(gtx) {
-		if msg := z.waterRows.apply(req, w, &z.waterSel); msg.render(shell.Language) != "" {
+		if _, ok := req.(ui.CompileWater); ok {
+			z.compileWater(ws)
+		} else if msg := z.waterRows.apply(req, w, &z.waterSel); msg.render(shell.Language) != "" {
 			ws.status = msg
 		}
 	}
@@ -186,7 +196,7 @@ func (z *zoneMode) present(gtx layout.Context, ws *workspace) {
 	if z.waterRows.refresh(w, &z.waterSel, shell.Language) {
 		shell.Water.Rows = z.waterRows.rows
 	}
-	shell.WaterMenu.Disabled = zones.drawing
+	shell.WaterMenu.Disabled, shell.Water.Busy = zones.drawing, zones.drawing
 	shell.Zone.Info = zones.info()
 	sel, _ := zones.selectedZone()
 	shell.Zones.Rows, shell.Zones.Selected = zones.rows(), sel.ID

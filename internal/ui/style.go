@@ -213,6 +213,8 @@ const (
 	dangerButton
 	// ghostButton has no surface until hovered.
 	ghostButton
+	// disabledButton is greyed out: it takes no click.
+	disabledButton
 )
 
 // colors are the button's surface, border and ink for its state.
@@ -235,6 +237,8 @@ func (k buttonKind) colors(hovered, pressed bool) (bg, border, ink color.NRGBA) 
 		return pick(color.NRGBA{}, errorSoft, errorSoftHover), errorText, errorText
 	case ghostButton:
 		return pick(color.NRGBA{}, controlHover, controlPress), color.NRGBA{}, textColor
+	case disabledButton:
+		return controlFill, hairline, faintText
 	}
 	return pick(controlFill, controlHover, controlPress), hairline, textColor
 }
