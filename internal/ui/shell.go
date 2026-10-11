@@ -143,7 +143,7 @@ type Shell struct {
 }
 
 // NewShell returns a shell with single-line fields holding client and
-// tile.
+// tile, and the preview on.
 func NewShell(th *material.Theme, client, tile string) *Shell {
 	s := &Shell{Theme: th, Language: locale.PtBR}
 	s.Client.SingleLine = true
@@ -160,6 +160,7 @@ func NewShell(th *material.Theme, client, tile string) *Shell {
 	s.Height.init()
 	s.Spawn.init()
 	s.NPCIDs.Window.Closed = true
+	s.Preview.On = true
 	s.list.Axis = layout.Vertical
 	return s
 }
