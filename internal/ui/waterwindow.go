@@ -3,6 +3,7 @@ package ui
 import (
 	"image"
 	"image/color"
+	"slices"
 
 	"gioui.org/font"
 	"gioui.org/layout"
@@ -29,18 +30,21 @@ type WaterRow struct {
 
 // WaterWindow is the zone mode's window over the loaded water volumes:
 // a row per volume, grouped by tile, that toggles it in the water
-// selection, with Selecionar todos and Limpar. The inspector's Volumes de
-// água button opens it. Like the zone list it only collects input:
-// Update reports what the user asked for, by row index, and the window
-// loop applies it to the water selection.
+// selection, with Selecionar todos, Limpar and Compilar zona de água. The
+// inspector's Volumes de água button opens it. Like the zone list it only
+// collects input: Update reports what the user asked for, by row index,
+// and the window loop applies it to the water selection.
 type WaterWindow struct {
 	Window FloatWindow
 	// Rows are the volumes, set by the window loop, already grouped by
 	// tile and in list order.
 	Rows []WaterRow
+	// Busy greys Compilar zona de água out, with the reason, while a
+	// polygon is open.
+	Busy bool
 
-	open, selectAll, clear widget.Clickable
-	toggles                []widget.Clickable
+	open, selectAll, clear, compile widget.Clickable
+	toggles                         []widget.Clickable
 }
 
 // Water window requests, returned by WaterWindow.Update.
@@ -52,6 +56,8 @@ type (
 	SelectAllWater struct{}
 	// ClearWater: Limpar.
 	ClearWater struct{}
+	// CompileWater: Compilar zona de água, over the checked volumes.
+	CompileWater struct{}
 )
 
 // Open shows the window, centred when it was closed.
@@ -67,7 +73,8 @@ func (w *WaterWindow) Open() {
 
 // Update opens the window on a click on the inspector's button and
 // returns the requests since the last call, in the order: row toggles,
-// Selecionar todos, Limpar. A disabled row's clicks are dropped. Call it
+// Selecionar todos, Limpar, Compilar zona de água. A disabled row's
+// clicks are dropped, and so is Compilar's while it is greyed out. Call it
 // before Layout.
 func (w *WaterWindow) Update(gtx layout.Context) []any {
 	if w.open.Clicked(gtx) {
@@ -87,13 +94,22 @@ func (w *WaterWindow) Update(gtx layout.Context) []any {
 	if w.clear.Clicked(gtx) {
 		reqs = append(reqs, ClearWater{})
 	}
+	if w.compile.Clicked(gtx) && w.canCompile() {
+		reqs = append(reqs, CompileWater{})
+	}
 	return reqs
+}
+
+// canCompile reports whether Compilar zona de água takes clicks: a volume
+// is checked and no polygon is open.
+func (w *WaterWindow) canCompile() bool {
+	return !w.Busy && slices.ContainsFunc(w.Rows, func(r WaterRow) bool { return r.Checked })
 }
 
 // Discard consumes the clicks without opening the window or replaying
 // them when the editor resumes.
 func (w *WaterWindow) Discard(gtx layout.Context) {
-	discardClicks(gtx, &w.open, &w.selectAll, &w.clear)
+	discardClicks(gtx, &w.open, &w.selectAll, &w.clear, &w.compile)
 	for i := range w.toggles {
 		discardClicks(gtx, &w.toggles[i])
 	}
@@ -129,6 +145,10 @@ func (s *Shell) waterWindow(gtx layout.Context) layout.Dimensions {
 				s.button(&w.selectAll, secondaryButton, nil, locale.Text(s.Language, "ui.water.select_all")),
 				s.button(&w.clear, secondaryButton, nil, locale.Text(s.Language, "ui.water.clear")),
 			))),
+			layout.Rigid(s.spaced(s.waterCompile)),
+		}
+		if w.Busy {
+			children = append(children, layout.Rigid(s.dimLabel(locale.Text(s.Language, "actions.water.busy"))))
 		}
 		if len(w.Rows) == 0 {
 			children = append(children, layout.Rigid(s.dimLabel(locale.Text(s.Language, "ui.water.empty"))))
@@ -143,6 +163,18 @@ func (s *Shell) waterWindow(gtx layout.Context) layout.Dimensions {
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
+}
+
+// waterCompile is the water window's Compilar zona de água, greyed out
+// with no volume checked or with a polygon open.
+func (s *Shell) waterCompile(gtx layout.Context) layout.Dimensions {
+	w := &s.Water
+	kind := primaryButton
+	if !w.canCompile() {
+		gtx = gtx.Disabled()
+		kind = disabledButton
+	}
+	return s.fullButton(&w.compile, kind, icon.Droplets, locale.Text(s.Language, "ui.water.compile"))(gtx)
 }
 
 // waterRow is one volume's row: the check box, then the label over the

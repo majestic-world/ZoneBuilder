@@ -131,3 +131,67 @@ func TestLockedWaterWindowRejectsClicksAndDoesNotReplayAfterResume(t *testing.T)
 		t.Fatalf("click after resume reported %v, want row 3 toggled", reqs)
 	}
 }
+
+// compileAt clicks down the middle of the window, a click a frame, and
+// returns the height of the first click that reported Compilar zona de
+// água, and whether one did.
+func (f *waterWindowFixture) compileAt() (y float32, ok bool) {
+	w := &f.shell.Water.Window
+	x := float32(w.pos.X + w.size.X/2)
+	for y := w.pos.Y + int(windowTitle) + 1; y < w.pos.Y+w.size.Y-int(windowGrip); y += 2 {
+		if slices.Contains(f.click(x, float32(y)), any(CompileWater{})) {
+			return float32(y), true
+		}
+	}
+	return 0, false
+}
+
+// Compilar zona de água is reported with volumes checked and no polygon
+// open, and never with no volume checked or with a polygon open, even for
+// a click landed while it was still enabled. Catches an empty compile, or
+// a compile under an open polygon, reaching the zone editor.
+func TestWaterWindowCompilesOnlyWithACheckedVolumeAndNoOpenPolygon(t *testing.T) {
+	f := newWaterWindowFixture(waterRows())
+	y, ok := f.compileAt()
+	if !ok {
+		t.Fatal("no click down the window reported Compilar with a volume checked")
+	}
+	x := float32(f.shell.Water.Window.pos.X + f.shell.Water.Window.size.X/2)
+	f.shell.Water.Busy = true
+	if reqs := f.click(x, y); slices.Contains(reqs, any(CompileWater{})) {
+		t.Fatal("a click landed before the polygon opened reported Compilar")
+	}
+	if _, ok := f.compileAt(); ok {
+		t.Fatal("Compilar was reported with a polygon open")
+	}
+
+	rows := waterRows()
+	for i := range rows {
+		rows[i].Checked = false
+	}
+	if _, ok := newWaterWindowFixture(rows).compileAt(); ok {
+		t.Fatal("Compilar was reported with no volume checked")
+	}
+}
+
+// While the game mode locks the editor, a click on Compilar zona de água
+// is rejected and does not come back once the editor resumes. Catches a
+// water compile replayed from a click made while playing.
+func TestLockedWaterWindowRejectsCompileAndDoesNotReplayAfterResume(t *testing.T) {
+	f := newWaterWindowFixture(waterRows())
+	y, ok := f.compileAt()
+	if !ok {
+		t.Fatal("no click down the window reported Compilar")
+	}
+	x := float32(f.shell.Water.Window.pos.X + f.shell.Water.Window.size.X/2)
+	f.shell.EditorLocked = true
+	f.click(x, y)
+	f.frame()
+	f.shell.EditorLocked = false
+	if reqs := f.frame(); len(reqs) != 0 {
+		t.Fatalf("locked click replayed after resume: %v", reqs)
+	}
+	if reqs := f.click(x, y); !slices.Contains(reqs, any(CompileWater{})) {
+		t.Fatalf("click after resume reported %v, want Compilar", reqs)
+	}
+}
