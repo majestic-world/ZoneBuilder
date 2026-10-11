@@ -160,6 +160,7 @@ func NewShell(th *material.Theme, client, tile string) *Shell {
 	s.Height.init()
 	s.Spawn.init()
 	s.NPCIDs.Window.Closed = true
+	s.HiddenMeshes.Window.Closed = true
 	s.Preview.On = true
 	s.list.Axis = layout.Vertical
 	return s
@@ -261,6 +262,7 @@ func (s *Shell) Layout(gtx layout.Context) image.Rectangle {
 	if s.Mode == ModePopulate {
 		s.editorControls(s.npcIDsWindow)(gtx)
 	}
+	s.editorControls(s.hiddenMeshesWindow)(gtx)
 	s.editorControls(func(gtx layout.Context) layout.Dimensions { s.projectMenu(gtx); return layout.Dimensions{} })(gtx)
 	if zones {
 		s.editorControls(func(gtx layout.Context) layout.Dimensions { s.waterMenu(gtx); return layout.Dimensions{} })(gtx)
@@ -284,6 +286,7 @@ func (s *Shell) DiscardEditorInput(gtx layout.Context) {
 	discardClicks(gtx, &s.Undo, &s.Redo, &s.Compile, &s.Zone.PrevType, &s.Zone.NextType, &s.Zone.Create, &s.Edit.PrevFrom, &s.Edit.NextFrom, &s.Edit.GroundZ, &s.Edit.InsertAfter, &s.Edit.RemoveVertex, &s.Edit.SetZRange, &s.Edit.MoveShape, &s.Edit.SetBox, &s.Edit.SetCoords, &s.Height.Up, &s.Height.Down, &s.Height.SetBase, &s.Height.SetHeight, &s.Height.FloorToGround, &s.Height.TopToGround, &s.Height.Reopen, &s.Project.OpenProject, &s.Project.Save, &s.Project.SaveAs)
 	discardEditorEvents(gtx, &s.Zone.Name, &s.Spawn.XMLName, &s.Edit.Margin, &s.Edit.ZRange, &s.Edit.Offset, &s.Edit.BoxCenter, &s.Edit.BoxSize, &s.Edit.BoxBase, &s.Edit.BoxYaw, &s.Edit.Coords, &s.Height.Step, &s.Height.Base, &s.Height.Height)
 	s.NPCIDs.Discard(gtx)
+	s.HiddenMeshes.Discard(gtx)
 	s.Project.Requests(gtx)
 	s.WaterMenu.CompileRequested(gtx)
 	s.MeshMenu.HideRequested(gtx)
