@@ -46,10 +46,13 @@ type editState struct {
 	// out.
 	axisDrag axisDrag
 	gizmo    gizmo
-	// boxDrag is a drag of a box face handle, boxFaces where they were
-	// last laid out.
+	// boxDrag is a drag of a box handle or panel slider, boxFaces where
+	// the handles were last laid out.
 	boxDrag  boxDrag
 	boxFaces boxFaces
+	// slidSet are the values boxSliders last left the panel's box
+	// sliders at.
+	slidSet [4]float32
 	// heightFilled is what the height window's fields were last filled
 	// for.
 	heightFilled heightKey
@@ -568,6 +571,9 @@ func (e *zoneEditor) panel(gtx layout.Context, p *ui.EditPanel, s *scene.World, 
 	}
 	if p.BoxRequested(gtx) {
 		msg = e.setBox(p.BoxCenter.Text(), p.BoxSize.Text(), p.BoxBase.Text(), p.BoxYaw.Text())
+	}
+	if m := e.boxSliders(gtx, p); m != "" {
+		msg = m
 	}
 	if p.CoordsRequested(gtx) {
 		msg = e.setCoords(p.Coords.Text())

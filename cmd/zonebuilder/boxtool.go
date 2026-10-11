@@ -10,6 +10,7 @@ import (
 	"gioui.org/f32"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
+	"gioui.org/layout"
 
 	"zonebuilder/internal/camera"
 	"zonebuilder/internal/geom"
@@ -43,6 +44,9 @@ const (
 	// faceTurn is the turn handle, which turns the box instead of moving
 	// a face.
 	faceTurn
+	// faceSlide is a slider of the edit panel, which sets one of the
+	// box's numbers.
+	faceSlide
 )
 
 // faceNames name the faces in the status messages.
@@ -73,9 +77,10 @@ type boxFaces struct {
 }
 
 // boxDrag is a drag of a handle of the box shape of zone, from the box at
-// the press: of face, delta being how far it moves outward; or of the turn
+// the press: of face, delta being how far it moves outward; of the turn
 // handle (face faceTurn), angle0 being the world angle around the center
-// the press pointed at and yaw the box's yaw so far.
+// the press pointed at and yaw the box's yaw so far; or of a panel slider
+// (face faceSlide), to being the box so far.
 type boxDrag struct {
 	active bool
 	zone   zone.ZoneID
@@ -88,6 +93,7 @@ type boxDrag struct {
 	angle0 float64
 	yaw    float64
 	from   zone.Box
+	to     zone.Box
 }
 
 // shown is the box shape of zone id as the drag in progress shows it.
@@ -95,10 +101,13 @@ func (d boxDrag) shown(id zone.ZoneID, shape int) (zone.Box, bool) {
 	if !d.active || d.zone != id || d.shape != shape {
 		return zone.Box{}, false
 	}
-	if d.face == faceTurn {
+	switch d.face {
+	case faceTurn:
 		b := d.from
 		b.Yaw = d.yaw
 		return b, true
+	case faceSlide:
+		return d.to, true
 	}
 	return resized(d.from, d.face, d.delta), true
 }
@@ -399,6 +408,9 @@ func (e *zoneEditor) boxGrabMessage() string {
 // command. Shift snaps a face to the step and a turn to turnSnap degrees.
 func (e *zoneEditor) boxDragEvent(s *scene.World, cam *camera.Camera, ev pointer.Event, vp image.Point) string {
 	d := &e.boxDrag
+	if d.face == faceSlide {
+		return "" // the edit panel's slider owns this drag (boxSliders)
+	}
 	switch ev.Kind {
 	case pointer.Drag:
 		if d.face == faceTurn {
@@ -441,4 +453,92 @@ func (e *zoneEditor) boxDragEvent(s *scene.World, cam *camera.Camera, ev pointer
 		e.version++
 	}
 	return ""
+}
+
+// slid is b with slider i of the edit panel at value v: the width or the
+// length around the center, the height over the base, or the yaw, to a
+// whole degree.
+func slid(b zone.Box, i int, v float64) zone.Box {
+	switch i {
+	case ui.BoxSlideWidth:
+		b.Width = max(int(math.Round(v)), 1)
+	case ui.BoxSlideLength:
+		b.Length = max(int(math.Round(v)), 1)
+	case ui.BoxSlideHeight:
+		b.ZMax = b.ZMin + max(int(math.Round(v)), 0)
+	case ui.BoxSlideYaw:
+		b.Yaw = zone.NormalYaw(math.Round(v))
+	}
+	return b
+}
+
+// slideValue is the number of b slider i of the edit panel shows.
+func slideValue(b zone.Box, i int) float64 {
+	switch i {
+	case ui.BoxSlideWidth:
+		return float64(b.Width)
+	case ui.BoxSlideLength:
+		return float64(b.Length)
+	case ui.BoxSlideHeight:
+		return float64(b.ZMax - b.ZMin)
+	}
+	return b.Yaw
+}
+
+// boxSliders follows the edit panel's box sliders: moving one shows the
+// current box with that number changed, and letting go applies it as one
+// command. A slider moved is one held, or one whose value is no longer the
+// one this put there (a click comes and goes within a frame). Unheld
+// sliders are put back on the shown box's numbers, so they follow the
+// fields and the handles. It returns the status line, "" to keep it.
+func (e *zoneEditor) boxSliders(gtx layout.Context, p *ui.EditPanel) string {
+	p.UpdateBoxSliders(gtx)
+	sliding := e.boxDrag.active && e.boxDrag.face == faceSlide
+	b, ok := e.shownBox(e.zone, e.shape)
+	if _, box := e.currentBox(); !ok || !box {
+		if sliding {
+			e.boxDrag = boxDrag{}
+			e.version++
+		}
+		return ""
+	}
+	held, moved := false, -1
+	for i := range p.BoxSliders {
+		f := &p.BoxSliders[i]
+		held = held || f.Dragging()
+		if f.Dragging() || f.Value != e.slidSet[i] {
+			moved = i
+		}
+	}
+	var msg string
+	if moved >= 0 && (sliding || !e.boxDrag.active) {
+		if !sliding {
+			e.boxDrag = boxDrag{active: true, zone: e.zone, shape: e.shape, face: faceSlide, from: b, to: b}
+			sliding = true
+		}
+		if to := slid(e.boxDrag.to, moved, ui.BoxSlideValue(moved, p.BoxSliders[moved].Value)); to != e.boxDrag.to {
+			e.boxDrag.to = to
+			e.version++
+		}
+		w, l, h := e.boxDrag.to.Size()
+		msg = e.present(locale.Message{Key: "editor.box.sliding", Args: map[string]string{"width": intArg(w), "length": intArg(l), "height": intArg(h), "yaw": yawArg(e.boxDrag.to.Yaw)}})
+	}
+	if sliding && !held {
+		from, to := e.boxDrag.from, e.boxDrag.to
+		e.boxDrag = boxDrag{}
+		e.version++
+		msg = ""
+		if to != from {
+			msg = e.setBoxTo(to)
+		}
+	}
+	if b, ok := e.shownBox(e.zone, e.shape); ok {
+		for i := range p.BoxSliders {
+			if f := &p.BoxSliders[i]; !f.Dragging() {
+				f.Value = ui.BoxSlidePos(i, slideValue(b, i))
+			}
+			e.slidSet[i] = p.BoxSliders[i].Value
+		}
+	}
+	return msg
 }

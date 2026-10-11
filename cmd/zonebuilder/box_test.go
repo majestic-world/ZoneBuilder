@@ -7,6 +7,8 @@ import (
 	"gioui.org/f32"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
+	"gioui.org/layout"
+	"gioui.org/op"
 
 	"zonebuilder/internal/locale"
 	"zonebuilder/internal/ui"
@@ -123,5 +125,36 @@ func TestResizedTurnedBoxGrowsAlongItsOwnAxis(t *testing.T) {
 	// Half of 100 along (cos 30°, sin 30°) is 43.3, 25.
 	if got.Width != 2148 || got.Length != 1024 || got.CX != 83043 || got.CY != 147025 {
 		t.Errorf("resized %+v, want width 2148 centred at 83043 147025", got)
+	}
+}
+
+// Moving a box slider of the edit panel, here by a click that comes and
+// goes within a frame, applies that number to the box in 1 undo step: the
+// width around the center, then the yaw, which turns the box. Catches a
+// slider whose release is missed, so nothing reaches the document.
+func TestBoxSliderAppliesItsNumberInOneStep(t *testing.T) {
+	e, box := placedBox(t)
+	p := &ui.EditPanel{}
+	gtx := layout.Context{Ops: new(op.Ops)}
+	e.boxSliders(gtx, p) // put the sliders on the box
+
+	p.BoxSliders[ui.BoxSlideWidth].Value = ui.BoxSlidePos(ui.BoxSlideWidth, 10000)
+	e.boxSliders(gtx, p)
+	want := box
+	want.Width = 10000
+	if got := boxShape(t, e, 0); got != want {
+		t.Errorf("box after the width slider %+v, want %+v", got, want)
+	}
+
+	p.BoxSliders[ui.BoxSlideYaw].Value = ui.BoxSlidePos(ui.BoxSlideYaw, 90)
+	e.boxSliders(gtx, p)
+	want.Yaw = 90
+	if got := boxShape(t, e, 0); got != want {
+		t.Errorf("box after the yaw slider %+v, want %+v", got, want)
+	}
+	e.undo()
+	want.Yaw = 0
+	if got := boxShape(t, e, 0); got != want {
+		t.Errorf("box after 1 undo %+v, want %+v", got, want)
 	}
 }

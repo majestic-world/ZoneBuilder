@@ -62,6 +62,7 @@
   "editor.box.resizing": "Face {face} da caixa {delta}: {width} × {length} × {height} (Shift: passo de {step})",
   "editor.box.turn_hint": "Arraste para girar a caixa em volta do centro; Shift arredonda a {step}°",
   "editor.box.turning": "Girando a caixa: {yaw}° (Shift: passo de {step}°)",
+  "editor.box.sliding": "Caixa: {width} × {length} × {height}, rotação {yaw}°; solte para aplicar",
   "editor.tile.finish_first": "Feche o polígono atual antes de cobrir o tile",
   "editor.tile.create_first": "Crie uma zona antes de cobrir o tile",
   "editor.tile.no_geometry": "{tile} não tem geometria para medir a faixa Z",

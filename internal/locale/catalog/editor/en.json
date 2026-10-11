@@ -62,6 +62,7 @@
   "editor.box.resizing": "Box face {face} {delta}: {width} × {length} × {height} (Shift: step {step})",
   "editor.box.turn_hint": "Drag to turn the box around its center; Shift snaps to {step}°",
   "editor.box.turning": "Turning the box: {yaw}° (Shift: step {step}°)",
+  "editor.box.sliding": "Box: {width} × {length} × {height}, rotation {yaw}°; release to apply",
   "editor.tile.finish_first": "Finish the current polygon before covering the tile",
   "editor.tile.create_first": "Create a zone before covering the tile",
   "editor.tile.no_geometry": "{tile} has no geometry to measure the Z range",

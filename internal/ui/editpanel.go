@@ -45,6 +45,9 @@ type EditPanel struct {
 	Box                                 bool
 	BoxCenter, BoxSize, BoxBase, BoxYaw widget.Editor
 	SetBox                              widget.Clickable
+	// BoxSliders drag the box's width, length, height and yaw, in the
+	// order of BoxSlideWidth...; see BoxSlideValue for their ranges.
+	BoxSliders [4]widget.Float
 	Vertex       string        // titles the vertex controls; empty hides them
 	Coords       widget.Editor // "x y z" of the selected vertex
 	SetCoords    widget.Clickable
@@ -83,6 +86,39 @@ func (p *EditPanel) BoxRequested(gtx layout.Context) bool {
 		}
 	}
 	return ok
+}
+
+// The box sliders, in the order of EditPanel.BoxSliders.
+const (
+	BoxSlideWidth = iota
+	BoxSlideLength
+	BoxSlideHeight
+	BoxSlideYaw
+)
+
+// boxSlideRange is each box slider's [min, max]: width and length up to a
+// tile (32768), height up to half of one, yaw a whole turn in degrees.
+var boxSlideRange = [4][2]float64{{1, 32768}, {1, 32768}, {0, 16384}, {0, 360}}
+
+// BoxSlideValue is the value box slider i shows at position pos, 0 to 1.
+func BoxSlideValue(i int, pos float32) float64 {
+	r := boxSlideRange[i]
+	return r[0] + float64(min(max(pos, 0), 1))*(r[1]-r[0])
+}
+
+// BoxSlidePos is the position, 0 to 1, of value v on box slider i; a
+// value past either end sits at that end.
+func BoxSlidePos(i int, v float64) float32 {
+	r := boxSlideRange[i]
+	return float32(min(max((v-r[0])/(r[1]-r[0]), 0), 1))
+}
+
+// UpdateBoxSliders applies the pointer input on the box sliders since the
+// last call to their values.
+func (p *EditPanel) UpdateBoxSliders(gtx layout.Context) {
+	for i := range p.BoxSliders {
+		p.BoxSliders[i].Update(gtx)
+	}
 }
 
 // ApplyFrom applies clicks on the new range source's arrows since the
@@ -163,10 +199,14 @@ func (s *Shell) editPanel() []layout.FlexChild {
 				layout.Rigid(s.field(&p.BoxCenter, "x y", nil)),
 				layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.edit.box_size"))),
 				layout.Rigid(s.field(&p.BoxSize, locale.Text(s.Language, "ui.edit.box_size_placeholder"), nil)),
+				layout.Rigid(s.slider(&p.BoxSliders[BoxSlideWidth], locale.Text(s.Language, "ui.edit.box_slide_width"))),
+				layout.Rigid(s.slider(&p.BoxSliders[BoxSlideLength], locale.Text(s.Language, "ui.edit.box_slide_length"))),
+				layout.Rigid(s.spaced(s.slider(&p.BoxSliders[BoxSlideHeight], locale.Text(s.Language, "ui.edit.box_slide_height")))),
 				layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.edit.box_base"))),
 				layout.Rigid(s.field(&p.BoxBase, "z", nil)),
 				layout.Rigid(s.fieldLabel(locale.Text(s.Language, "ui.edit.box_yaw"))),
 				layout.Rigid(s.fieldButton(&p.BoxYaw, locale.Text(s.Language, "ui.edit.box_yaw_placeholder"), nil, s.button(&p.SetBox, secondaryButton, icon.Box, locale.Text(s.Language, "ui.edit.box_apply")))),
+				layout.Rigid(s.spaced(s.slider(&p.BoxSliders[BoxSlideYaw], locale.Text(s.Language, "ui.edit.box_slide_yaw")))),
 			)
 		}
 		children = append(children,
