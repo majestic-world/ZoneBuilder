@@ -452,6 +452,7 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			}
 			g.renderer.SetMeshesHidden(shell.Meshes.On)
 			g.renderer.SetHiddenActors(ws.meshes.hidden)
+			g.renderer.SetHighlightActor(ws.meshes.target, shell.MeshMenu.Menu.IsOpen())
 			uploading := ws.tiles.sync(g.renderer, uploadBudget)
 			game.refresh(ws)
 			m.sync(g.renderer, ws)

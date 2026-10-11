@@ -47,14 +47,17 @@ void main() {
 // fs_modulated, fs_water and fs_overlay. Water's normal is the triangle's,
 // from the position derivatives: UE2-Studio's fresnel only reads its
 // absolute cosine with the view. uOpaque takes the texture's alpha as 1.
-// Sampling the sRGB texture yields linear colour, which the sRGB target
-// encodes on write and blends in.
+// uHighlight tints the colour dark yellow, olive on mid tones, keeping the
+// texture readable: a desaturated yellow multiply plus a small lift, so
+// dark textures still read yellow. Sampling the sRGB texture yields
+// linear colour, which the sRGB target encodes on write and blends in.
 var sceneFrag = `#version 300 es
 precision highp float;
 uniform sampler2D uTexture;
 uniform sampler2D uMask;
 uniform int uMode;
 uniform bool uOpaque;
+uniform bool uHighlight;
 uniform highp vec3 uEye;
 in highp vec2 vUV;
 in highp vec2 vMaskUV;
@@ -90,6 +93,9 @@ void main() {
 	}
 	if (uGround != 0 && (uMode == ` + modeOpaque + ` || uMode == ` + modeMasked + ` || uMode == ` + modeTerrainLayer + `)) {
 		c = ground(c);
+	}
+	if (uHighlight) {
+		c = c * vec3(0.80, 0.72, 0.22) + vec3(0.05, 0.04, 0.0);
 	}
 	oColor = vec4(c, a);
 }
@@ -171,8 +177,10 @@ type sceneRenderer struct {
 	mode     int32
 	opaque   int32
 	eye      int32
-	textures *textureCache
-	scenes   []*gpuScene
+	// highlightOn is uHighlight's location.
+	highlightOn int32
+	textures    *textureCache
+	scenes      []*gpuScene
 	// warm is the 1×1 target of warmUp.
 	warm viewTarget
 	// dying are removed scenes whose GL resources upload frees, a step at
@@ -187,6 +195,8 @@ type sceneRenderer struct {
 	hidden *scene.HiddenActors
 	// ground marks the grid and the selected zone's footprint.
 	ground groundShader
+	// highlight is the mesh menu's target, tinted over the scene.
+	highlight highlight
 }
 
 func newSceneRenderer(anisotropic bool) (*sceneRenderer, error) {
@@ -199,14 +209,15 @@ func newSceneRenderer(anisotropic bool) (*sceneRenderer, error) {
 	gles.Uniform1i(gles.GetUniformLocation(p, "uMask"), 1)
 	gles.UseProgram(0)
 	return &sceneRenderer{
-		prog:     p,
-		viewProj: gles.GetUniformLocation(p, "uViewProj"),
-		origin:   gles.GetUniformLocation(p, "uOrigin"),
-		mode:     gles.GetUniformLocation(p, "uMode"),
-		opaque:   gles.GetUniformLocation(p, "uOpaque"),
-		eye:      gles.GetUniformLocation(p, "uEye"),
-		textures: newTextureCache(anisotropic),
-		ground:   newGroundShader(p),
+		prog:        p,
+		viewProj:    gles.GetUniformLocation(p, "uViewProj"),
+		origin:      gles.GetUniformLocation(p, "uOrigin"),
+		mode:        gles.GetUniformLocation(p, "uMode"),
+		opaque:      gles.GetUniformLocation(p, "uOpaque"),
+		eye:         gles.GetUniformLocation(p, "uEye"),
+		highlightOn: gles.GetUniformLocation(p, "uHighlight"),
+		textures:    newTextureCache(anisotropic),
+		ground:      newGroundShader(p),
 	}, nil
 }
 
@@ -235,6 +246,9 @@ func (sr *sceneRenderer) remove(s *scene.Scene) {
 			return false
 		}
 		gs.scene, gs.prep = nil, nil
+		if sr.highlight.gs == gs {
+			sr.highlight.free()
+		}
 		sr.dying = append(sr.dying, gs)
 		return true
 	})
@@ -358,13 +372,23 @@ func (gs *gpuScene) uploadBatch(tc *textureCache, b *preparedBatch) gpuBatch {
 		mask = tc.acquire(b.mask)
 	}
 	g := gpuBatch{mode: b.mode, opaque: b.opaque, mesh: b.mesh, set: b.set, texture: texture, mask: mask, source: b.source}
-	stride := int(unsafe.Sizeof(scene.Vertex{}))
 	g.vao = gles.GenVertexArray()
 	gles.BindVertexArray(g.vao)
 	g.vbo = gles.GenBuffer()
 	gles.BindBuffer(gles.ARRAY_BUFFER, g.vbo)
 	gles.BufferData(gles.ARRAY_BUFFER, b.vertices, gles.STATIC_DRAW)
 	gles.BindBuffer(gles.ELEMENT_ARRAY_BUFFER, gs.sets[b.set].ibo)
+	vertexAttribs()
+	gles.BindVertexArray(0)
+	gles.BindBuffer(gles.ARRAY_BUFFER, 0)
+	gles.BindBuffer(gles.ELEMENT_ARRAY_BUFFER, 0)
+	return g
+}
+
+// vertexAttribs points the bound vertex array's attributes at the
+// scene.Vertex fields of the bound ARRAY_BUFFER.
+func vertexAttribs() {
+	stride := int(unsafe.Sizeof(scene.Vertex{}))
 	gles.EnableVertexAttribArray(0)
 	gles.VertexAttribPointer(0, 3, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.Pos))
 	gles.EnableVertexAttribArray(1)
@@ -373,10 +397,6 @@ func (gs *gpuScene) uploadBatch(tc *textureCache, b *preparedBatch) gpuBatch {
 	gles.VertexAttribPointer(2, 2, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.MaskUV))
 	gles.EnableVertexAttribArray(3)
 	gles.VertexAttribPointer(3, 1, gles.FLOAT, false, stride, unsafe.Offsetof(scene.Vertex{}.Alpha))
-	gles.BindVertexArray(0)
-	gles.BindBuffer(gles.ARRAY_BUFFER, 0)
-	gles.BindBuffer(gles.ELEMENT_ARRAY_BUFFER, 0)
-	return g
 }
 
 // releaseStep frees part of gs: one batch's buffers, or once they are all
@@ -413,20 +433,7 @@ func (gs *gpuScene) releaseStep(tc *textureCache) bool {
 func (gs *gpuScene) cutHidden(hidden *scene.HiddenActors) {
 	cut := map[int][]indexRange{}
 	if hidden.Len() > 0 {
-		for i := range gs.scene.Actors {
-			a := &gs.scene.Actors[i]
-			if !hidden.Has(a.Key()) {
-				continue
-			}
-			for _, sec := range a.Sections {
-				if sec.Batch >= 0 && sec.Count > 0 {
-					cut[sec.Batch] = append(cut[sec.Batch], indexRange{sec.First, sec.Count})
-				}
-			}
-		}
-	}
-	for _, ranges := range cut {
-		slices.SortFunc(ranges, func(x, y indexRange) int { return x.first - y.first })
+		cut = sectionRanges(gs.scene.Actors, hidden.Has)
 	}
 	for _, b := range gs.batches {
 		ranges, old := cut[b.source], gs.cut[b.source]
@@ -492,8 +499,9 @@ func (sr *sceneRenderer) cull(viewProj mat4) {
 // layers blend in TerrainInfo order), each batch only over its visible
 // sectors. models runs right before the Translucent pass, whether or not
 // any batch is translucent, and leaves texture unit 0 active and empty and
-// no VAO bound. The depth test is on and GREATER when called; blending and
-// depth writes are left as found (off and on).
+// no VAO bound. The highlighted actor (drawHighlight) is redrawn tinted
+// after the last pass. The depth test is on and GREATER when called;
+// blending and depth writes are left as found (off and on).
 func (sr *sceneRenderer) draw(viewProj mat4, eye geom.Vec3, models func()) {
 	sr.stats = DrawStats{}
 	sr.cull(viewProj)
@@ -549,6 +557,7 @@ func (sr *sceneRenderer) draw(viewProj mat4, eye geom.Vec3, models func()) {
 			}
 		}
 	}
+	sr.drawHighlight()
 	gles.Disable(gles.BLEND)
 	gles.DepthMask(true)
 	gles.DepthFunc(gles.GREATER)
@@ -604,6 +613,7 @@ func passState(mode scene.RenderMode) {
 
 // release frees every scene's GL resources and the program.
 func (sr *sceneRenderer) release() {
+	sr.highlight.free()
 	for _, gs := range append(sr.scenes, sr.dying...) {
 		for !gs.releaseStep(sr.textures) {
 		}
