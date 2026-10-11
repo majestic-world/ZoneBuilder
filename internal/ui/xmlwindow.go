@@ -61,9 +61,10 @@ func (x *XMLWindow) Open(files []zonexml.File, kind XMLKind) {
 		x.files[i].editor.SetText(strings.ReplaceAll(x.files[i].text, "\t", "    "))
 	}
 	if x.Window.Width == 0 {
-		x.Window.Width, x.Window.Height, x.Window.Left, x.Window.Top = 560, 520, 420, 84
+		x.Window.Width, x.Window.Height = 560, 520
 	}
 	x.Window.Closed, x.Window.Collapsed = false, false
+	x.Window.Center()
 }
 
 // Copied reports the file whose Copiar button was clicked since the last

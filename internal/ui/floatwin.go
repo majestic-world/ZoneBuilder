@@ -39,6 +39,7 @@ type FloatWindow struct {
 	Width, Height, Left, Top unit.Dp
 
 	placed    bool
+	center    bool
 	pos, size image.Point
 	move      gesture.Drag
 	resize    gesture.Drag
@@ -49,6 +50,11 @@ type FloatWindow struct {
 	list      widget.List
 	sink      pointerSink
 }
+
+// Center puts the window in the middle of its area the next time it is
+// laid out, at the size it has then: the starting size the first time,
+// else the size it was left at.
+func (w *FloatWindow) Center() { w.center = true }
 
 // Layout draws the window titled title, with ic before the title and body
 // inside, in the area of gtx.Constraints.Max, and handles its moving,
@@ -105,6 +111,10 @@ func (w *FloatWindow) Layout(gtx layout.Context, s *Shell, ic *icon.Icon, title 
 	h := w.size.Y
 	if w.Collapsed {
 		h = titleH
+	}
+	if w.center {
+		w.center = false
+		w.pos = area.Sub(w.size).Div(2)
 	}
 	w.pos.X = max(0, min(w.pos.X, area.X-w.size.X))
 	w.pos.Y = max(0, min(w.pos.Y, area.Y-h))

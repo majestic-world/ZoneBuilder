@@ -234,3 +234,22 @@ func TestFloatWindowCollapseAndCloseControlsRemainClickable(t *testing.T) {
 		t.Fatalf("close control left the window visible: closed %v, size %v", f.window.Closed, f.dims.Size)
 	}
 }
+
+// A window asked to center opens in the middle of its area, and opening
+// it again after it was dragged and resized centers it again at the size
+// it was left at. Catches a reopen that lands where it was dragged to.
+func TestFloatWindowCenterPlacesItInTheMiddleOnEveryOpen(t *testing.T) {
+	f := &floatWindowFixture{
+		window: FloatWindow{Width: 400, Height: 200},
+		shell:  NewShell(NewTheme(), "", "22_22"),
+		area:   image.Pt(1000, 800),
+	}
+	f.window.Center()
+	f.frame()
+	f.wantGeometry(t, image.Pt(300, 300), image.Pt(400, 200))
+
+	f.window.pos, f.window.size = image.Pt(10, 20), image.Pt(600, 300)
+	f.window.Center()
+	f.frame()
+	f.wantGeometry(t, image.Pt(200, 250), image.Pt(600, 300))
+}
