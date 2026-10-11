@@ -49,6 +49,8 @@
   "actions.water.top": {"one": "top {values}", "other": "tops {values}"},
   "actions.water.exact": "exact",
   "actions.water.approximate": "approximate",
+  "actions.water.row": "top {top} (server {server}) · {kind}",
+  "actions.water.row_unsupported": "Unsupported: {detail}",
   "actions.water.created": {"one": "Created {count} water zone {zones}", "other": "Created {count} water zones: {zones}"},
   "actions.water.existing": {"one": "Zone {zones} already exists in the project: compiled the project's version", "other": "Zones {zones} already exist in the project: compiled the project's versions"},
   "actions.water.compiled": "{result}. In the viewport, the top lies {offset} below the water (ADR 0005){warnings}",

@@ -79,6 +79,23 @@ func (ws *waterSelection) clear() bool {
 	return true
 }
 
+// selectAll replaces the selection with every supported volume of w, in
+// one change.
+func (ws *waterSelection) selectAll(w *scene.World) {
+	ws.ids = ws.ids[:0]
+	if w != nil {
+		for _, s := range w.Scenes() {
+			for i := range s.WaterVolumes {
+				if v := &s.WaterVolumes[i]; v.Unsupported == "" {
+					ws.ids = append(ws.ids, v.ID())
+				}
+			}
+		}
+	}
+	ws.world = w
+	ws.version++
+}
+
 // prune drops the volumes w no longer has: their tile was unloaded, or a
 // map was opened in a new world.
 func (ws *waterSelection) prune(w *scene.World) {

@@ -14,7 +14,11 @@ import (
 // waterBox is the axis-aligned water volume over x0..x1, y0..y1 (relative
 // to tile 22_24's origin), from bottom to top.
 func waterBox(t *testing.T, export int, name string, x0, y0, x1, y1, bottom, top float32) scene.WaterVolume {
-	tile := scene.Tile{X: 22, Y: 24}
+	return waterBoxIn(t, scene.Tile{X: 22, Y: 24}, export, name, x0, y0, x1, y1, bottom, top)
+}
+
+// waterBoxIn is waterBox in tile.
+func waterBoxIn(t *testing.T, tile scene.Tile, export int, name string, x0, y0, x1, y1, bottom, top float32) scene.WaterVolume {
 	ox, oy := tile.Origin()
 	c := scenetest.Box(geom.Vec3{X: x0 + ox, Y: y0 + oy, Z: bottom}, geom.Vec3{X: x1 + ox, Y: y1 + oy, Z: top})
 	return scenetest.Volume(t, tile, export, name, scenetest.UnitBrush(), scenetest.Hexahedron(c))
