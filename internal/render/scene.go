@@ -327,6 +327,7 @@ func (sr *sceneRenderer) step(gs *gpuScene) {
 	gs.done++
 	if gs.done == p.units() {
 		gs.prep = nil
+		sr.highlight.missed = false
 	}
 }
 

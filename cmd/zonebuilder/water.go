@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"image"
 	"log"
@@ -79,17 +80,32 @@ func (ws *waterSelection) clear() bool {
 	return true
 }
 
+// worldWaterVolumes are every water volume of w's scenes, in the water
+// window's row order: by tile, then by name in natural order
+// (WaterVolume2 before WaterVolume10).
+func worldWaterVolumes(w *scene.World) []*scene.WaterVolume {
+	if w == nil {
+		return nil
+	}
+	var vols []*scene.WaterVolume
+	for _, s := range w.Scenes() {
+		for i := range s.WaterVolumes {
+			vols = append(vols, &s.WaterVolumes[i])
+		}
+	}
+	slices.SortFunc(vols, func(a, b *scene.WaterVolume) int {
+		return cmp.Or(water.NaturalCompare(a.Tile.Name(), b.Tile.Name()), water.NaturalCompare(a.Name, b.Name), cmp.Compare(a.Export, b.Export))
+	})
+	return vols
+}
+
 // selectAll replaces the selection with every supported volume of w, in
-// one change.
+// the water window's row order, in one change.
 func (ws *waterSelection) selectAll(w *scene.World) {
 	ws.ids = ws.ids[:0]
-	if w != nil {
-		for _, s := range w.Scenes() {
-			for i := range s.WaterVolumes {
-				if v := &s.WaterVolumes[i]; v.Unsupported == "" {
-					ws.ids = append(ws.ids, v.ID())
-				}
-			}
+	for _, v := range worldWaterVolumes(w) {
+		if v.Unsupported == "" {
+			ws.ids = append(ws.ids, v.ID())
 		}
 	}
 	ws.world = w
@@ -204,10 +220,8 @@ func (ws *waterSelection) selected(w *scene.World) (selected, live []scene.Water
 	for _, v := range ws.volumes(w) {
 		selected = append(selected, *v)
 	}
-	if w != nil {
-		for _, s := range w.Scenes() {
-			live = append(live, s.WaterVolumes...)
-		}
+	for _, v := range worldWaterVolumes(w) {
+		live = append(live, *v)
 	}
 	return selected, live
 }

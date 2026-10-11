@@ -22,11 +22,7 @@ type NPCIDsWindow struct {
 // Open asks again, retaining the last entered list for convenience.
 func (p *NPCIDsWindow) Open() {
 	p.IDs.SingleLine, p.IDs.Submit = true, true
-	if p.Window.Width == 0 {
-		p.Window.Width, p.Window.Height = 440, 260
-	}
-	p.Window.Closed, p.Window.Collapsed = false, false
-	p.Window.Center()
+	p.Window.Open(440, 260)
 	p.Invalid, p.focus = false, true
 }
 

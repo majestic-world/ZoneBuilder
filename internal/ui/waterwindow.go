@@ -60,16 +60,8 @@ type (
 	CompileWater struct{}
 )
 
-// Open shows the window, centred when it was closed.
-func (w *WaterWindow) Open() {
-	if w.Window.Width == 0 {
-		w.Window.Width, w.Window.Height = 440, 520
-	}
-	if w.Window.Closed {
-		w.Window.Center()
-	}
-	w.Window.Closed, w.Window.Collapsed = false, false
-}
+// Open shows the window, centred, at the size it was left at.
+func (w *WaterWindow) Open() { w.Window.Open(440, 520) }
 
 // Update opens the window on a click on the inspector's button and
 // returns the requests since the last call, in the order: row toggles,

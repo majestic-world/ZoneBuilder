@@ -75,26 +75,38 @@ func TestWaterListGroupsByTileInNaturalOrderAndDisablesUnsupported(t *testing.T)
 	}
 }
 
-// The rows are rebuilt when the selection changes or a tile loads, and
-// only then. Catches a list that keeps a stale check mark or misses a
-// loaded tile's volumes, or one rebuilt every frame.
-func TestWaterListRebuildsOnlyWhenScenesOrSelectionChange(t *testing.T) {
+// The rows follow the world: a tile loaded adds its volumes, a tile
+// unloaded takes them and their check marks away, and a Ctrl+click in the
+// viewport checks the volume's row. Catches a list that keeps a stale
+// check mark or an unloaded tile's volumes, or misses a loaded tile's.
+func TestWaterListFollowsTilesAndViewportToggles(t *testing.T) {
 	w := waterWorld(t)
 	var sel waterSelection
 	var l waterList
 	l.refresh(w, &sel, locale.PtBR)
-	if l.refresh(w, &sel, locale.PtBR) {
-		t.Error("refresh with nothing changed rebuilt the rows")
-	}
-	l.apply(ui.ToggleWater{Row: 0}, w, &sel)
-	if !l.refresh(w, &sel, locale.PtBR) || !l.rows[0].Checked {
-		t.Error("toggled row not checked after refresh")
-	}
-	w.Add(&scene.Scene{WaterVolumes: []scene.WaterVolume{
+	added := &scene.Scene{WaterVolumes: []scene.WaterVolume{
 		waterBoxIn(t, scene.Tile{X: 23, Y: 22}, 0, "WaterVolume0", 0, 0, 100, 100, -4000, -3780),
-	}})
-	if !l.refresh(w, &sel, locale.PtBR) || len(l.rows) != 5 {
-		t.Errorf("after a tile loaded the list has %s, want 5", inflect.Count(len(l.rows), "row", "rows"))
+	}}
+	w.Add(added)
+	l.refresh(w, &sel, locale.PtBR)
+	if len(l.rows) != 5 || l.rows[4].Label != "23_22 · WaterVolume0" {
+		t.Fatalf("after tile 23_22 loaded the rows are %v, want its volume last", l.rows)
+	}
+	sel.toggle(w, &added.WaterVolumes[0])
+	l.refresh(w, &sel, locale.PtBR)
+	if !l.rows[4].Checked {
+		t.Error("the row of the Ctrl+clicked volume is not checked")
+	}
+	w.Remove(added)
+	sel.prune(w)
+	l.refresh(w, &sel, locale.PtBR)
+	if len(l.rows) != 4 {
+		t.Fatalf("after tile 23_22 unloaded the list has %s, want 4", inflect.Count(len(l.rows), "row", "rows"))
+	}
+	for _, r := range l.rows {
+		if r.Checked {
+			t.Errorf("row %s checked after the selected volume's tile unloaded", r.Label)
+		}
 	}
 }
 
@@ -117,9 +129,10 @@ func TestWaterListToggleSelectsTheRowsVolume(t *testing.T) {
 }
 
 // Selecionar todos selects every supported volume of the world in one
-// change, and Limpar empties the selection. Catches the unsupported
-// volume selected (and then compiled), or the overlay and the list
-// rebuilt once per volume.
+// change, in the rows' order, and Limpar empties the selection. Catches
+// the unsupported volume selected (and then compiled), the overlay and the
+// list rebuilt once per volume, or a selection status in load order while
+// the rows show tile and name order.
 func TestWaterListSelectAllSkipsUnsupportedAndClearEmpties(t *testing.T) {
 	w := waterWorld(t)
 	var sel waterSelection
@@ -128,8 +141,11 @@ func TestWaterListSelectAllSkipsUnsupportedAndClearEmpties(t *testing.T) {
 	l.apply(ui.ToggleWater{Row: 0}, w, &sel)
 	before := sel.version
 	l.apply(ui.SelectAllWater{}, w, &sel)
-	want := []string{"22_22 WaterVolume0", "22_24 WaterVolume10", "22_24 WaterVolume2"}
-	if got := selectedNames(&sel, w); !slices.Equal(got, want) {
+	var got []string
+	for _, v := range sel.volumes(w) {
+		got = append(got, v.Tile.Name()+" "+v.Name)
+	}
+	if want := []string{"22_22 WaterVolume0", "22_24 WaterVolume2", "22_24 WaterVolume10"}; !slices.Equal(got, want) {
 		t.Fatalf("Selecionar todos selected %q, want %q", got, want)
 	}
 	if steps := sel.version - before; steps != 1 {

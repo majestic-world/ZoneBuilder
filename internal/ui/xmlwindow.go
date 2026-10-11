@@ -62,11 +62,7 @@ func (x *XMLWindow) Open(files []zonexml.File, kind XMLKind) {
 		// Copiar copies text, tabs and all.
 		x.files[i].editor.SetText(strings.ReplaceAll(x.files[i].text, "\t", "    "))
 	}
-	if x.Window.Width == 0 {
-		x.Window.Width, x.Window.Height = 560, 520
-	}
-	x.Window.Closed, x.Window.Collapsed = false, false
-	x.Window.Center()
+	x.Window.Open(560, 520)
 }
 
 // Copied reports the file whose Copiar or Copiar conteúdo button was
