@@ -177,7 +177,7 @@ Na tela inicial, clique em **Popular zona** (ou abra com `-mode populate`). A se
 
 **Quantidade**, **Raio** e **Afastamento** são aplicados com Enter, ao sair do campo ou ao clicar em **Gerar/Regerar**, mesmo que o campo ainda esteja focado. Texto que não é um inteiro impede a geração, preserva os pontos anteriores e mostra o erro; corrija o campo e clique novamente.
 
-As janelas de altura, IDs dos NPCs e XML podem ser movidas pelo título e redimensionadas pela alça no canto inferior direito. O arraste acompanha o cursor, inclusive quando várias mudanças de posição chegam no mesmo frame. As janelas de IDs dos NPCs e de XML abrem sempre no centro da janela do app, com o tamanho em que foram deixadas.
+O app abre maximizado; o botão de restaurar do Windows o deixa em 1280 × 800, no centro da tela. As janelas de altura, IDs dos NPCs e XML podem ser movidas pelo título e redimensionadas pela alça no canto inferior direito. O arraste acompanha o cursor, inclusive quando várias mudanças de posição chegam no mesmo frame. As janelas de IDs dos NPCs e de XML abrem sempre no centro da janela do app, com o tamanho em que foram deixadas.
 
 O XML tem 1 `<spawn name="[<área>_0]">` por área, contendo 1 `<npc id="…" count="1" respawn="60" pos="x y z h" />` por ponto, em coordenadas do servidor, com indentação de 3 espaços por nível. O monstro nasce e renasce sempre naquele ponto; `respawn_rand` nunca é emitido. Problemas que bloqueiam: polígono com menos de 3 vértices ou que se cruza, faixa Z invertida, quantidade menor que 1, nome vazio ou repetido, área sem pontos, pontos desatualizados e ponto fora do mundo.
 

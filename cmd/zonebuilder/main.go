@@ -77,6 +77,9 @@ func main() {
 	}
 	go func() {
 		w := new(app.Window)
+		// The window opens maximized; 1280×800, centred, is where it goes
+		// when restored (run maximizes it once it exists, so Windows keeps
+		// that size as its restore placement).
 		w.Option(app.Title(appTitle()), app.Size(unit.Dp(1280), unit.Dp(800)), app.CustomRenderer(true))
 		w.Perform(system.ActionCenter)
 		if err := run(w, sess, fields, *proj, start, startMode, *fps); err != nil {
@@ -197,6 +200,8 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			ws.status = openTiles(ws.tiles, shell, load)
 		}
 	}
+	// maximized is set once the window was maximized on opening.
+	maximized := false
 
 	for {
 		switch e := w.Event().(type) {
@@ -206,6 +211,10 @@ func run(w *app.Window, sess *session, fields startFields, proj string, start *c
 			view = e
 			if e.Valid() {
 				w.Run(func() { guardHoverFocus(e.HWND) })
+				if !maximized {
+					maximized = true
+					w.Option(app.Maximized.Option())
+				}
 			}
 		case app.DestroyEvent:
 			return e.Err
