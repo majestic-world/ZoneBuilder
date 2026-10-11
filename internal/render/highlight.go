@@ -17,6 +17,9 @@ type highlight struct {
 	// gs is the scene the buffers were built from, nil until built.
 	gs      *gpuScene
 	batches []highlightBatch
+	// missed is set when no uploaded scene had the target, so the draws
+	// skip the actor scan until the target or the uploaded scenes change.
+	missed bool
 }
 
 // highlightBatch draws the actor's triangles of one mesh batch: an index
@@ -64,13 +67,13 @@ func gatherRanges(src []uint32, ranges []indexRange) []uint32 {
 }
 
 // set highlights the actor key (on) or nothing; a change frees the
-// buffers of the previous target.
+// buffers of the previous target and forgets a miss.
 func (h *highlight) set(key scene.ActorKey, on bool) {
 	if key == h.key && on == h.on {
 		return
 	}
 	h.free()
-	h.key, h.on = key, on
+	h.key, h.on, h.missed = key, on, false
 }
 
 // free deletes the buffers; they are built again on the next draw that
@@ -84,7 +87,7 @@ func (h *highlight) free() {
 }
 
 // build makes the buffers from the first uploaded scene that has the
-// actor; none found leaves gs nil, to try again next frame.
+// actor; none found leaves gs nil and records the miss.
 func (h *highlight) build(scenes []*gpuScene) {
 	for _, gs := range scenes {
 		if gs.prep != nil {
@@ -114,6 +117,7 @@ func (h *highlight) build(scenes []*gpuScene) {
 		h.gs = gs
 		return
 	}
+	h.missed = true
 }
 
 // drawHighlight redraws the highlighted actor's triangles tinted, each
@@ -129,6 +133,9 @@ func (sr *sceneRenderer) drawHighlight() {
 		return
 	}
 	if h.gs == nil {
+		if h.missed {
+			return
+		}
 		h.build(sr.scenes)
 		if h.gs == nil {
 			return
