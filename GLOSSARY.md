@@ -103,7 +103,7 @@ Distância a mais, além do raio, que o ponto guarda das static meshes e das par
 _Evite_: folga (é a do piso e do topo), margem (é a dos ajustes de faixa).
 
 **Célula livre**:
-Célula de 16 unidades com o centro dentro da área e a pelo menos 1 raio da borda, com chão de terreno ou BSP (`n.z ≥ 0,65`) dentro da faixa Z, fora d'água e sem mesh nem parede a até raio + afastamento na fatia da altura do monstro. Todas as meshes contam, mesmo com o botão Static meshes desligado.
+Célula de 16 unidades com o centro dentro da área e a pelo menos 1 raio da borda, com chão de terreno, BSP ou static mesh que bloqueia no jogo (`n.z ≥ 0,65`) dentro da faixa Z, fora d'água e sem parede nem face íngreme de mesh a até raio + afastamento na fatia da altura do monstro. A face de cima de uma mesh sem colisão (musgo, tapete) não é chão nem obstáculo. Todas as meshes contam, mesmo com o botão Static meshes desligado.
 
 **Semente**:
 Número que determina o sorteio dos pontos e dos headings. A mesma semente, com as mesmas entradas, dá os mesmos pontos. **Gerar** usa a semente da área; **Regerar** troca a semente e descarta os ajustes manuais (1 passo de desfazer).

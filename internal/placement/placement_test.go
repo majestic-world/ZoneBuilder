@@ -247,28 +247,42 @@ func ramp(x0, x1 float32, nz float64) []scene.Triangle {
 	return []scene.Triangle{tri(scene.SurfaceTerrain, a, b, c), tri(scene.SurfaceTerrain, a, c, d)}
 }
 
-// A flat mesh floor, alone in the range, gets no point; nor does terrain
-// as steep as normal Z 0.6 (between the coverage floor's 0.5 and the
-// Play Map's 0.65), while terrain at normal Z 0.7 does. Catches mesh
-// floor taken as floor, or the slope limit swapped.
-func TestNoPointOnMeshFloorNorOnSteepTerrain(t *testing.T) {
+// A flat mesh floor alone in the range takes points when its actor
+// blocks, standing on it, even with a non-blocking mesh decal 2 units
+// under it (the Giran courtyard: carved stone at 3494.5 over moss at
+// 3492.5); a non-blocking mesh floor alone takes none. Terrain as steep as
+// normal Z 0.6 (between the coverage floor's 0.5 and the Play Map's 0.65)
+// takes none, while terrain at normal Z 0.7 does. Catches a blocking mesh
+// left out of the floor, a decal or the floor itself taken as an
+// obstacle, a mesh players fall through taken as floor, or the slope limit
+// swapped.
+func TestPointsOnBlockingMeshFloorNotOnPassableMeshNorSteepTerrain(t *testing.T) {
 	r := request(square(0, 0, 400, 400), 20)
 	r.ZMin, r.ZMax = -1000, 10000
+	flat := func(z float32, blocks bool) []scene.Triangle {
+		a, b := tri(scene.SurfaceMesh, v(-1000, -1000, z), v(2000, -1000, z), v(2000, 2000, z)), tri(scene.SurfaceMesh, v(-1000, -1000, z), v(2000, 2000, z), v(-1000, 2000, z))
+		a.Blocks, b.Blocks = blocks, blocks
+		return []scene.Triangle{a, b}
+	}
 	for _, c := range []struct {
-		name string
-		tris []scene.Triangle
-		want bool
+		name         string
+		tris         []scene.Triangle
+		want, onMesh bool
 	}{
-		{"mesh floor", []scene.Triangle{
-			tri(scene.SurfaceMesh, v(-1000, -1000, 0), v(2000, -1000, 0), v(2000, 2000, 0)),
-			tri(scene.SurfaceMesh, v(-1000, -1000, 0), v(2000, 2000, 0), v(-1000, 2000, 0)),
-		}, false},
-		{"terrain at normal z 0.6", ramp(-1000, 2000, 0.6), false},
-		{"terrain at normal z 0.7", ramp(-1000, 2000, 0.7), true},
+		{"blocking mesh floor", flat(0, true), true, true},
+		{"blocking mesh floor over a decal", append(flat(0, true), flat(-2, false)...), true, true},
+		{"non-blocking mesh floor", flat(0, false), false, false},
+		{"terrain at normal z 0.6", ramp(-1000, 2000, 0.6), false, false},
+		{"terrain at normal z 0.7", ramp(-1000, 2000, 0.7), true, false},
 	} {
 		got := placement.Distribute(&world{tris: c.tris}, r)
-		if placed := len(got.Points) > 0; placed != c.want || (got.FreeArea > 0) != c.want {
-			t.Errorf("%s: %d points over %v units² free, want points %v", c.name, len(got.Points), got.FreeArea, c.want)
+		if placed := len(got.Points) == r.Count; placed != c.want || (got.FreeArea > 0) != c.want {
+			t.Errorf("%s: %d points over %v units² free, want all %d %v", c.name, len(got.Points), got.FreeArea, r.Count, c.want)
+		}
+		for _, p := range got.Points {
+			if c.onMesh && p.Z != 0 {
+				t.Errorf("%s: point %v off the mesh at z 0", c.name, p)
+			}
 		}
 	}
 }

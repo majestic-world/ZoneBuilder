@@ -1,9 +1,9 @@
 // Package placement spreads the spawn points of an area over the free
 // floor under it: a grid of 16-unit cells inside the outline,
-// each standing on terrain or BSP floor within the area's Z range, out of
-// water and clear of the static meshes and BSP walls around it, sampled by
-// Mitchell's best candidate with a seeded generator. Everything is in
-// server coordinates. No GL, no Gio.
+// each standing on terrain, BSP or blocking static mesh floor within the
+// area's Z range, out of water and clear of the static meshes and BSP
+// walls around it, sampled by Mitchell's best candidate with a seeded
+// generator. Everything is in server coordinates. No GL, no Gio.
 //
 // The result depends only on the geometry's triangles and water volumes,
 // not on the order Geometry hands them out (which follows the order the
@@ -23,8 +23,8 @@ const (
 	// CellSize is the side of a candidate cell, 1 geodata cell, in world
 	// units. Cells are aligned on multiples of it.
 	CellSize = 16
-	// FloorNormalZ is the least Z of the unit normal of a terrain or BSP
-	// face a monster may stand on: the Play Map's limit.
+	// FloorNormalZ is the least Z of the unit normal of a face a monster
+	// may stand on: the Play Map's limit.
 	FloorNormalZ = 0.65
 	// SliceBelow is how far below a cell's floor its obstacle slice starts.
 	SliceBelow = 16
@@ -89,16 +89,17 @@ const jitterReach = CellSize/2*math.Sqrt2 + 1
 //
 //   - a cell is a candidate when its centre lies inside the outline, at
 //     least Radius from its edges;
-//   - its floor is the highest terrain or BSP face (not a water sheet)
-//     with a normal Z of FloorNormalZ or more, between ZMin and ZMax, at
-//     its centre: never a static mesh;
+//   - its floor is the highest face monsters stand on (isFloor: terrain,
+//     BSP or a blocking static mesh, not a water sheet) with a normal Z
+//     of FloorNormalZ or more, between ZMin and ZMax, at its centre;
 //   - a cell whose floor is under the water of a volume (the vertical line
 //     through its centre crosses the volume above the floor, lower than
 //     Height above it) is left out;
-//   - a static mesh triangle, or a BSP face that is not floor, blocks the
-//     cell when its part between SliceBelow under the floor and Height
-//     above it comes within Radius + Clearance of the centre on the X/Y
-//     plane: a free cell's centre lies farther;
+//   - an obstacle (isObstacle: a static mesh or BSP face too steep to
+//     stand on, or a mesh water sheet) blocks the cell when its part
+//     between SliceBelow under the floor and Height above it comes within
+//     Radius + Clearance of the centre on the X/Y plane: a free cell's
+//     centre lies farther;
 //   - each point is the farthest from the points so far of Candidates
 //     free cells drawn at random, never nearer than 2 Radius to any of
 //     them, moved at random within its cell (no farther than keeps it
@@ -252,7 +253,7 @@ func (gr *grid) scan(g Geometry, r Request) {
 		case isFloor(t):
 			gr.floor(t, r)
 			gr.index(t, jitterReach)
-		case t.Surface == scene.SurfaceMesh || t.Surface == scene.SurfaceBSP && float64(t.Normal.Z) < FloorNormalZ:
+		case isObstacle(t):
 			obstacles = append(obstacles, t)
 			gr.index(t, reach)
 		}
@@ -399,10 +400,27 @@ func clipZ(out, poly [][3]float64, z float64, below bool) [][3]float64 {
 	return out
 }
 
-// isFloor reports a triangle monsters may stand on: terrain or BSP, not a
+// isFloor reports a triangle monsters may stand on: terrain, BSP or a
+// static mesh whose actor blocks (players fall through the others), not a
 // water sheet, facing up enough.
 func isFloor(t scene.Triangle) bool {
-	return (t.Surface == scene.SurfaceTerrain || t.Surface == scene.SurfaceBSP) && !t.Water && float64(t.Normal.Z) >= FloorNormalZ
+	solid := t.Surface == scene.SurfaceTerrain || t.Surface == scene.SurfaceBSP || t.Surface == scene.SurfaceMesh && t.Blocks
+	return solid && !t.Water && float64(t.Normal.Z) >= FloorNormalZ
+}
+
+// isObstacle reports a triangle that keeps monsters away from it: a BSP
+// or static mesh face too steep to stand on, or a mesh water sheet. A
+// mesh face facing up enough that is not floor (it does not block: a decal
+// or a rug) is walked over, not around.
+func isObstacle(t scene.Triangle) bool {
+	steep := float64(t.Normal.Z) < FloorNormalZ
+	switch t.Surface {
+	case scene.SurfaceBSP:
+		return steep
+	case scene.SurfaceMesh:
+		return steep || t.Water
+	}
+	return false
 }
 
 // floor raises the floor of the cells whose centre t covers on the X/Y
