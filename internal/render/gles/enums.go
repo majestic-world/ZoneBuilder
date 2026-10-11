@@ -34,6 +34,7 @@ const (
 	GREATER              = 0x0204
 	LESS                 = 0x0201
 	GEQUAL               = 0x0206
+	EQUAL                = 0x0202
 	SRC_ALPHA            = 0x0302
 	ONE_MINUS_SRC_ALPHA  = 0x0303
 	ALWAYS               = 0x0207

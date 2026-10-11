@@ -127,6 +127,14 @@ func (r *Renderer) SetHiddenActors(hidden *scene.HiddenActors) {
 	r.scene.hidden = hidden
 }
 
+// SetHighlightActor tints the static mesh actor key dark yellow over the
+// scene while on, as the mesh menu's target; off, or another key, drops
+// the previous highlight. Called every frame; a key no uploaded scene has
+// draws nothing.
+func (r *Renderer) SetHighlightActor(key scene.ActorKey, on bool) {
+	r.scene.highlight.set(key, on)
+}
+
 // AddScene queues the scene p was prepared from for upload. Upload puts it
 // on the GPU a little per frame; it is drawn once it is all there.
 func (r *Renderer) AddScene(p *Prepared) {
