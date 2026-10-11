@@ -63,7 +63,7 @@ Cenários de fumaça e regressão para repetir no app depois de mudanças nas á
 4. Abra **Abrir projeto**, **Salvar projeto** e a escolha da pasta do cliente: o texto fornecido pelo app está em EN (o resto segue o idioma do Windows). Cancele.
 5. Com vizinhos 3×3 ligados, carregue 25_25 e troque o idioma no meio da carga: o texto de progresso muda (`Loading: 0 of 9 tiles ready`) sem reiniciar a carga, os 9 tiles carregam e as zonas são mantidas.
 6. Feche e reabra: o app volta em EN. Volte para PT-BR.
-7. Em 1280×800, nenhum texto em inglês sobrepõe inspetor, barra ou viewport.
+7. Em 1280×800, nenhum texto em inglês sobrepõe inspetor, barra ou viewport, inclusive o link de ver todos os ocultos e as janelas **Static meshes ocultos** e **Volumes de água**.
 
 ### Torre 23_18 (prisma oco e faixa pelo clique)
 
@@ -78,16 +78,23 @@ Tile 23_18 (Tower of Insolence; topo do BSP em z ≈ 10083–10197).
 
 Lacunas conhecidas: a cintilação dos anéis numa parede vista quase de lado só foi conferida em quadros parados, não com a câmera em movimento; a prévia de desenho (retângulo, círculo, polígono fechado) não foi conferida à parte no estilo de anéis, pois passa pelo mesmo `zoneOverlay.set()`.
 
+### Static meshes ocultos e destaque do mesh
+
+1. 22_22: oculte 12 static meshes. A seção do mapa mostra 5 linhas e **Ver todos os 12**; o link abre a janela com as 12, **Mostrar** numa linha devolve só aquele mesh e **Mostrar todos** devolve todos. Esc fecha a janela. Repita no modo **Popular zona**.
+2. Botão direito num static mesh: ele fica tingido de amarelo-escuro enquanto o menu está aberto (compare com uma captura de referência, com `-fps` sem queda perceptível). Esc ou clique fora fecha o menu e tira o destaque.
+3. Com o menu aberto, descarregue o tile do mesh (troque o tile ou desligue os vizinhos): o menu e o destaque somem, sem erro.
+
 ### Água
 
 1. 22_22 (mar de Giran): clique num volume e Ctrl+clique nos outros 7. Status: `Água: 8 volumes · topo -3780 (servidor -3810) · exata`. Clique direito → **Compilar zona de água**: `zonebuilder_water.xml` tem 1 zona `[22_22_WaterVolume0]` com 8 polígonos. A zona sobrevive a salvar e reabrir, e Ctrl+Z a remove. Compilar de novo não cria nada e mostra `Zona [22_22_WaterVolume0] já existe no projeto: compilada a versão do projeto`.
 2. 22_24 (Floran): os 11 volumes de topo −3780 dão 1 zona com 11 polígonos, com pontos e `zmin`/`zmax` iguais aos de `[22_24_water1…9]`, `[22_24_water12]` e `[22_24_water13]` do datapack. A fonte, `WaterVolume26` (topo −3746) e `WaterVolume27` (topo −5529), que se tocam, dá 2 zonas `[22_24_WaterVolume26]` e `[22_24_WaterVolume27]` com zmax −3776 e −5559.
 3. 25_25: compilar só `WaterVolume9` (topo −3788) avisa `Água sobreposta` com `WaterVolume7` (topo −3020), `WaterVolume11` e `WaterVolume4`.
 4. Com um polígono aberto, o item do menu fica desabilitado.
+5. 22_22: **Volumes de água (N)** no inspetor → marque os 8 volumes de topo −3780 → **Compilar zona de água**: 1 zona `[22_22_WaterVolume0]` com 8 polígonos, e a janela continua aberta. Marcar na janela destaca no viewport e Ctrl+clique na água marca a linha. Com um polígono aberto, o botão fica desabilitado com `Feche o polígono aberto antes de compilar a zona de água`. Esc fecha a janela antes de limpar a seleção.
 
 ### Popular zona
 
-1. Tela inicial → **Popular zona** → área de 50 pontos numa clareira com árvores, uma rocha e cercas → Gerar → Prévia → Jogar → Compilar → Copiar: a área de transferência é idêntica ao XML.
+1. Abra o app → **Popular zona**: a **Prévia** já está ligada. Área de 50 pontos numa clareira com árvores, uma rocha e cercas → Gerar (aparecem monstros, não pinos) → Jogar → Compilar → Copiar: a área de transferência é idêntica ao XML. Desligar a **Prévia** volta aos pinos.
 2. Modo de zonas → Jogar dentro de uma zona → Esc: seleção e histórico de desfazer inalterados, câmera restaurada.
 3. Prévia com 500 instâncias e `-fps`.
 4. Trocar o conjunto de tiles durante o jogo reconstrói a árvore de colisão (conferido com 6, 7, 8 e 9 tiles); abrir outro mapa encerra a sessão.
