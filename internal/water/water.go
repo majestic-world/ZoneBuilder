@@ -155,7 +155,7 @@ func Compile(selected, live []scene.WaterVolume, doc *zone.Document) []Plan {
 	for _, top := range slices.Sorted(maps.Keys(groups)) {
 		vols := groups[top]
 		slices.SortFunc(vols, func(a, b scene.WaterVolume) int {
-			return cmp.Or(naturalCompare(a.Name, b.Name), naturalCompare(a.Tile.Name(), b.Tile.Name()))
+			return cmp.Or(NaturalCompare(a.Name, b.Name), NaturalCompare(a.Tile.Name(), b.Tile.Name()))
 		})
 		p := Plan{Name: "[" + label(&vols[0], "_") + "]", Top: top, Volumes: vols}
 		var shapes []zone.AddShape
@@ -181,7 +181,7 @@ func Compile(selected, live []scene.WaterVolume, doc *zone.Document) []Plan {
 		}
 		plans = append(plans, p)
 	}
-	slices.SortFunc(plans, func(a, b Plan) int { return naturalCompare(a.Name, b.Name) })
+	slices.SortFunc(plans, func(a, b Plan) int { return NaturalCompare(a.Name, b.Name) })
 	return plans
 }
 
@@ -254,9 +254,9 @@ func project(r [][2]int, nx, ny int64) (lo, hi int64) {
 	return lo, hi
 }
 
-// naturalCompare orders strings with their digit runs compared as numbers:
+// NaturalCompare orders strings with their digit runs compared as numbers:
 // "WaterVolume2" before "WaterVolume10".
-func naturalCompare(a, b string) int {
+func NaturalCompare(a, b string) int {
 	for a != "" && b != "" {
 		da, db := digits(a), digits(b)
 		if da > 0 && db > 0 {

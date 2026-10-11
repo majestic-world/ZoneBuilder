@@ -22,8 +22,10 @@ import (
 type zoneMode struct {
 	zones *zoneEditor
 	cover *floorCoverage
-	// waterSel is the water the user selected by clicking.
-	waterSel waterSelection
+	// waterSel is the water the user selected by clicking, or in the
+	// water window, whose rows are waterRows.
+	waterSel  waterSelection
+	waterRows waterList
 	// zonesShown is the zones.version the renderer last got; waterShown
 	// is the waterSel.version it last got.
 	zonesShown, waterShown int
@@ -150,6 +152,11 @@ func (z *zoneMode) update(gtx layout.Context, ws *workspace) {
 			shell.XML.Open(files, ui.ZoneXML)
 		}
 	}
+	for _, req := range shell.Water.Update(gtx) {
+		if msg := z.waterRows.apply(req, w, &z.waterSel); msg.render(shell.Language) != "" {
+			ws.status = msg
+		}
+	}
 	for _, req := range shell.Zones.Update(gtx) {
 		if msg := zones.listRequest(req, w, &ws.cam); msg != "" {
 			ws.status = editorResult(msg, zones)
@@ -176,6 +183,9 @@ func (z *zoneMode) update(gtx layout.Context, ws *workspace) {
 func (z *zoneMode) present(gtx layout.Context, ws *workspace) {
 	shell, zones, w, vp := ws.shell, z.zones, ws.world(), ws.viewport()
 	z.waterSel.prune(w)
+	if z.waterRows.refresh(w, &z.waterSel, shell.Language) {
+		shell.Water.Rows = z.waterRows.rows
+	}
 	shell.WaterMenu.Disabled = zones.drawing
 	shell.Zone.Info = zones.info()
 	sel, _ := zones.selectedZone()

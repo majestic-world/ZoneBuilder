@@ -49,6 +49,8 @@
   "actions.water.top": {"one": "topo {values}", "other": "topos {values}"},
   "actions.water.exact": "exata",
   "actions.water.approximate": "aproximada",
+  "actions.water.row": "topo {top} (servidor {server}) · {kind}",
+  "actions.water.row_unsupported": "Não suportado: {detail}",
   "actions.water.created": {"one": "Criada {count} zona de água {zones}", "other": "Criadas {count} zonas de água: {zones}"},
   "actions.water.existing": {"one": "Zona {zones} já existe no projeto: compilada a versão do projeto", "other": "Zonas {zones} já existem no projeto: compiladas as versões do projeto"},
   "actions.water.compiled": "{result}. No viewport o topo fica {offset} abaixo da água (ADR 0005){warnings}",
