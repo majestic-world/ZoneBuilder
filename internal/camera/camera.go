@@ -103,9 +103,10 @@ func (c *Camera) Frame(b geom.Box) {
 	c.Pitch = atan2(-off.Y, horizontal)
 }
 
-// Look turns the camera by a mouse delta in pixels.
+// Look turns the camera by a mouse delta in pixels: dragging right turns
+// right, dragging up looks up.
 func (c *Camera) Look(dx, dy float32) {
-	c.Yaw -= dx * LookSensitivity
+	c.Yaw += dx * LookSensitivity
 	c.Pitch = min(max(c.Pitch-dy*LookSensitivity, -pitchLimit), pitchLimit)
 }
 
